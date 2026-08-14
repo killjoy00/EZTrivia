@@ -1,0 +1,2 @@
+# EZTrivia
+Approachable trivia app
