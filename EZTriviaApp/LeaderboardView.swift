@@ -2,7 +2,10 @@ import SwiftUI
 
 struct LeaderboardView: View {
     @EnvironmentObject private var scores: ScoreStore
+    @EnvironmentObject private var gameCenter: GameCenterManager
+    @EnvironmentObject private var adConsent: AdConsentManager
     @State private var showClearConfirmation = false
+    @State private var showGameCenter = false
 
     var body: some View {
         Group {
@@ -30,7 +33,25 @@ struct LeaderboardView: View {
         }
         .navigationTitle("Leaderboard")
         .toolbar {
-            if !scores.entries.isEmpty { Button("Clear") { showClearConfirmation = true } }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { showGameCenter = true } label: {
+                    Label("Game Center", systemImage: "person.3.fill")
+                }
+                .disabled(!gameCenter.isAuthenticated)
+                if adConsent.privacyOptionsRequired {
+                    Button { Task { await adConsent.presentPrivacyOptions() } } label: {
+                        Label("Ad privacy", systemImage: "hand.raised.fill")
+                    }
+                }
+                if !scores.entries.isEmpty { Button("Clear") { showClearConfirmation = true } }
+            }
+        }
+        .sheet(isPresented: $showGameCenter) { GameCenterDashboard().ignoresSafeArea() }
+        .alert("Advertising privacy", isPresented: Binding(
+            get: { adConsent.errorMessage != nil },
+            set: { if !$0 { adConsent.errorMessage = nil } }
+        )) { Button("OK") { adConsent.errorMessage = nil } } message: {
+            Text(adConsent.errorMessage ?? "An unknown error occurred.")
         }
         .confirmationDialog("Clear all scores?", isPresented: $showClearConfirmation) {
             Button("Clear Scores", role: .destructive) { scores.clear() }

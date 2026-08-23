@@ -19,7 +19,7 @@ struct GameView: View {
 
     var body: some View {
         Group {
-            if engine.isRoundComplete { ResultView(category: category, score: engine.score, playAgain: nextRound, finish: { dismiss() }) }
+            if engine.isRoundComplete { ResultView(category: category, difficulty: difficulty, score: engine.score, playAgain: nextRound, finish: { dismiss() }) }
             else if let question = engine.currentQuestion { questionView(question) }
         }
         .background(AppTheme.background.ignoresSafeArea())
@@ -113,30 +113,22 @@ private struct QuestionVisual: View {
     let value: String
 
     var body: some View {
-        Group {
-            if let url = URL(string: value), url.scheme == "https" {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image): image.resizable().scaledToFit()
-                    case .failure: ContentUnavailableView("Flag unavailable", systemImage: "wifi.exclamationmark")
-                    default: ProgressView()
-                    }
-                }
-                .frame(maxWidth: 280, minHeight: 150, maxHeight: 180)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
-            } else {
-                Text(value).font(.system(size: 104)).frame(minHeight: 116)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityHidden(true)
+        Image(value)
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: 280, minHeight: 150, maxHeight: 180)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
+            .frame(maxWidth: .infinity)
+            .accessibilityHidden(true)
     }
 }
 
 private struct ResultView: View {
     @EnvironmentObject private var scores: ScoreStore
+    @EnvironmentObject private var gameCenter: GameCenterManager
     let category: TriviaCategory
+    let difficulty: TriviaDifficulty
     let score: Int
     let playAgain: () -> Void
     let finish: () -> Void
@@ -160,6 +152,12 @@ private struct ResultView: View {
         .onAppear {
             guard !saved else { return }
             scores.record(category: category, score: score, total: 10)
+            gameCenter.submit(score: score, total: 10, category: category)
+            Telemetry.log("round_complete", parameters: [
+                "category": category.rawValue,
+                "difficulty": difficulty.rawValue,
+                "score": score
+            ])
             saved = true
         }
     }

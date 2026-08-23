@@ -1,12 +1,30 @@
 import SwiftUI
 
 struct RootView: View {
+    @EnvironmentObject private var gameCenter: GameCenterManager
+
     var body: some View {
         TabView {
             NavigationStack { HomeView() }
                 .tabItem { Label("Play", systemImage: "play.fill") }
             NavigationStack { LeaderboardView() }
                 .tabItem { Label("Scores", systemImage: "trophy.fill") }
+        }
+        .sheet(isPresented: Binding(
+            get: { gameCenter.authenticationViewController != nil },
+            set: { if !$0 { gameCenter.authenticationViewController = nil } }
+        )) {
+            if let controller = gameCenter.authenticationViewController {
+                GameCenterAuthenticationView(viewController: controller) {
+                    gameCenter.authenticationViewController = nil
+                }
+            }
+        }
+        .alert("Game Center", isPresented: Binding(
+            get: { gameCenter.errorMessage != nil },
+            set: { if !$0 { gameCenter.errorMessage = nil } }
+        )) { Button("OK") { gameCenter.errorMessage = nil } } message: {
+            Text(gameCenter.errorMessage ?? "An unknown error occurred.")
         }
     }
 }
@@ -109,22 +127,5 @@ private struct CategoryCard: View {
         .cardStyle()
         .accessibilityElement(children: .combine)
         .accessibilityHint("Starts a ten-question round")
-    }
-}
-
-struct AdBannerView: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "sparkles").foregroundStyle(.indigo)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Your ad could be here").font(.subheadline.bold())
-                Text("Sponsored").font(.caption2).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text("AD").font(.caption2.bold()).padding(5).overlay(RoundedRectangle(cornerRadius: 4).stroke(.secondary))
-        }
-        .cardStyle()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Sponsored advertisement placeholder")
     }
 }

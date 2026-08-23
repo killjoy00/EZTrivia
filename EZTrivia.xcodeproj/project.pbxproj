@@ -15,6 +15,19 @@
 		A10000000000000000000007 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* Models.swift */; };
 		A10000000000000000000008 /* TriviaEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* TriviaEngine.swift */; };
 		A10000000000000000000009 /* QuestionBank.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* QuestionBank.swift */; };
+		A1000000000000000000000A /* GameCenterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* GameCenterManager.swift */; };
+		A1000000000000000000000B /* Telemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* Telemetry.swift */; };
+		A1000000000000000000000C /* AdBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000C /* AdBannerView.swift */; };
+		A1000000000000000000000D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000D /* Assets.xcassets */; };
+		A1000000000000000000000E /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* LaunchScreen.storyboard */; };
+		A1000000000000000000000F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000F /* PrivacyInfo.xcprivacy */; };
+		A10000000000000000000010 /* GameKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* GameKit.framework */; };
+		A10000000000000000000011 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = C30000000000000000000001 /* GoogleMobileAds */; };
+		A10000000000000000000012 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = C30000000000000000000002 /* FirebaseAnalytics */; };
+		A10000000000000000000013 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = C30000000000000000000003 /* FirebaseCrashlytics */; };
+		A10000000000000000000015 /* AdConsentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* AdConsentManager.swift */; };
+		A10000000000000000000016 /* UserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = C30000000000000000000004 /* UserMessagingPlatform */; };
+		A10000000000000000000014 /* FlagCatalog.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* FlagCatalog.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,40 +41,68 @@
 		B10000000000000000000008 /* TriviaEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriviaEngine.swift; sourceTree = "<group>"; };
 		B10000000000000000000009 /* QuestionBank.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionBank.swift; sourceTree = "<group>"; };
 		B10000000000000000000010 /* EZTrivia.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = EZTrivia.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1000000000000000000000A /* GameCenterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCenterManager.swift; sourceTree = "<group>"; };
+		B1000000000000000000000B /* Telemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Telemetry.swift; sourceTree = "<group>"; };
+		B1000000000000000000000C /* AdBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdBannerView.swift; sourceTree = "<group>"; };
+		B1000000000000000000000D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B1000000000000000000000E /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		B1000000000000000000000F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B10000000000000000000011 /* GameKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameKit.framework; path = System/Library/Frameworks/GameKit.framework; sourceTree = SDKROOT; };
+		B10000000000000000000012 /* EZTrivia.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = EZTrivia.entitlements; sourceTree = "<group>"; };
+		B10000000000000000000013 /* FlagCatalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = FlagCatalog.json; sourceTree = "<group>"; };
+		B10000000000000000000014 /* AdConsentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdConsentManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		C10000000000000000000001 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000001 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000010, A10000000000000000000011, A10000000000000000000012, A10000000000000000000013, A10000000000000000000016); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		D10000000000000000000001 = {isa = PBXGroup; children = (D10000000000000000000002 /* EZTriviaApp */, D10000000000000000000003 /* Core */, D10000000000000000000004 /* Products */); sourceTree = "<group>"; };
-		D10000000000000000000002 /* EZTriviaApp */ = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006); path = EZTriviaApp; sourceTree = "<group>"; };
+		D10000000000000000000001 = {isa = PBXGroup; children = (D10000000000000000000002 /* EZTriviaApp */, D10000000000000000000003 /* Core */, D10000000000000000000004 /* Products */, B10000000000000000000011 /* GameKit.framework */); sourceTree = "<group>"; };
+		D10000000000000000000002 /* EZTriviaApp */ = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006, B1000000000000000000000A, B1000000000000000000000B, B1000000000000000000000C, B1000000000000000000000D, B1000000000000000000000E, B1000000000000000000000F, B10000000000000000000012, B10000000000000000000013, B10000000000000000000014); path = EZTriviaApp; sourceTree = "<group>"; };
 		D10000000000000000000003 /* Core */ = {isa = PBXGroup; children = (B10000000000000000000007, B10000000000000000000008, B10000000000000000000009); path = Sources/EZTriviaCore; sourceTree = "<group>"; };
 		D10000000000000000000004 /* Products */ = {isa = PBXGroup; children = (B10000000000000000000010); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		E10000000000000000000001 /* EZTrivia */ = {isa = PBXNativeTarget; buildConfigurationList = F10000000000000000000002; buildPhases = (C10000000000000000000003, C10000000000000000000001, C10000000000000000000002); buildRules = (); dependencies = (); name = EZTrivia; productName = EZTrivia; productReference = B10000000000000000000010; productType = "com.apple.product-type.application"; };
+		E10000000000000000000001 /* EZTrivia */ = {isa = PBXNativeTarget; buildConfigurationList = F10000000000000000000002; buildPhases = (C10000000000000000000003, C10000000000000000000001, C10000000000000000000002, C10000000000000000000004); buildRules = (); dependencies = (); name = EZTrivia; productName = EZTrivia; productReference = B10000000000000000000010; packageProductDependencies = (C30000000000000000000001, C30000000000000000000002, C30000000000000000000003, C30000000000000000000004); productType = "com.apple.product-type.application"; };
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		E10000000000000000000002 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 1600; LastUpgradeCheck = 1600; TargetAttributes = {E10000000000000000000001 = {CreatedOnToolsVersion = 16.0;};};}; buildConfigurationList = F10000000000000000000001; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = D10000000000000000000001; productRefGroup = D10000000000000000000004; projectDirPath = ""; projectRoot = ""; targets = (E10000000000000000000001); };
+		E10000000000000000000002 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 1600; LastUpgradeCheck = 1600; TargetAttributes = {E10000000000000000000001 = {CreatedOnToolsVersion = 16.0;};};}; buildConfigurationList = F10000000000000000000001; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = D10000000000000000000001; productRefGroup = D10000000000000000000004; projectDirPath = ""; projectRoot = ""; packageReferences = (C20000000000000000000001, C20000000000000000000002); targets = (E10000000000000000000001); };
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		C10000000000000000000002 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000002 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000D, A1000000000000000000000E, A1000000000000000000000F, A10000000000000000000014); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
+
+/* Begin PBXShellScriptBuildPhase section */
+		C10000000000000000000004 /* Upload Crashlytics Symbols */ = {isa = PBXShellScriptBuildPhase; buildActionMask = 2147483647; files = (); inputFileListPaths = (); inputPaths = ("${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}", "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}", "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist", "$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)"); name = "Upload Crashlytics Symbols"; outputFileListPaths = (); outputPaths = (); runOnlyForDeploymentPostprocessing = 0; shellPath = /bin/sh; shellScript = "CONFIG=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nSCRIPT=\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\nif [ -f \"$CONFIG\" ] && [ -x \"$SCRIPT\" ]; then\n  \"$SCRIPT\"\nelse\n  echo \"Crashlytics symbol upload skipped: Firebase is not configured.\"\nfi\n"; showEnvVarsInLog = 0; };
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
-		C10000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006, A10000000000000000000007, A10000000000000000000008, A10000000000000000000009); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006, A10000000000000000000007, A10000000000000000000008, A10000000000000000000009, A1000000000000000000000A, A1000000000000000000000B, A1000000000000000000000C, A10000000000000000000015); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
+
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C20000000000000000000001 /* googleads-mobile-ios-spm */ = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git"; requirement = {kind = upToNextMajorVersion; minimumVersion = 12.0.0;};};
+		C20000000000000000000002 /* firebase-ios-sdk */ = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git"; requirement = {kind = upToNextMajorVersion; minimumVersion = 12.0.0;};};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C30000000000000000000001 /* GoogleMobileAds */ = {isa = XCSwiftPackageProductDependency; package = C20000000000000000000001; productName = GoogleMobileAds;};
+		C30000000000000000000002 /* FirebaseAnalytics */ = {isa = XCSwiftPackageProductDependency; package = C20000000000000000000002; productName = FirebaseAnalytics;};
+		C30000000000000000000003 /* FirebaseCrashlytics */ = {isa = XCSwiftPackageProductDependency; package = C20000000000000000000002; productName = FirebaseCrashlytics;};
+		C30000000000000000000004 /* UserMessagingPlatform */ = {isa = XCSwiftPackageProductDependency; package = C20000000000000000000001; productName = UserMessagingPlatform;};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F20000000000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_OPTIMIZATION_LEVEL = 0; ONLY_ACTIVE_ARCH = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)"; SWIFT_OPTIMIZATION_LEVEL = "-Onone";}; name = Debug; };
 		F20000000000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; ENABLE_NS_ASSERTIONS = NO; GCC_C_LANGUAGE_STANDARD = gnu17; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O";}; name = Release; };
-		F20000000000000000000003 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = EZTrivia; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.trivia-games"; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.example.EZTrivia; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1;}; name = Debug; };
-		F20000000000000000000004 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = EZTrivia; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.trivia-games"; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.example.EZTrivia; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1;}; name = Release; };
+		F20000000000000000000003 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES; ADMOB_APP_ID = ""; ADMOB_BANNER_ID = ""; CODE_SIGN_ENTITLEMENTS = EZTriviaApp/EZTrivia.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = EZTrivia; INFOPLIST_KEY_EZTriviaAdMobBannerID = "$(ADMOB_BANNER_ID)"; INFOPLIST_KEY_GADApplicationIdentifier = "$(ADMOB_APP_ID)"; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.trivia-games"; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.example.EZTrivia; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1;}; name = Debug; };
+		F20000000000000000000004 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES; ADMOB_APP_ID = ""; ADMOB_BANNER_ID = ""; CODE_SIGN_ENTITLEMENTS = EZTriviaApp/EZTrivia.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = EZTrivia; INFOPLIST_KEY_EZTriviaAdMobBannerID = "$(ADMOB_BANNER_ID)"; INFOPLIST_KEY_GADApplicationIdentifier = "$(ADMOB_APP_ID)"; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.trivia-games"; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.example.EZTrivia; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1;}; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */

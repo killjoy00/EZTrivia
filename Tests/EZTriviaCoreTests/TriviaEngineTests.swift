@@ -47,7 +47,7 @@ import Testing
 
 @Test func flagQuestionsIncludeAVisualAndCountryOptions() {
     let flagQuestions = QuestionBank.all.filter { $0.category == .flags }
-    #expect(flagQuestions.allSatisfy { $0.visual?.hasPrefix("https://flagcdn.com/") == true })
+    #expect(flagQuestions.allSatisfy { $0.visual?.hasPrefix("flag-") == true })
     #expect(flagQuestions.allSatisfy { $0.prompt == "Which country does this flag represent?" })
     #expect(flagQuestions.allSatisfy { $0.answers.count == 4 })
 }
