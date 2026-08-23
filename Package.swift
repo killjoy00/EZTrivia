@@ -7,6 +7,7 @@ let package = Package(
     products: [.library(name: "EZTriviaCore", targets: ["EZTriviaCore"])],
     targets: [
         .target(name: "EZTriviaCore"),
+        .executableTarget(name: "QuestionCatalogExporter", dependencies: ["EZTriviaCore"]),
         .testTarget(name: "EZTriviaCoreTests", dependencies: ["EZTriviaCore"])
     ]
 )

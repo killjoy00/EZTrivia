@@ -33,9 +33,13 @@ import Testing
 }
 
 @Test func everyCategoryHasEnoughValidQuestions() {
+    #expect(TriviaCategory.allCases.count == 11)
     for category in TriviaCategory.allCases {
         let questions = QuestionBank.all.filter { $0.category == category }
-        #expect(questions.count >= 10)
+        #expect(questions.count == 150)
+        for difficulty in TriviaDifficulty.allCases {
+            #expect(questions.count(where: { $0.difficulty == difficulty }) == 50)
+        }
         #expect(questions.allSatisfy { $0.answers.count == 4 })
         #expect(questions.allSatisfy { $0.answers.indices.contains($0.correctAnswerIndex) })
     }
@@ -43,9 +47,16 @@ import Testing
 
 @Test func flagQuestionsIncludeAVisualAndCountryOptions() {
     let flagQuestions = QuestionBank.all.filter { $0.category == .flags }
-    #expect(flagQuestions.allSatisfy { $0.visual?.isEmpty == false })
+    #expect(flagQuestions.allSatisfy { $0.visual?.hasPrefix("https://flagcdn.com/") == true })
     #expect(flagQuestions.allSatisfy { $0.prompt == "Which country does this flag represent?" })
     #expect(flagQuestions.allSatisfy { $0.answers.count == 4 })
+}
+
+@Test func basketballHasFiftyQuestionsAtEveryDifficulty() {
+    for difficulty in TriviaDifficulty.allCases {
+        let questions = QuestionBank.all.filter { $0.category == .basketball && $0.difficulty == difficulty }
+        #expect(questions.count == 50)
+    }
 }
 
 @Test func leaderboardPercentageRoundsCorrectly() {

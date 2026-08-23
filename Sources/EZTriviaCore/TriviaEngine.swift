@@ -36,8 +36,8 @@ public struct TriviaEngine: Sendable {
 }
 
 public enum QuestionPicker {
-    public static func round(category: TriviaCategory, count: Int = 10, excluding excludedIDs: Set<String> = [], using bank: [TriviaQuestion] = QuestionBank.all) -> [TriviaQuestion] {
-        let matching = bank.filter { $0.category == category }
+    public static func round(category: TriviaCategory, difficulty: TriviaDifficulty = .easy, count: Int = 10, excluding excludedIDs: Set<String> = [], using bank: [TriviaQuestion] = QuestionBank.all) -> [TriviaQuestion] {
+        let matching = bank.filter { $0.category == category && $0.difficulty == difficulty }
         let unseen = matching.filter { !excludedIDs.contains($0.id) }
         let pool = unseen.count >= count ? unseen : matching
         return Array(pool.shuffled().prefix(count))

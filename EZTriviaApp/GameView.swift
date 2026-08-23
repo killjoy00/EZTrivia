@@ -4,13 +4,15 @@ struct GameView: View {
     @EnvironmentObject private var scores: ScoreStore
     @Environment(\.dismiss) private var dismiss
     let category: TriviaCategory
+    let difficulty: TriviaDifficulty
     @State private var engine: TriviaEngine
     @State private var seenIDs: Set<String>
     @State private var showExitConfirmation = false
 
-    init(category: TriviaCategory) {
+    init(category: TriviaCategory, difficulty: TriviaDifficulty) {
         self.category = category
-        let round = QuestionPicker.round(category: category)
+        self.difficulty = difficulty
+        let round = QuestionPicker.round(category: category, difficulty: difficulty)
         _engine = State(initialValue: TriviaEngine(questions: round))
         _seenIDs = State(initialValue: Set(round.map(\.id)))
     }
@@ -27,7 +29,7 @@ struct GameView: View {
                 Button { showExitConfirmation = true } label: { Image(systemName: "xmark") }
                     .accessibilityLabel("Exit round")
             }
-            ToolbarItem(placement: .principal) { Text(category.title).font(.headline) }
+            ToolbarItem(placement: .principal) { Text("\(category.title) · \(difficulty.title)").font(.headline) }
         }
         .confirmationDialog("Leave this round?", isPresented: $showExitConfirmation, titleVisibility: .visible) {
             Button("Leave Round", role: .destructive) { dismiss() }
@@ -45,10 +47,7 @@ struct GameView: View {
                 }
                 ProgressView(value: Double(engine.currentIndex + 1), total: Double(engine.questions.count)).tint(AppTheme.color(for: category))
                 if let visual = question.visual {
-                    Text(visual)
-                        .font(.system(size: 104))
-                        .frame(maxWidth: .infinity, minHeight: 116)
-                        .accessibilityHidden(true)
+                    QuestionVisual(value: visual)
                 }
                 Text(question.prompt)
                     .font(.title2.bold())
@@ -104,9 +103,34 @@ struct GameView: View {
     }
 
     private func nextRound() {
-        let next = QuestionPicker.round(category: category, excluding: seenIDs)
+        let next = QuestionPicker.round(category: category, difficulty: difficulty, excluding: seenIDs)
         seenIDs.formUnion(next.map(\.id))
         engine = TriviaEngine(questions: next)
+    }
+}
+
+private struct QuestionVisual: View {
+    let value: String
+
+    var body: some View {
+        Group {
+            if let url = URL(string: value), url.scheme == "https" {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image): image.resizable().scaledToFit()
+                    case .failure: ContentUnavailableView("Flag unavailable", systemImage: "wifi.exclamationmark")
+                    default: ProgressView()
+                    }
+                }
+                .frame(maxWidth: 280, minHeight: 150, maxHeight: 180)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
+            } else {
+                Text(value).font(.system(size: 104)).frame(minHeight: 116)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityHidden(true)
     }
 }
 

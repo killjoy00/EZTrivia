@@ -8,11 +8,16 @@ enum AppTheme {
     static func color(for category: TriviaCategory) -> Color {
         switch category {
         case .football: .orange
+        case .basketball: .orange
         case .soccer: .green
         case .flags: .blue
         case .history: .brown
         case .science: .purple
         case .movies: .pink
+        case .geography: .cyan
+        case .music: .indigo
+        case .animals: .teal
+        case .food: .red
         }
     }
 }

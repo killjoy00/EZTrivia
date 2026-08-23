@@ -32,7 +32,7 @@ struct HomeView: View {
             .padding()
         }
         .background(AppTheme.background)
-        .navigationDestination(for: TriviaCategory.self) { GameView(category: $0) }
+        .navigationDestination(for: TriviaCategory.self) { DifficultyView(category: $0) }
         .navigationTitle("EZTrivia")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -53,6 +53,36 @@ struct HomeView: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppTheme.gradient, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+    }
+}
+
+private struct DifficultyView: View {
+    let category: TriviaCategory
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Choose your challenge").font(.title.bold()).accessibilityAddTraits(.isHeader)
+            Text("Every difficulty has 50 questions, served 10 at a time.").foregroundStyle(.secondary)
+            ForEach(TriviaDifficulty.allCases) { difficulty in
+                NavigationLink {
+                    GameView(category: category, difficulty: difficulty)
+                } label: {
+                    HStack(spacing: 16) {
+                        Image(systemName: difficulty.symbol).font(.title2).foregroundStyle(AppTheme.color(for: category)).frame(width: 44, height: 44).background(AppTheme.color(for: category).opacity(0.12), in: Circle())
+                        VStack(alignment: .leading) {
+                            Text(difficulty.title).font(.headline)
+                            Text(difficulty.subtitle).font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                    }
+                    .foregroundStyle(.primary).cardStyle()
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+        .padding().background(AppTheme.background.ignoresSafeArea()).navigationTitle(category.title).navigationBarTitleDisplayMode(.inline)
     }
 }
 
