@@ -300,7 +300,7 @@ enum FlagCatalog {
         FlagEntry("WF", "Wallis and Futuna", .hard,
                   explanation: "This is a locally used flag of Wallis and Futuna rather than the official French tricolour."),
         FlagEntry("EH", "Western Sahara", .hard, confusable: ["PS"],
-                  explanation: "This is the flag of the Sahrawi Arab Democratic Republic; Western Sahara is a disputed territory."),
+                  explanation: "The design shown is used by the Sahrawi Arab Democratic Republic; Western Sahara is a disputed territory."),
         FlagEntry("AX", "Åland Islands", .hard),
     ]
 
