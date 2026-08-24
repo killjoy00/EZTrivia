@@ -137,6 +137,69 @@ jobs:
                     f" minOS={a.get('minOsVersion')}")
           print()
 
+          # --- Game Center -------------------------------------------------
+          # "Your app's first leaderboard must be submitted with a Game
+          # Center-enabled app version" has several possible causes. Report the
+          # three pieces of state that distinguish them instead of guessing:
+          # whether the App ID carries the capability, whether App Store Connect
+          # has a Game Center configuration for the app, and whether any app
+          # version has Game Center switched on.
+          print("=== Game Center ===")
+
+          bundles = get("/bundleIds", **{"filter[identifier]": bundle_id,
+                                         "fields[bundleIds]": "identifier,name"})
+          if bundles.get("data"):
+              bundle_ref = bundles["data"][0]
+              caps = get(f"/bundleIds/{bundle_ref['id']}/bundleIdCapabilities",
+                         **{"fields[bundleIdCapabilities]": "capabilityType"})
+              types = sorted(
+                  c["attributes"].get("capabilityType") or "(unnamed)"
+                  for c in caps.get("data", [])
+              )
+              print(f"App ID capabilities ({len(types)}): {', '.join(types) or '(none)'}")
+              print("  GAME_CENTER enabled on the App ID: "
+                    f"{'YES' if 'GAME_CENTER' in types else 'NO'}")
+          else:
+              print("App ID not visible to this API key "
+                    "(the key may lack Certificates/Identifiers access).")
+
+          r = requests.get(f"{base}/apps/{app_id}/gameCenterDetail",
+                           headers=headers, timeout=30)
+          if r.status_code == 200 and (r.json() or {}).get("data"):
+              gc = r.json()["data"]
+              print(f"App Store Connect gameCenterDetail: EXISTS (id={gc['id']})")
+              boards = get(f"/gameCenterDetails/{gc['id']}/gameCenterLeaderboards")
+              print(f"Leaderboards: {len(boards.get('data', []))}")
+              for b in boards.get("data", []):
+                  a = b.get("attributes", {})
+                  extra = {k: v for k, v in a.items()
+                           if k not in {"referenceName", "vendorIdentifier"}}
+                  print(f"  {a.get('vendorIdentifier')}: {a.get('referenceName')}")
+                  print(f"      {extra}")
+          else:
+              print(f"App Store Connect gameCenterDetail: MISSING (HTTP {r.status_code})")
+              print("  Nothing can reference a leaderboard until this exists.")
+
+          # Nested relationship endpoints reject `sort` (PARAMETER_ERROR.ILLEGAL),
+          # the same way /apps/{id}/builds did. Take the default order.
+          versions = get(f"/apps/{app_id}/appStoreVersions",
+                         **{"limit": 5,
+                            "fields[appStoreVersions]": "versionString,appStoreState,platform,createdDate"})
+          print(f"App Store versions ({len(versions.get('data', []))} newest):")
+          for v in versions.get("data", []):
+              a = v["attributes"]
+              vid = v["id"]
+              gce = requests.get(f"{base}/appStoreVersions/{vid}/gameCenterAppVersion",
+                                 headers=headers, timeout=30)
+              if gce.status_code == 200 and (gce.json() or {}).get("data"):
+                  attrs = gce.json()["data"].get("attributes", {})
+                  gc_state = f"ENABLED (enabled={attrs.get('enabled')})"
+              else:
+                  gc_state = f"not enabled (HTTP {gce.status_code})"
+              print(f"  {a.get('versionString')} [{a.get('appStoreState')}] "
+                    f"Game Center: {gc_state}")
+          print()
+
           groups = get(
               f"/apps/{app_id}/betaGroups",
               **{"fields[betaGroups]": "name,isInternalGroup,publicLinkEnabled"},
