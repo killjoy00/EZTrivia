@@ -29,11 +29,18 @@ struct AdBannerView: View {
     }
 
     private var adConfigurationMessage: some View {
-        Label("Ad banner ready for AdMob configuration", systemImage: "rectangle.badge.plus")
+        Label(adStatusMessage, systemImage: adConsent.errorMessage == nil ? "rectangle.badge.plus" : "wifi.exclamationmark")
             .font(.caption)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, minHeight: 50)
             .background(AppTheme.card, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var adStatusMessage: String {
+        if let error = adConsent.errorMessage {
+            return "Ads unavailable: \(error)"
+        }
+        return "Ad banner ready for AdMob configuration"
     }
 }
 
