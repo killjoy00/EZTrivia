@@ -105,20 +105,44 @@ jobs:
       - name: Core tests
         run: swift test
 
-      # Archive UNSIGNED, and let the export step below do the distribution
-      # signing.
+      # Archive SIGNED. An earlier revision archived unsigned to conserve
+      # certificates, on the theory that export alone could sign everything --
+      # it cannot. xcodebuild's re-sign pass at export only swaps the outer
+      # app binary's signature; it does not sign nested framework binaries
+      # that were never signed in the first place. Two vendored binary
+      # frameworks (GoogleMobileAds, UserMessagingPlatform) reached the
+      # archive unsigned and Apple rejected the upload outright:
       #
-      # Signing here made xcodebuild ask for an "iOS App Development"
-      # certificate and profile, which an App Store build never needs. On an
-      # ephemeral runner the keychain starts empty, so -allowProvisioningUpdates
-      # minted a brand new development certificate on every run until the
-      # account hit Apple's certificate cap and the archive failed with
-      # "Choose a certificate to revoke."
+      #   Invalid Signature. Code failed to satisfy specified code
+      #   requirement(s). The file at path ".../GoogleMobileAds.framework/
+      #   GoogleMobileAds" is not properly signed.
       #
-      # Archiving unsigned removes that entirely: one distribution certificate
-      # at export is the only signing identity this pipeline ever needs.
-      - name: Archive (unsigned)
+      # Signing has to happen at archive time so every embedded binary gets
+      # signed, not just the app.
+      #
+      # ENABLE_PREVIEWS is off for the Release configuration (see
+      # EZTrivia.xcodeproj/project.pbxproj) because it was the suspected cause
+      # of an earlier archive failure that asked for an "iOS App Development"
+      # certificate during what should have been a pure distribution archive:
+      #
+      #   Choose a certificate to revoke. Your account has reached the
+      #   maximum number of certificates.
+      #
+      # SwiftUI Previews is a development-time feature and has no reason to
+      # be enabled in a Release archive regardless of whether it was the
+      # actual cause.
+      #
+      # -allowProvisioningUpdates still mints a fresh distribution certificate
+      # on every run, because each GitHub runner starts with an empty
+      # keychain and Apple never returns an existing certificate's private
+      # key. If this starts hitting the certificate cap again, the fix is to
+      # generate one certificate once, store it as a repository secret, and
+      # import it into the runner's keychain instead of creating a new one
+      # each run -- not to go back to archiving unsigned.
+      - name: Archive
         env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -o pipefail
@@ -128,15 +152,16 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/EZTrivia.xcarchive" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             2>&1 | tee /tmp/archive.log | xcbeautify
 
-      # Archiving is the slow, credential-dependent half. Keep it even if the
-      # export below fails, so a retry does not repeat it.
+      # Archiving is the slow, credential-dependent half. Keep it even if
+      # export/upload below fails, so a retry does not repeat it.
       - name: Upload the archive
         if: always()
         uses: actions/upload-artifact@v4
@@ -145,7 +170,17 @@ jobs:
           path: ${{ runner.temp }}/EZTrivia.xcarchive
           if-no-files-found: ignore
 
-      - name: Export the IPA
+      # Export AND upload in one xcodebuild invocation (exportOptionsPlist
+      # destination=upload), instead of exporting locally and then calling
+      # `xcrun altool --upload-app` as a separate step.
+      #
+      # That separate altool step is why the previous run was reported as a
+      # success when it was not: `xcrun altool --upload-app` printed
+      # "UPLOAD FAILED with 2 errors" to its own output and still exited 0.
+      # altool is legacy and does not reliably surface content-validation
+      # failures through its process exit code. xcodebuild's exit code is
+      # trustworthy, so a failed upload here actually fails the job.
+      - name: Export and upload to TestFlight
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -159,7 +194,7 @@ jobs:
             <key>method</key><string>app-store-connect</string>
             <key>teamID</key><string>${APPLE_TEAM_ID}</string>
             <key>uploadSymbols</key><true/>
-            <key>destination</key><string>export</string>
+            <key>destination</key><string>upload</string>
           </dict></plist>
           PLIST
           xcodebuild -exportArchive \
@@ -171,7 +206,11 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             2>&1 | tee /tmp/export.log | xcbeautify
+          echo "Uploaded build ${{ github.run_number }}. Processing takes 5-15 minutes."
 
+      # xcodebuild still leaves the exported .ipa on disk even when it also
+      # uploads it, so this is worth keeping for inspection regardless of
+      # whether the upload succeeded.
       - name: Upload the IPA
         if: always()
         uses: actions/upload-artifact@v4
@@ -180,39 +219,11 @@ jobs:
           path: ${{ runner.temp }}/export/*.ipa
           if-no-files-found: ignore
 
-      # Apple runs server-side bundle checks nothing local reproduces.
-      # Validating first turns a rejection into a fast readable failure instead
-      # of a consumed build number and a cryptic error.
-      - name: Validate with Apple
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-        run: |
-          export API_PRIVATE_KEYS_DIR=~/private_keys
-          xcrun altool --validate-app \
-            --type ios \
-            --file "$RUNNER_TEMP/export/EZTrivia.ipa" \
-            --apiKey "$ASC_KEY_ID" \
-            --apiIssuer "$ASC_ISSUER_ID"
-
-      - name: Upload to TestFlight
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-        run: |
-          export API_PRIVATE_KEYS_DIR=~/private_keys
-          xcrun altool --upload-app \
-            --type ios \
-            --file "$RUNNER_TEMP/export/EZTrivia.ipa" \
-            --apiKey "$ASC_KEY_ID" \
-            --apiIssuer "$ASC_ISSUER_ID"
-          echo "Uploaded build ${{ github.run_number }}. Processing takes 5-15 minutes."
-
       - name: Surface errors
         if: failure()
         run: |
           for f in /tmp/archive.log /tmp/export.log; do
             [ -f "$f" ] || continue
             echo "───── $f ─────"
-            grep -E "error:|error " "$f" | sort -u | head -40 || echo "(no error: lines)"
+            grep -E "error:|error |ERROR:" "$f" | sort -u | head -40 || echo "(no error lines)"
           done
