@@ -180,8 +180,10 @@ jobs:
               print(f"App Store Connect gameCenterDetail: MISSING (HTTP {r.status_code})")
               print("  Nothing can reference a leaderboard until this exists.")
 
+          # Nested relationship endpoints reject `sort` (PARAMETER_ERROR.ILLEGAL),
+          # the same way /apps/{id}/builds did. Take the default order.
           versions = get(f"/apps/{app_id}/appStoreVersions",
-                         **{"limit": 3, "sort": "-createdDate",
+                         **{"limit": 5,
                             "fields[appStoreVersions]": "versionString,appStoreState,platform,createdDate"})
           print(f"App Store versions ({len(versions.get('data', []))} newest):")
           for v in versions.get("data", []):
