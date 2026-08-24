@@ -132,13 +132,16 @@ public struct TriviaQuestion: Identifiable, Codable, Equatable, Sendable {
 public struct LeaderboardEntry: Identifiable, Codable, Equatable, Sendable {
     public let id: UUID
     public let category: TriviaCategory
+    /// Older saved entries predate difficulty-specific scores and decode as nil.
+    public let difficulty: TriviaDifficulty?
     public let score: Int
     public let total: Int
     public let date: Date
 
-    public init(id: UUID = UUID(), category: TriviaCategory, score: Int, total: Int, date: Date = Date()) {
+    public init(id: UUID = UUID(), category: TriviaCategory, difficulty: TriviaDifficulty? = nil, score: Int, total: Int, date: Date = Date()) {
         self.id = id
         self.category = category
+        self.difficulty = difficulty
         self.score = score
         self.total = total
         self.date = date

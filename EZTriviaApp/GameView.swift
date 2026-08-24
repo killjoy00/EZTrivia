@@ -81,12 +81,24 @@ struct GameView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .cardStyle()
-                    Button(engine.currentIndex == engine.questions.count - 1 ? "See results" : "Next question") { engine.advance() }
-                        .font(.headline).foregroundStyle(.white).frame(maxWidth: .infinity).padding()
-                        .background(AppTheme.gradient, in: RoundedRectangle(cornerRadius: 16))
                 }
             }
             .padding()
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if engine.selectedAnswerIndex != nil {
+                Button(engine.currentIndex == engine.questions.count - 1 ? "See results" : "Next question") {
+                    engine.advance()
+                }
+                .font(.headline)
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(AppTheme.gradient, in: RoundedRectangle(cornerRadius: 16))
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .background(.bar)
+            }
         }
     }
 
@@ -181,7 +193,7 @@ private struct ResultView: View {
         .padding()
         .onAppear {
             guard !saved else { return }
-            scores.record(category: category, score: score, total: total)
+            scores.record(category: category, difficulty: difficulty, score: score, total: total)
             gameCenter.submit(score: score, total: total, category: category)
             Telemetry.log("round_complete", parameters: [
                 "category": category.rawValue,

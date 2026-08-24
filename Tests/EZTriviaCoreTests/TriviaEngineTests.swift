@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import EZTriviaCore
 
@@ -30,6 +31,13 @@ import Testing
 @Test func leaderboardPercentageRoundsCorrectly() {
     #expect(LeaderboardEntry(category: .movies, score: 2, total: 3).percentage == 67)
     #expect(LeaderboardEntry(category: .movies, score: 0, total: 0).percentage == 0)
+}
+
+@Test func legacyLeaderboardEntryDecodesWithoutDifficulty() throws {
+    let json = #"{"id":"00000000-0000-0000-0000-000000000001","category":"movies","score":2,"total":3,"date":0}"#
+    let entry = try JSONDecoder().decode(LeaderboardEntry.self, from: Data(json.utf8))
+    #expect(entry.difficulty == nil)
+    #expect(entry.percentage == 67)
 }
 
 // MARK: - Round construction
