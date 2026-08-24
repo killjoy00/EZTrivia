@@ -36,10 +36,41 @@ public struct TriviaEngine: Sendable {
 }
 
 public enum QuestionPicker {
-    public static func round(category: TriviaCategory, difficulty: TriviaDifficulty = .easy, count: Int = 10, excluding excludedIDs: Set<String> = [], using bank: [TriviaQuestion] = QuestionBank.all) -> [TriviaQuestion] {
+    /// Builds one round.
+    ///
+    /// Unseen questions are always preferred. When the unseen pool is too small
+    /// to fill a round, it is topped up with already-seen questions rather than
+    /// discarded — the previous behaviour threw away every unseen question the
+    /// moment the pool ran low, so a player near the end of a category kept
+    /// being served questions they had just answered.
+    ///
+    /// Answer order is shuffled per round so a replayed question does not have
+    /// its correct answer in the same position.
+    public static func round(
+        category: TriviaCategory,
+        difficulty: TriviaDifficulty = .easy,
+        count: Int = 10,
+        excluding excludedIDs: Set<String> = [],
+        using bank: [TriviaQuestion] = QuestionBank.all
+    ) -> [TriviaQuestion] {
         let matching = bank.filter { $0.category == category && $0.difficulty == difficulty }
         let unseen = matching.filter { !excludedIDs.contains($0.id) }
-        let pool = unseen.count >= count ? unseen : matching
-        return Array(pool.shuffled().prefix(count))
+
+        var pool = unseen.shuffled()
+        if pool.count < count {
+            let chosen = Set(pool.map(\.id))
+            pool += matching.filter { !chosen.contains($0.id) }.shuffled()
+        }
+
+        return pool.prefix(count).map { $0.shufflingAnswers() }
+    }
+
+    /// The number of distinct questions available for a category and difficulty.
+    public static func availableCount(
+        category: TriviaCategory,
+        difficulty: TriviaDifficulty,
+        using bank: [TriviaQuestion] = QuestionBank.all
+    ) -> Int {
+        bank.count { $0.category == category && $0.difficulty == difficulty }
     }
 }

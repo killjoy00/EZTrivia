@@ -77,10 +77,18 @@ struct HomeView: View {
 private struct DifficultyView: View {
     let category: TriviaCategory
 
+    private var availabilityMessage: String {
+        let counts = TriviaDifficulty.allCases.map {
+            QuestionPicker.availableCount(category: category, difficulty: $0)
+        }
+        let total = counts.reduce(0, +)
+        return "\(total) questions across three difficulties, served 10 at a time."
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Choose your challenge").font(.title.bold()).accessibilityAddTraits(.isHeader)
-            Text("Every difficulty has 50 questions, served 10 at a time.").foregroundStyle(.secondary)
+            Text(availabilityMessage).foregroundStyle(.secondary)
             ForEach(TriviaDifficulty.allCases) { difficulty in
                 NavigationLink {
                     GameView(category: category, difficulty: difficulty)
@@ -118,7 +126,7 @@ private struct CategoryCard: View {
             Text(category.title).font(.headline).foregroundStyle(.primary)
             Text(category.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             if let best = scores.bestScore(for: category) {
-                Label("Best \(best)/10", systemImage: "star.fill").font(.caption2.bold()).foregroundStyle(AppTheme.color(for: category))
+                Label("Best \(best)%", systemImage: "star.fill").font(.caption2.bold()).foregroundStyle(AppTheme.color(for: category))
             } else {
                 Text("10 questions").font(.caption2.bold()).foregroundStyle(.secondary)
             }

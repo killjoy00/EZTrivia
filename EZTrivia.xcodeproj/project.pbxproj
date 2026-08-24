@@ -27,7 +27,18 @@
 		A10000000000000000000013 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = C30000000000000000000003 /* FirebaseCrashlytics */; };
 		A10000000000000000000015 /* AdConsentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* AdConsentManager.swift */; };
 		A10000000000000000000016 /* UserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = C30000000000000000000004 /* UserMessagingPlatform */; };
-		A10000000000000000000014 /* FlagCatalog.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* FlagCatalog.json */; };
+		A10000000000000000000020 /* QuestionSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020 /* QuestionSeed.swift */; };
+		A10000000000000000000021 /* FlagCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000021 /* FlagCatalog.swift */; };
+		A10000000000000000000022 /* FootballQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000022 /* FootballQuestions.swift */; };
+		A10000000000000000000023 /* BasketballQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* BasketballQuestions.swift */; };
+		A10000000000000000000024 /* SoccerQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000024 /* SoccerQuestions.swift */; };
+		A10000000000000000000025 /* HistoryQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000025 /* HistoryQuestions.swift */; };
+		A10000000000000000000026 /* ScienceQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000026 /* ScienceQuestions.swift */; };
+		A10000000000000000000027 /* MoviesQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000027 /* MoviesQuestions.swift */; };
+		A10000000000000000000028 /* GeographyQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000028 /* GeographyQuestions.swift */; };
+		A10000000000000000000029 /* MusicQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000029 /* MusicQuestions.swift */; };
+		A1000000000000000000002A /* AnimalsQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002A /* AnimalsQuestions.swift */; };
+		A1000000000000000000002B /* FoodQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002B /* FoodQuestions.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,8 +60,19 @@
 		B1000000000000000000000F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B10000000000000000000011 /* GameKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameKit.framework; path = System/Library/Frameworks/GameKit.framework; sourceTree = SDKROOT; };
 		B10000000000000000000012 /* EZTrivia.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = EZTrivia.entitlements; sourceTree = "<group>"; };
-		B10000000000000000000013 /* FlagCatalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = FlagCatalog.json; sourceTree = "<group>"; };
 		B10000000000000000000014 /* AdConsentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdConsentManager.swift; sourceTree = "<group>"; };
+		B10000000000000000000020 /* QuestionSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionSeed.swift; sourceTree = "<group>"; };
+		B10000000000000000000021 /* FlagCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlagCatalog.swift; sourceTree = "<group>"; };
+		B10000000000000000000022 /* FootballQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootballQuestions.swift; sourceTree = "<group>"; };
+		B10000000000000000000023 /* BasketballQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BasketballQuestions.swift; sourceTree = "<group>"; };
+		B10000000000000000000024 /* SoccerQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoccerQuestions.swift; sourceTree = "<group>"; };
+		B10000000000000000000025 /* HistoryQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryQuestions.swift; sourceTree = "<group>"; };
+		B10000000000000000000026 /* ScienceQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScienceQuestions.swift; sourceTree = "<group>"; };
+		B10000000000000000000027 /* MoviesQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoviesQuestions.swift; sourceTree = "<group>"; };
+		B10000000000000000000028 /* GeographyQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeographyQuestions.swift; sourceTree = "<group>"; };
+		B10000000000000000000029 /* MusicQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicQuestions.swift; sourceTree = "<group>"; };
+		B1000000000000000000002A /* AnimalsQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimalsQuestions.swift; sourceTree = "<group>"; };
+		B1000000000000000000002B /* FoodQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodQuestions.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -59,9 +81,10 @@
 
 /* Begin PBXGroup section */
 		D10000000000000000000001 = {isa = PBXGroup; children = (D10000000000000000000002 /* EZTriviaApp */, D10000000000000000000003 /* Core */, D10000000000000000000004 /* Products */, B10000000000000000000011 /* GameKit.framework */); sourceTree = "<group>"; };
-		D10000000000000000000002 /* EZTriviaApp */ = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006, B1000000000000000000000A, B1000000000000000000000B, B1000000000000000000000C, B1000000000000000000000D, B1000000000000000000000E, B1000000000000000000000F, B10000000000000000000012, B10000000000000000000013, B10000000000000000000014); path = EZTriviaApp; sourceTree = "<group>"; };
-		D10000000000000000000003 /* Core */ = {isa = PBXGroup; children = (B10000000000000000000007, B10000000000000000000008, B10000000000000000000009); path = Sources/EZTriviaCore; sourceTree = "<group>"; };
+		D10000000000000000000002 /* EZTriviaApp */ = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006, B1000000000000000000000A, B1000000000000000000000B, B1000000000000000000000C, B1000000000000000000000D, B1000000000000000000000E, B1000000000000000000000F, B10000000000000000000012, B10000000000000000000014); path = EZTriviaApp; sourceTree = "<group>"; };
+		D10000000000000000000003 /* Core */ = {isa = PBXGroup; children = (B10000000000000000000007, B10000000000000000000008, B10000000000000000000009, B10000000000000000000020, B10000000000000000000021, D10000000000000000000005 /* Questions */); path = Sources/EZTriviaCore; sourceTree = "<group>"; };
 		D10000000000000000000004 /* Products */ = {isa = PBXGroup; children = (B10000000000000000000010); name = Products; sourceTree = "<group>"; };
+		D10000000000000000000005 /* Questions */ = {isa = PBXGroup; children = (B10000000000000000000022, B10000000000000000000023, B10000000000000000000024, B10000000000000000000025, B10000000000000000000026, B10000000000000000000027, B10000000000000000000028, B10000000000000000000029, B1000000000000000000002A, B1000000000000000000002B); path = Questions; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -73,7 +96,7 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		C10000000000000000000002 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000D, A1000000000000000000000E, A1000000000000000000000F, A10000000000000000000014); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000002 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000D, A1000000000000000000000E, A1000000000000000000000F); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 
@@ -82,7 +105,7 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		C10000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006, A10000000000000000000007, A10000000000000000000008, A10000000000000000000009, A1000000000000000000000A, A1000000000000000000000B, A1000000000000000000000C, A10000000000000000000015); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006, A10000000000000000000007, A10000000000000000000008, A10000000000000000000009, A1000000000000000000000A, A1000000000000000000000B, A1000000000000000000000C, A10000000000000000000015, A10000000000000000000020, A10000000000000000000021, A10000000000000000000022, A10000000000000000000023, A10000000000000000000024, A10000000000000000000025, A10000000000000000000026, A10000000000000000000027, A10000000000000000000028, A10000000000000000000029, A1000000000000000000002A, A1000000000000000000002B); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 
