@@ -1,0 +1,204 @@
+name: TestFlight
+
+# Uploads a signed build to TestFlight.
+#
+# Runs only on manual dispatch or a v* tag — never on ordinary pushes. Every
+# upload consumes a build number and notifies testers.
+#
+# Signing is entirely cloud-based: -allowProvisioningUpdates with an App Store
+# Connect API key creates the certificate and provisioning profile on demand.
+# No .p12, no Keychain, no Mac.
+#
+# Required repository secrets:
+#   ASC_KEY_ID       Key ID of an App Store Connect API key (App Manager role)
+#   ASC_ISSUER_ID    Issuer ID from the same Integrations page
+#   ASC_KEY_P8       Full contents of the downloaded .p8
+#   APPLE_TEAM_ID    Team ID from developer.apple.com/account -> Membership
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  testflight:
+    runs-on: macos-15
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fail early and readably rather than as a cryptic signing error forty
+      # lines into an xcodebuild log.
+      - name: Check secrets are present
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=""
+          [ -n "$ASC_KEY_ID" ]    || missing="$missing ASC_KEY_ID"
+          [ -n "$ASC_ISSUER_ID" ] || missing="$missing ASC_ISSUER_ID"
+          [ -n "$ASC_KEY_P8" ]    || missing="$missing ASC_KEY_P8"
+          [ -n "$APPLE_TEAM_ID" ] || missing="$missing APPLE_TEAM_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing"
+            echo "Add them under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          echo "All four secrets are set."
+
+      # People paste .p8 secrets in every possible shape: CRLF line endings,
+      # literal backslash-n instead of newlines, base64 of the whole file, or
+      # with the BEGIN/END armour stripped (which decodes to raw DER starting
+      # with 0x30). Normalise, then prove it parses -- reporting only the
+      # secret's shape on failure, never its contents.
+      - name: Normalise and validate the API key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -u
+          mkdir -p ~/private_keys
+          key=~/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          # literal \n -> real newlines
+          if ! grep -q 'BEGIN' "$key" && grep -q '\\n' "$key"; then
+            printf '%b' "$(cat "$key")" > "$key.tmp" && mv "$key.tmp" "$key"
+          fi
+          # whole thing base64-encoded
+          if ! grep -q 'BEGIN' "$key" && base64 -d < "$key" > "$key.tmp" 2>/dev/null; then
+            if grep -q 'BEGIN' "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi
+          fi
+          # armour stripped: re-wrap the bare base64 body
+          if ! grep -q 'BEGIN' "$key"; then
+            body=$(tr -d '\n\r ' < "$key")
+            { echo "-----BEGIN PRIVATE KEY-----"
+              echo "$body" | fold -w 64
+              echo "-----END PRIVATE KEY-----"; } > "$key.tmp" && mv "$key.tmp" "$key"
+          fi
+          chmod 600 "$key"
+
+          if ! openssl pkey -in "$key" -noout 2>/dev/null; then
+            echo "::error::ASC_KEY_P8 does not parse as a private key."
+            echo "Shape only: $(wc -c < "$key") bytes, $(wc -l < "$key") lines," \
+                 "starts with dashes: $(head -c 5 "$key" | grep -q -- '-----' && echo yes || echo no)"
+            exit 1
+          fi
+          echo "API key parses."
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.4'
+
+      - name: Install xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      # Cheap and fast; no reason to spend a signed build on a broken bank.
+      - name: Core tests
+        run: swift test
+
+      - name: Archive
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project EZTrivia.xcodeproj \
+            -scheme EZTrivia \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/EZTrivia.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            2>&1 | tee /tmp/archive.log | xcbeautify
+
+      # Archiving is the slow, credential-dependent half. Keep it even if the
+      # export below fails, so a retry does not repeat it.
+      - name: Upload the archive
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: EZTrivia-archive-${{ github.run_number }}
+          path: ${{ runner.temp }}/EZTrivia.xcarchive
+          if-no-files-found: ignore
+
+      - name: Export the IPA
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -o pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>uploadSymbols</key><true/>
+            <key>destination</key><string>export</string>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/EZTrivia.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee /tmp/export.log | xcbeautify
+
+      - name: Upload the IPA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: EZTrivia-ipa-${{ github.run_number }}
+          path: ${{ runner.temp }}/export/*.ipa
+          if-no-files-found: ignore
+
+      # Apple runs server-side bundle checks nothing local reproduces.
+      # Validating first turns a rejection into a fast readable failure instead
+      # of a consumed build number and a cryptic error.
+      - name: Validate with Apple
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          export API_PRIVATE_KEYS_DIR=~/private_keys
+          xcrun altool --validate-app \
+            --type ios \
+            --file "$RUNNER_TEMP/export/EZTrivia.ipa" \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          export API_PRIVATE_KEYS_DIR=~/private_keys
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$RUNNER_TEMP/export/EZTrivia.ipa" \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
+          echo "Uploaded build ${{ github.run_number }}. Processing takes 5-15 minutes."
+
+      - name: Surface errors
+        if: failure()
+        run: |
+          for f in /tmp/archive.log /tmp/export.log; do
+            [ -f "$f" ] || continue
+            echo "───── $f ─────"
+            grep -E "error:|error " "$f" | sort -u | head -40 || echo "(no error: lines)"
+          done

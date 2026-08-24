@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "EZTriviaCore",
-    platforms: [.iOS(.v17)],
+    platforms: [.iOS(.v17), .macOS(.v13)],
     products: [.library(name: "EZTriviaCore", targets: ["EZTriviaCore"])],
     targets: [
         .target(name: "EZTriviaCore"),

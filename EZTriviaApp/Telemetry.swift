@@ -1,31 +1,29 @@
 import Foundation
-#if canImport(FirebaseCore)
-import FirebaseCore
-import FirebaseAnalytics
-import FirebaseCrashlytics
-#endif
+import os
 
+/// A local logging seam.
+///
+/// The app deliberately ships no analytics SDK: nothing here leaves the device.
+/// Call sites exist so that if a backend is ever wanted, there is one place to
+/// add it rather than a scattering of new call sites — and so that removing it
+/// again is equally cheap.
 @MainActor
 enum Telemetry {
-    static func configure() {
-        #if canImport(FirebaseCore)
-        guard FirebaseApp.app() == nil,
-              Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist") != nil else { return }
-        FirebaseApp.configure()
-        #endif
-    }
+    private static let logger = Logger(subsystem: "com.rsm.eztrivia", category: "gameplay")
+
+    static func configure() {}
 
     static func log(_ name: String, parameters: [String: Any] = [:]) {
-        #if canImport(FirebaseAnalytics)
-        guard FirebaseApp.app() != nil else { return }
-        Analytics.logEvent(name, parameters: parameters)
+        #if DEBUG
+        let detail = parameters
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: " ")
+        logger.debug("\(name, privacy: .public) \(detail, privacy: .public)")
         #endif
     }
 
     static func record(_ error: Error) {
-        #if canImport(FirebaseCrashlytics)
-        guard FirebaseApp.app() != nil else { return }
-        Crashlytics.crashlytics().record(error: error)
-        #endif
+        logger.error("\(String(describing: error), privacy: .public)")
     }
 }

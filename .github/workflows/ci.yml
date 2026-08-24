@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  XCODE_FLAGS: >-
+    -project EZTrivia.xcodeproj
+    -scheme EZTrivia
+    -destination generic/platform=iOS
+
+jobs:
+  engine:
+    name: Core package
+    runs-on: ubuntu-latest
+    container: swift:6.0-noble
+    steps:
+      - uses: actions/checkout@v4
+      # The question bank is pure Swift with no Apple frameworks, so it tests on
+      # Linux in seconds. This is where the content guarantees are enforced: a
+      # duplicated prompt, a tier sharing questions with another, or two
+      # near-identical flags offered together all fail here.
+      - run: swift build
+      - run: swift test
+      - run: swift build -c release
+
+  catalog:
+    name: Review CSV is current
+    runs-on: ubuntu-latest
+    container: swift:6.0-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate and diff
+        run: |
+          swift run QuestionCatalogExporter > /tmp/QuestionReview.csv
+          if ! diff -q QuestionReview.csv /tmp/QuestionReview.csv > /dev/null; then
+            echo "::error::QuestionReview.csv is stale. Run: swift run QuestionCatalogExporter > QuestionReview.csv"
+            diff QuestionReview.csv /tmp/QuestionReview.csv | head -40
+            exit 1
+          fi
+          echo "QuestionReview.csv matches the question bank."
+
+  app:
+    name: Build and archive app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Report what the runner actually has rather than pinning a guess.
+      - name: Probe the runner
+        run: |
+          ls -d /Applications/Xcode*.app
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i iphoneos || true
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          # Pinned deliberately: iOS 18.5 SDK, which satisfies Apple's current
+          # submission floor. The probe step above lists what the runner has,
+          # so raising this is a one-line change when Apple moves the floor.
+          xcode-version: '16.4'
+
+      - name: Install xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      # `build` is not a strong enough check on a hand-written project file.
+      # `archive` walks the target graph differently and catches malformed
+      # package-product references that `build` accepts. Unsigned archiving
+      # needs no Apple credentials, so the release path gets exercised on every
+      # push instead of only when we try to ship.
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build $XCODE_FLAGS -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee /tmp/build.log | xcbeautify
+
+      - name: Archive (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild archive $XCODE_FLAGS -configuration Release \
+            -archivePath "$RUNNER_TEMP/EZTrivia.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            2>&1 | tee /tmp/archive.log | xcbeautify
+
+      # Raw xcodebuild output is thousands of lines; surface only the errors.
+      - name: Surface errors
+        if: failure()
+        run: |
+          for f in /tmp/build.log /tmp/archive.log; do
+            [ -f "$f" ] || continue
+            echo "───── $f ─────"
+            grep -E "error:|error " "$f" | sort -u | head -40 || echo "(no error: lines)"
+          done

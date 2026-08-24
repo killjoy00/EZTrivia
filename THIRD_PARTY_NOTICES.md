@@ -6,4 +6,4 @@ The national flag PNG files under `EZTriviaApp/Assets.xcassets/Flags` were downl
 
 ## Apple and Google SDKs
 
-The application integrates Apple GameKit and optionally links Google Mobile Ads SDK and Firebase Analytics/Crashlytics through Swift Package Manager. Their use is governed by the applicable Apple and Google terms and privacy policies.
+The application integrates Apple GameKit and links the Google Mobile Ads SDK and Google User Messaging Platform through Swift Package Manager. Their use is governed by the applicable Apple and Google terms and privacy policies.

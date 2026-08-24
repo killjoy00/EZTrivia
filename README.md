@@ -11,7 +11,7 @@ EZTrivia is a small, native iPhone trivia game built with SwiftUI. Pick a catego
 - Easy, medium, and hard modes that are genuinely different questions, not the same pool relabelled
 - Local best scores and a lightweight on-device leaderboard
 - Dark-mode support, Dynamic Type-friendly layouts, and VoiceOver labels
-- Google Mobile Ads and Firebase Analytics/Crashlytics, both optional at runtime
+- Google Mobile Ads for a single banner placement; no analytics or crash-reporting SDK
 
 ## Open in Xcode
 
@@ -53,7 +53,7 @@ correct answer in the same position.
 
 1. **Review the content:** fact-check and copy-edit every difficulty catalog, then replace generated variants with additional hand-authored facts as the library grows.
 2. **Verify flag licensing and names:** review official-symbol rules and user-facing territory names before commercial distribution.
-3. **Finish service provisioning:** supply the publishing bundle/team IDs, AdMob identifiers, Firebase configuration, and App Store Connect Game Center leaderboards described below.
+3. **Finish service provisioning:** supply the AdMob identifiers and the App Store Connect Game Center leaderboards described below.
 4. **Harden privacy controls:** finalize age rating, child-directed treatment, consent regions, App Tracking Transparency decisions, and a paid ad-free option if desired.
 5. **Finish release QA:** add UI tests and localization, run accessibility/device testing, archive on macOS, and collect TestFlight feedback.
 
@@ -95,14 +95,13 @@ Suggested review checks:
 
 The source integrations are complete, but Apple and Google require account-specific identifiers and configuration before live services can work.
 
-### AdMob banner and Firebase
+### AdMob banner
 
 1. The Release target is configured with the supplied AdMob app and banner identifiers; Debug uses Google's official test identifiers.
 2. Every banner request explicitly sets `npa=1`, so this release requests non-personalized ads only.
-3. Firebase is optional. Without `GoogleService-Info.plist`, Firebase stays disabled; Apple App Analytics and Xcode Organizer crash reports can support the initial release.
 4. Configure and publish AdMob privacy messages for the United States and Canada, then complete the App Store privacy labels.
 
-Firebase remains disabled safely when `GoogleService-Info.plist` is absent and is not required for release. See [`RELEASE_SETUP.md`](RELEASE_SETUP.md) for the complete Apple, Game Center, AdMob, Firebase, age-rating, storefront, and submission walkthrough.
+See [`RELEASE_SETUP.md`](RELEASE_SETUP.md) for the complete Apple, Game Center, AdMob, age-rating, storefront, and submission walkthrough, including how builds are produced without a Mac.
 
 ### Game Center
 
