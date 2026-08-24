@@ -93,9 +93,21 @@ def main() -> None:
     app_id = apps[0]["id"]
     detail = api.request("GET", f"/apps/{app_id}/gameCenterDetail").get("data")
     if not detail:
+        # Do not assert a cause here. This response is empty in several
+        # different situations, and an earlier version of this message named
+        # one of them ("enable Game Center for the bundle ID") confidently
+        # enough to send a human off disabling and re-enabling a capability
+        # that was already on. Report what was observed and list what to look
+        # at, rather than guessing which one it is.
         raise SystemExit(
-            "App Store Connect has no Game Center detail for this app. Enable Game Center "
-            "for the bundle ID in Certificates, Identifiers & Profiles, then retry."
+            f"App Store Connect returned no gameCenterDetail for {BUNDLE_ID}.\n"
+            "That happens when Game Center has never been configured for the app, "
+            "when the capability is off for the bundle ID, or when this API key "
+            "cannot see the app's Game Center data.\n"
+            "Check, in order: the app's Game Center page in App Store Connect; "
+            "the Game Center capability under Certificates, Identifiers & Profiles; "
+            "and the API key's role.\n"
+            "The 'Check TestFlight status' workflow reports all three."
         )
     detail_id = detail["id"]
     existing = api.get_all(f"/gameCenterDetails/{detail_id}/gameCenterLeaderboards")

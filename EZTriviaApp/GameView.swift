@@ -23,6 +23,11 @@ struct GameView: View {
             }
         }
         .background(AppTheme.background.ignoresSafeArea())
+        // A round is a focused task, and the Play/Scores tab bar was stacking
+        // directly under the Next button, which is what made that button read
+        // as floating over another bar. Hiding it also returns ~50pt of
+        // vertical space to the question itself.
+        .toolbar(.hidden, for: .tabBar)
         .onAppear {
             guard !started else { return }
             started = true
@@ -54,52 +59,76 @@ struct GameView: View {
     }
 
     private func questionView(_ question: TriviaQuestion) -> some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                HStack {
-                    Text("QUESTION \(engine.currentIndex + 1) OF \(engine.questions.count)").font(.caption.bold()).foregroundStyle(.secondary)
-                    Spacer()
-                    Label("\(engine.score)", systemImage: "checkmark.circle.fill").font(.subheadline.bold()).foregroundStyle(.green)
-                }
-                ProgressView(value: Double(engine.currentIndex + 1), total: Double(engine.questions.count)).tint(AppTheme.color(for: category))
-                if let visual = question.visual {
-                    QuestionVisual(value: visual)
-                }
-                Text(question.prompt)
-                    .font(.title2.bold())
-                    .frame(maxWidth: .infinity, minHeight: question.visual == nil ? 100 : nil, alignment: question.visual == nil ? .leading : .center)
-                    .multilineTextAlignment(question.visual == nil ? .leading : .center)
-                    .accessibilityAddTraits(.isHeader)
-                VStack(spacing: 12) {
-                    ForEach(question.answers.indices, id: \.self) { index in answerButton(question, index: index) }
-                }
-                if engine.selectedAnswerIndex != nil {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label(engine.selectedAnswerIndex == question.correctAnswerIndex ? "Correct!" : "Good try!", systemImage: engine.selectedAnswerIndex == question.correctAnswerIndex ? "checkmark.seal.fill" : "lightbulb.fill")
-                            .font(.headline).foregroundStyle(engine.selectedAnswerIndex == question.correctAnswerIndex ? .green : .orange)
-                        Text(question.explanation).font(.subheadline).foregroundStyle(.secondary)
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: answered ? 14 : 20) {
+                    HStack {
+                        Text("QUESTION \(engine.currentIndex + 1) OF \(engine.questions.count)").font(.caption.bold()).foregroundStyle(.secondary)
+                        Spacer()
+                        Label("\(engine.score)", systemImage: "checkmark.circle.fill").font(.subheadline.bold()).foregroundStyle(.green)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .cardStyle()
+                    ProgressView(value: Double(engine.currentIndex + 1), total: Double(engine.questions.count)).tint(AppTheme.color(for: category))
+                    if let visual = question.visual {
+                        QuestionVisual(value: visual, maxHeight: visualHeight(fitting: proxy.size.height))
+                    }
+                    Text(question.prompt)
+                        .font(.title2.bold())
+                        .frame(maxWidth: .infinity, minHeight: question.visual == nil ? 100 : nil, alignment: question.visual == nil ? .leading : .center)
+                        .multilineTextAlignment(question.visual == nil ? .leading : .center)
+                        .accessibilityAddTraits(.isHeader)
+                    VStack(spacing: 12) {
+                        ForEach(question.answers.indices, id: \.self) { index in answerButton(question, index: index) }
+                    }
+                    if engine.selectedAnswerIndex != nil {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label(engine.selectedAnswerIndex == question.correctAnswerIndex ? "Correct!" : "Good try!", systemImage: engine.selectedAnswerIndex == question.correctAnswerIndex ? "checkmark.seal.fill" : "lightbulb.fill")
+                                .font(.headline).foregroundStyle(engine.selectedAnswerIndex == question.correctAnswerIndex ? .green : .orange)
+                            Text(question.explanation).font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .cardStyle()
+                    }
                 }
+                .padding()
+                .animation(.easeInOut(duration: 0.25), value: engine.selectedAnswerIndex)
             }
-            .padding()
+            .scrollBounceBehavior(.basedOnSize)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if engine.selectedAnswerIndex != nil {
-                Button(engine.currentIndex == engine.questions.count - 1 ? "See results" : "Next question") {
-                    engine.advance()
+                VStack(spacing: 0) {
+                    Divider()
+                    Button(engine.currentIndex == engine.questions.count - 1 ? "See results" : "Next question") {
+                        engine.advance()
+                    }
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 30)
+                    .padding(.vertical, 14)
+                    .background(AppTheme.gradient, in: RoundedRectangle(cornerRadius: 16))
+                    .padding(.horizontal)
+                    .padding(.vertical, 10)
                 }
-                .font(.headline)
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(AppTheme.gradient, in: RoundedRectangle(cornerRadius: 16))
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .background(.bar)
+                .background(.regularMaterial)
+                .transition(.move(edge: .bottom))
             }
         }
+        .animation(.easeInOut(duration: 0.25), value: engine.selectedAnswerIndex)
+    }
+
+    private var answered: Bool { engine.selectedAnswerIndex != nil }
+
+    /// Height budget for question artwork.
+    ///
+    /// Sized as a share of the round's actual height rather than a fixed
+    /// number, so it adapts from an iPhone SE to a Pro Max instead of being
+    /// tuned for one device. It also shrinks once an answer is revealed: the
+    /// flag has served its purpose by then, and the explanation card plus the
+    /// action bar need the room. The clamps stop it becoming a postage stamp
+    /// on a small screen or swallowing the answers on a large one.
+    private func visualHeight(fitting available: CGFloat) -> CGFloat {
+        let share: CGFloat = answered ? 0.18 : 0.28
+        return min(max(available * share, 88), 200)
     }
 
     private func answerButton(_ question: TriviaQuestion, index: Int) -> some View {
@@ -145,15 +174,20 @@ struct GameView: View {
 
 private struct QuestionVisual: View {
     let value: String
+    /// Supplied by the round view, which scales it to the screen and to
+    /// whether an answer has been revealed. See `visualHeight(fitting:)`.
+    let maxHeight: CGFloat
 
     var body: some View {
         Image(value)
             .resizable()
             .scaledToFit()
             // Nepal is portrait, Switzerland and Vatican City are square, and
-            // Qatar is unusually wide. scaledToFit never crops, so the generous
-            // frame lets those letterbox inside the card rather than fight it.
-            .frame(maxWidth: 280, minHeight: 140, maxHeight: 210)
+            // Qatar is unusually wide. scaledToFit never crops, so these
+            // letterbox inside the card rather than fight it. Only a maximum is
+            // given in each axis: a fixed minHeight would force a tall empty
+            // card around a wide flag like Qatar's.
+            .frame(maxWidth: 280, maxHeight: maxHeight)
             .padding(6)
             .background(AppTheme.card, in: RoundedRectangle(cornerRadius: 10))
             .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
