@@ -43,16 +43,19 @@ final class ScoreStore: ObservableObject {
         defaults.set(try? JSONEncoder().encode(seenQuestionIDs), forKey: seenDefaultsKey)
     }
 
-    func record(category: TriviaCategory, score: Int, total: Int) {
-        entries.append(LeaderboardEntry(category: category, score: score, total: total))
+    func record(category: TriviaCategory, difficulty: TriviaDifficulty, score: Int, total: Int) {
+        entries.append(LeaderboardEntry(category: category, difficulty: difficulty, score: score, total: total))
         entries = Array(entries.sorted { lhs, rhs in
             lhs.percentage == rhs.percentage ? lhs.date > rhs.date : lhs.percentage > rhs.percentage
         }.prefix(50))
         persist()
     }
 
-    func bestScore(for category: TriviaCategory) -> Int? {
-        entries.filter { $0.category == category }.map(\.percentage).max()
+    func bestScore(for category: TriviaCategory, difficulty: TriviaDifficulty) -> Int? {
+        entries
+            .filter { $0.category == category && $0.difficulty == difficulty }
+            .map(\.percentage)
+            .max()
     }
 
     func clear() {

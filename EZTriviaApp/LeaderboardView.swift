@@ -20,7 +20,13 @@ struct LeaderboardView: View {
                                 Image(systemName: entry.category.symbol).foregroundStyle(AppTheme.color(for: entry.category)).frame(width: 30)
                                 VStack(alignment: .leading) {
                                     Text(entry.category.title).font(.headline)
-                                    Text(entry.date, style: .date).font(.caption).foregroundStyle(.secondary)
+                                    HStack(spacing: 4) {
+                                        if let difficulty = entry.difficulty {
+                                            Label(difficulty.title, systemImage: difficulty.symbol)
+                                        }
+                                        Text(entry.date, style: .date)
+                                    }
+                                    .font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
                                 Text("\(entry.score)/\(entry.total)").font(.title3.bold().monospacedDigit())
