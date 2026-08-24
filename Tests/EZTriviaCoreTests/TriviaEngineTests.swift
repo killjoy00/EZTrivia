@@ -147,6 +147,7 @@ import Testing
     #expect(flagQuestions.count == FlagCatalog.askable.count)
     #expect(flagQuestions.allSatisfy { $0.visual?.hasPrefix("flag-") == true })
     #expect(flagQuestions.allSatisfy { $0.prompt == QuestionBank.flagPrompt })
+    #expect(flagQuestions.allSatisfy { !$0.explanation.hasPrefix("This is the flag of ") })
     for difficulty in TriviaDifficulty.allCases {
         let count = flagQuestions.count { $0.difficulty == difficulty }
         #expect(count >= 10, "only \(count) flag questions at \(difficulty)")
@@ -159,21 +160,22 @@ import Testing
     #expect(FlagCatalog.all.allSatisfy { !$0.name.isEmpty })
 }
 
-/// Bouvet Island, Svalbard, Saint Martin, and the U.S. Minor Outlying Islands
-/// fly a flag byte-identical to their parent state's. Asking about one of them
-/// would have no single right answer.
+/// These dependencies use artwork identical to another answer in the catalog.
+/// Asking about one of them would have no single right answer.
 @Test func flagsWithIdenticalArtworkAreNotAsked() {
     let excluded = Set(FlagCatalog.all.filter { !$0.askable }.map(\.code))
-    #expect(excluded == ["BV", "SJ", "MF", "UM"])
-    #expect(FlagCatalog.askable.count == 245)
+    #expect(excluded == ["BV", "HM", "SJ", "MF", "UM"])
+    #expect(FlagCatalog.askable.count == 244)
 }
 
 /// Names come from the flag catalog, so no answer option should read like the
 /// raw ISO 3166 inverted form.
 @Test func flagNamesUseCommonForms() {
+    let retiredNames = Set(["Ivory Coast", "Cape Verde", "East Timor", "Caribbean Netherlands"])
     for entry in FlagCatalog.all {
         #expect(!entry.name.contains(","), "\(entry.code) uses an inverted ISO name: \(entry.name)")
         #expect(!entry.name.contains("Province of China"), "\(entry.code) uses a politically loaded ISO label")
+        #expect(!retiredNames.contains(entry.name), "\(entry.code) uses an outdated or inaccurate display name")
     }
 }
 
