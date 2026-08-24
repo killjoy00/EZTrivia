@@ -86,7 +86,7 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		E10000000000000000000001 /* EZTrivia */ = {isa = PBXNativeTarget; buildConfigurationList = F10000000000000000000002; buildPhases = (C10000000000000000000003, C10000000000000000000001, C10000000000000000000002); buildRules = (); dependencies = (); name = EZTrivia; productName = EZTrivia; productReference = B10000000000000000000010; packageProductDependencies = (C30000000000000000000001, C30000000000000000000004); productType = "com.apple.product-type.application"; };
+		E10000000000000000000001 /* EZTrivia */ = {isa = PBXNativeTarget; buildConfigurationList = F10000000000000000000002; buildPhases = (C10000000000000000000004, C10000000000000000000003, C10000000000000000000001, C10000000000000000000002); buildRules = (); dependencies = (); name = EZTrivia; productName = EZTrivia; productReference = B10000000000000000000010; packageProductDependencies = (C30000000000000000000001, C30000000000000000000004); productType = "com.apple.product-type.application"; };
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -99,6 +99,7 @@
 
 
 /* Begin PBXShellScriptBuildPhase section */
+		C10000000000000000000004 /* Configure Game Center in authenticated CI */ = {isa = PBXShellScriptBuildPhase; alwaysOutOfDate = 1; buildActionMask = 2147483647; files = (); inputFileListPaths = (); inputPaths = (); name = "Configure Game Center in authenticated CI"; outputFileListPaths = (); outputPaths = (); runOnlyForDeploymentPostprocessing = 0; shellPath = /bin/sh; shellScript = "if [ -z \"$ASC_KEY_ID\" ] || [ -z \"$ASC_ISSUER_ID\" ]; then\n  echo \"Game Center provisioning skipped (no App Store Connect credentials).\"\n  exit 0\nfi\npython3 -c 'import jwt, requests' 2>/dev/null || python3 -m pip install --quiet --user 'pyjwt[crypto]' requests\nASC_KEY_PATH=\"$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8\" python3 \"$SRCROOT/Scripts/configure_game_center.py\"\n"; };
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */

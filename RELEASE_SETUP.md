@@ -109,6 +109,21 @@ If the record already exists, open **App Information** and confirm the name and 
 
 ## 3. Enable and configure Game Center
 
+The repository includes `Scripts/configure_game_center.py`, an idempotent App
+Store Connect API client that creates the eleven classic leaderboards below,
+adds their English (U.S.) localizations, and leaves existing records unchanged.
+It expects `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_KEY_PATH` in its environment.
+The key must have App Manager access. It intentionally stops with a readable
+message if the app has no Game Center detail yet, because enabling Game Center
+for the bundle identifier is a Developer portal operation rather than a
+leaderboard API operation.
+
+Authenticated TestFlight archives run this client automatically from an Xcode
+build phase. Ordinary local and unsigned CI builds have no App Store Connect
+environment variables, so the phase prints a skip message and performs no
+network request. This keeps the provisioning operation repeatable without
+placing an API key in the repository or requiring a Mac.
+
 1. In App Store Connect, open **EZ Trivia**.
 2. Open the app's **Game Center** section. Depending on the current App Store Connect layout, this can appear under the app's Services or Features area.
 3. Enable Game Center for the app if an enable/setup button is shown.
