@@ -168,13 +168,14 @@ jobs:
           if r.status_code == 200 and (r.json() or {}).get("data"):
               gc = r.json()["data"]
               print(f"App Store Connect gameCenterDetail: EXISTS (id={gc['id']})")
-              boards = get(f"/gameCenterDetails/{gc['id']}/gameCenterLeaderboards",
-                           **{"fields[gameCenterLeaderboards]": "referenceName,vendorIdentifier,state"})
+              boards = get(f"/gameCenterDetails/{gc['id']}/gameCenterLeaderboards")
               print(f"Leaderboards: {len(boards.get('data', []))}")
               for b in boards.get("data", []):
-                  a = b["attributes"]
-                  print(f"  {a.get('vendorIdentifier')}: state={a.get('state')}"
-                        f" name={a.get('referenceName')}")
+                  a = b.get("attributes", {})
+                  extra = {k: v for k, v in a.items()
+                           if k not in {"referenceName", "vendorIdentifier"}}
+                  print(f"  {a.get('vendorIdentifier')}: {a.get('referenceName')}")
+                  print(f"      {extra}")
           else:
               print(f"App Store Connect gameCenterDetail: MISSING (HTTP {r.status_code})")
               print("  Nothing can reference a leaderboard until this exists.")
