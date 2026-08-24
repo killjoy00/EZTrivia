@@ -91,7 +91,12 @@ jobs:
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '16.4'
+          # Apple requires the iOS 26 SDK or later for any App Store upload:
+          # a build made with 18.5 is rejected at validation with a 409. Pinned
+          # to the 26 major so patch updates to the runner image are tolerated
+          # but the SDK floor is never crossed downward. The probe step reports
+          # what is actually installed if this ever needs raising.
+          xcode-version: '26'
 
       - name: Install xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
