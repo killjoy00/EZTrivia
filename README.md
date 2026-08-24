@@ -68,30 +68,19 @@ The source integrations are complete, but Apple and Google require account-speci
 
 ### AdMob banner and Firebase
 
-1. In AdMob, create an iOS app using the final bundle identifier and create one **Banner** ad unit.
-2. In the target build settings, set `ADMOB_APP_ID` to the AdMob app identifier (`ca-app-pub-…~…`) and `ADMOB_BANNER_ID` to the banner ad-unit identifier (`ca-app-pub-…/…`). These are public app configuration values, not secrets.
-3. Register the same iOS app in Firebase, enable Analytics and Crashlytics, download `GoogleService-Info.plist`, and add it to the `EZTrivia` application target. Do not commit a configuration file for a different app or bundle identifier.
-4. Configure AdMob privacy messaging for every served region and complete the App Store privacy labels. Production personalized advertising must not be enabled until consent and any required App Tracking Transparency flow have been reviewed.
+1. The Release target is configured with the supplied AdMob app and banner identifiers; Debug uses Google's official test identifiers.
+2. Every banner request explicitly sets `npa=1`, so this release requests non-personalized ads only.
+3. Register bundle ID `EZTrivia` in Firebase, enable Analytics and Crashlytics, download the matching `GoogleService-Info.plist`, and add it to the `EZTrivia` application target.
+4. Configure and publish AdMob privacy messages for the United States and Canada, then complete the App Store privacy labels.
 
-When either AdMob identifier is absent, the home screen deliberately displays a setup banner and makes no ad request. Firebase also remains disabled when `GoogleService-Info.plist` is absent.
+Firebase remains disabled safely when `GoogleService-Info.plist` is absent. See [`RELEASE_SETUP.md`](RELEASE_SETUP.md) for the complete Apple, Game Center, AdMob, Firebase, age-rating, storefront, and submission walkthrough.
 
 ### Game Center
 
-1. Replace the placeholder `com.example.EZTrivia` bundle identifier and select the Apple Developer team that will publish the app.
+1. The Xcode target now uses explicit bundle ID `EZTrivia`, display name **EZ Trivia**, and Apple Team ID `3564X3VTDB`.
 2. Enable Game Center for that App ID in Certificates, Identifiers & Profiles and for the app record in App Store Connect.
-3. Create eleven classic leaderboards configured for a **high score** from 0 through 100, using these exact IDs:
-   - `com.killjoy00.eztrivia.football`
-   - `com.killjoy00.eztrivia.basketball`
-   - `com.killjoy00.eztrivia.soccer`
-   - `com.killjoy00.eztrivia.flags`
-   - `com.killjoy00.eztrivia.history`
-   - `com.killjoy00.eztrivia.science`
-   - `com.killjoy00.eztrivia.movies`
-   - `com.killjoy00.eztrivia.geography`
-   - `com.killjoy00.eztrivia.music`
-   - `com.killjoy00.eztrivia.animals`
-   - `com.killjoy00.eztrivia.food`
-4. Add leaderboard localizations and test authentication/submission with sandbox Game Center accounts on physical devices.
+3. Create eleven classic leaderboards configured for a **high score** from 0 through 100 using IDs `EZTrivia.<category>`, as listed in `RELEASE_SETUP.md`.
+4. Add only the required default English (U.S.) display metadata—no translated localizations—and test authentication/submission with sandbox Game Center accounts on physical devices.
 
 EZTrivia authenticates at launch, submits the completed round percentage to its category leaderboard, and opens Apple's native Game Center leaderboard dashboard from the Scores tab.
 

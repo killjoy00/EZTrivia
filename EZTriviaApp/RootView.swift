@@ -51,7 +51,7 @@ struct HomeView: View {
         }
         .background(AppTheme.background)
         .navigationDestination(for: TriviaCategory.self) { DifficultyView(category: $0) }
-        .navigationTitle("EZTrivia")
+        .navigationTitle("EZ Trivia")
         .navigationBarTitleDisplayMode(.inline)
     }
 

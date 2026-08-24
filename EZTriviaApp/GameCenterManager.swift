@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 final class GameCenterManager: ObservableObject {
-    static let leaderboardPrefix = "com.killjoy00.eztrivia"
+    static let leaderboardPrefix = "EZTrivia"
 
     @Published private(set) var isAuthenticated = GKLocalPlayer.local.isAuthenticated
     @Published var authenticationViewController: UIViewController?

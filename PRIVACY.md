@@ -9,11 +9,11 @@ EZTrivia is a trivia game. This policy explains the information used when you pl
 - **Scores and preferences:** Personal scores are stored on your device. You can erase them from the Leaderboard screen.
 - **Game Center:** If you sign in to Apple Game Center, EZTrivia submits your score percentage to the leaderboard for the category you played. Apple processes your Game Center identity and leaderboard data under Apple's privacy policy. EZTrivia does not receive your Apple ID credentials.
 - **Analytics and crash diagnostics:** When Firebase is configured, EZTrivia records gameplay events such as category, difficulty, and final score, plus app diagnostics and crash reports. These events do not include question answers, names, email addresses, or precise location. Firebase installations may use an installation identifier and device/app information to provide these services.
-- **Advertising:** When Google AdMob is configured, Google may process device identifiers, IP-derived approximate location, ad interactions, diagnostics, and other data needed to deliver, measure, prevent fraud in, and personalize advertising, depending on the consent choices presented to you and applicable law.
+- **Advertising:** Google AdMob may process device identifiers, IP-derived approximate location, ad interactions, diagnostics, and other data needed to deliver and measure ads and prevent fraud. EZ Trivia requests non-personalized ads only.
 
 ## Tracking and consent
 
-EZTrivia does not directly sell personal information. Before a production AdMob release, the app owner must configure Google's User Messaging Platform and any required App Tracking Transparency prompt so advertising and tracking choices are collected before personalized ads are requested. Until valid production AdMob configuration is supplied, the app shows a non-tracking setup placeholder instead of an ad.
+EZTrivia does not directly sell personal information. The app uses Google's User Messaging Platform for applicable privacy choices and sets the non-personalized-ad flag on every banner request. Personalized advertising is not requested in this release. The app owner must keep the United States and Canada privacy messages and App Store privacy disclosures current.
 
 ## Local flag artwork
 

@@ -47,7 +47,11 @@ private struct AdMobBannerRepresentable: UIViewRepresentable {
         banner.rootViewController = UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.keyWindow?.rootViewController }
             .first
-        banner.load(Request())
+        let request = Request()
+        let extras = Extras()
+        extras.additionalParameters = ["npa": "1"]
+        request.register(extras)
+        banner.load(request)
         return banner
     }
 
