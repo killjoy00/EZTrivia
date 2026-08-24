@@ -1,20 +1,57 @@
 # EZ Trivia release setup
 
-> **Do this first: the bundle identifier is not valid yet.**
+> **Bundle identifier: `com.rsm.eztrivia`**
 >
-> The target currently sets `PRODUCT_BUNDLE_IDENTIFIER = EZTrivia`. App Store
-> Connect requires reverse-DNS form, so `EZTrivia` cannot be registered as-is.
-> Pick a real identifier before starting any step below — every occurrence of
-> `EZTrivia` in this document then means *your* identifier. It cannot be changed
-> after the App Store and Firebase records are created, so choose once.
->
-> Suggested: `com.mindell.eztrivia`
->
-> Update it in `EZTrivia.xcodeproj/project.pbxproj` (both the Debug and Release
-> configurations) and keep it identical in App Store Connect, the AdMob app
-> record, and the Firebase iOS app record.
+> Registered in the Apple Developer portal under Team ID `3564X3VTDB` with the
+> description "Trivia for everyone". The Xcode project matches. It cannot be
+> changed once the App Store Connect and Firebase records exist, so every step
+> below assumes exactly this string.
 
-This checklist covers the remaining account-side work for the first iOS release in the United States and Canada. The Xcode target is already configured with bundle identifier `EZTrivia`, Apple Team ID `3564X3VTDB`, display name **EZ Trivia**, a 4+ product intent, non-personalized AdMob requests, and the supplied production AdMob identifiers.
+## 0. Building without a Mac
+
+There is no Mac in this project's toolchain, so every build runs on a GitHub
+Actions macOS runner. Two workflows do the work:
+
+- `.github/workflows/ci.yml` runs on every push and pull request. It runs the
+  core package tests, builds the app for the simulator (this is the only thing
+  that type-checks the SwiftUI layer), and fails if `QuestionReview.csv` has
+  drifted from the question bank. No secrets needed.
+- `.github/workflows/release.yml` is run by hand from the **Actions** tab. It
+  archives, signs, exports an IPA, and uploads it to TestFlight.
+
+### Secrets the release workflow needs
+
+Create an App Store Connect API key first: App Store Connect -> **Users and
+Access** -> **Integrations** -> **App Store Connect API** -> **+**. Give it the
+**App Manager** role. The `.p8` file downloads exactly once.
+
+Then add these under the repository's **Settings -> Secrets and variables ->
+Actions**:
+
+| Secret | Where it comes from |
+| --- | --- |
+| `APP_STORE_CONNECT_KEY_ID` | The Key ID column on the Integrations page |
+| `APP_STORE_CONNECT_ISSUER_ID` | The Issuer ID shown above the key list |
+| `APP_STORE_CONNECT_PRIVATE_KEY` | Full text of the downloaded `.p8`, including the BEGIN/END lines |
+| `GOOGLE_SERVICE_INFO_PLIST` | Full text of `GoogleService-Info.plist` (optional; omit to build without Firebase) |
+
+Paste the `.p8` contents into the GitHub secret field directly. Never commit it,
+and never paste it into an issue, a pull request, or a chat message.
+
+Certificates and provisioning profiles do not need to be exported by hand. The
+workflow passes `-allowProvisioningUpdates` with the same API key, so Xcode
+creates and downloads what it needs on the runner.
+
+### Running a build
+
+1. Open the **Actions** tab and select **TestFlight**.
+2. Select **Run workflow**.
+3. Enter a build number higher than the last one uploaded. Apple rejects a
+   repeat of a build number that already exists for the same version.
+4. The run takes roughly 15-25 minutes. The IPA is also saved as a run artifact,
+   so a rejected upload can still be inspected.
+
+This checklist covers the remaining account-side work for the first iOS release in the United States and Canada. The Xcode target is already configured with bundle identifier `com.rsm.eztrivia`, Apple Team ID `3564X3VTDB`, display name **EZ Trivia**, a 4+ product intent, non-personalized AdMob requests, and the supplied production AdMob identifiers.
 
 > Never paste an Apple `.p8` private key into an issue, PR, source file, or ordinary chat message. Firebase's `GoogleService-Info.plist`, AdMob app ID, and ad-unit ID are app configuration rather than private keys.
 
@@ -22,11 +59,10 @@ This checklist covers the remaining account-side work for the first iOS release 
 
 1. Sign in to [Apple Developer — Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list).
 2. Select **Identifiers** in the left sidebar.
-3. Search for and open the explicit identifier whose Bundle ID is exactly `EZTrivia`.
+3. Search for and open the explicit identifier whose Bundle ID is exactly `com.rsm.eztrivia`.
 4. Confirm its Team/App ID Prefix is `3564X3VTDB`.
 5. Under **Capabilities**, enable **Game Center**.
 6. Select **Save**, then confirm the change.
-7. If `EZTrivia` does not exist, select the **+** button, choose **App IDs → App**, select **Explicit**, enter `EZTrivia`, enable Game Center, and register it. Do not create a second identifier if the explicit identifier already exists.
 
 The repository already contains the Game Center entitlement. Xcode automatic signing will regenerate the development/distribution profiles after the capability is enabled in the developer portal.
 
@@ -38,7 +74,7 @@ The repository already contains the Game Center entitlement. Xcode automatic sig
 4. Set **Platforms** to **iOS**.
 5. Set **Name** to `EZ Trivia`.
 6. Set **Primary Language** to **English (U.S.)**. This is the single required storefront language; no translated localizations are needed.
-7. Select the Bundle ID for `EZTrivia`.
+7. Select the Bundle ID for `com.rsm.eztrivia`.
 8. Enter an internal SKU such as `EZTRIVIA-IOS-001`.
 9. Leave user access at **Full Access** unless the account has a specific access policy.
 10. Create the app record.
@@ -109,7 +145,7 @@ Debug builds deliberately use Google's official test IDs so development cannot g
 
 1. Sign in to [Google AdMob](https://admob.google.com/).
 2. Open the app matching the production App ID above.
-3. Confirm its platform is iOS and its bundle ID is `EZTrivia`.
+3. Confirm its platform is iOS and its bundle ID is `com.rsm.eztrivia`.
 4. Confirm the banner unit above is active.
 5. Open **Privacy & messaging** from AdMob's left navigation. If the page opens on an overview, select the **Messages** tab.
 6. Find the **US state regulations** card—not the European regulations/GDPR card—and select **Create message**. If a draft already exists, open the draft instead.
@@ -137,11 +173,11 @@ For the simplest, most privacy-minimal first release, skip Firebase. Use Firebas
 4. Enable Google Analytics when prompted.
 5. Select or create the Analytics account owned by the same business/account, then finish creating the project.
 6. On the project overview, select **Add app → iOS**.
-7. Enter the Apple bundle ID exactly as `EZTrivia`. Bundle IDs are case-sensitive and cannot be changed for that Firebase app later.
+7. Enter the Apple bundle ID exactly as `com.rsm.eztrivia`. Bundle IDs are case-sensitive and cannot be changed for that Firebase app later.
 8. Enter `EZ Trivia` as the optional app nickname. The App Store ID can be left blank until Apple assigns one.
 9. Register the app.
 10. Download `GoogleService-Info.plist`.
-11. Provide that file for inclusion in the repository/app target. It is configuration, not a service-account private key, but it must match this exact Firebase project and `EZTrivia` bundle ID.
+11. Provide that file for inclusion in the repository/app target. It is configuration, not a service-account private key, but it must match this exact Firebase project and `com.rsm.eztrivia` bundle ID.
 12. In the Firebase console, open **Build → Crashlytics** and select **Enable/Get started** if prompted.
 13. Open **Analytics → Dashboard** once the first test build has run to confirm events arrive.
 14. Open **Crashlytics** after a test crash or nonfatal report to confirm symbolicated reports arrive.

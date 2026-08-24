@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Core package tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      # Content integrity lives here: these fail the build if a question prompt
+      # is ever duplicated, if a difficulty tier shares questions with another,
+      # or if two near-identical flags are offered as each other's answers.
+      - name: swift test
+        run: swift test
+
+  app:
+    name: Build app for simulator
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Install xcbeautify
+        run: brew install xcbeautify
+      # Unsigned simulator build. This is what type-checks the SwiftUI layer —
+      # SwiftUI and GameKit do not exist off macOS, so nothing else catches a
+      # break in GameView, RootView, or ScoreStore.
+      - name: xcodebuild
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project EZTrivia.xcodeproj \
+            -scheme EZTrivia \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify
+
+  catalog:
+    name: Question review CSV is current
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      # Stops QuestionReview.csv drifting away from the questions it documents.
+      - name: Regenerate and diff
+        run: |
+          swift run QuestionCatalogExporter > /tmp/QuestionReview.csv
+          if ! diff -q QuestionReview.csv /tmp/QuestionReview.csv > /dev/null; then
+            echo "::error::QuestionReview.csv is out of date. Run: swift run QuestionCatalogExporter > QuestionReview.csv"
+            diff QuestionReview.csv /tmp/QuestionReview.csv | head -40
+            exit 1
+          fi
+          echo "QuestionReview.csv matches the question bank."
