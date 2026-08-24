@@ -115,10 +115,14 @@ jobs:
           print(f"App: {app['attributes'].get('name')} ({bundle_id}), id={app_id}")
           print()
 
+          # The nested /apps/{id}/builds relationship endpoint rejects `sort`
+          # (PARAMETER_ERROR.ILLEGAL). Query the top-level /builds collection
+          # with a filter instead, which does support it.
           builds = get(
-              f"/apps/{app_id}/builds",
-              sort="-uploadedDate",
+              "/builds",
               **{
+                  "filter[app]": app_id,
+                  "sort": "-uploadedDate",
                   "limit": 5,
                   "fields[builds]": "version,processingState,uploadedDate,expired,minOsVersion",
               },
