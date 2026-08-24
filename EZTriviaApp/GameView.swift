@@ -5,24 +5,23 @@ struct GameView: View {
     @Environment(\.dismiss) private var dismiss
     let category: TriviaCategory
     let difficulty: TriviaDifficulty
-    @State private var engine: TriviaEngine
-    @State private var seenIDs: Set<String>
+    @State private var engine = TriviaEngine(questions: [])
     @State private var showExitConfirmation = false
-
-    init(category: TriviaCategory, difficulty: TriviaDifficulty) {
-        self.category = category
-        self.difficulty = difficulty
-        let round = QuestionPicker.round(category: category, difficulty: difficulty)
-        _engine = State(initialValue: TriviaEngine(questions: round))
-        _seenIDs = State(initialValue: Set(round.map(\.id)))
-    }
+    @State private var started = false
 
     var body: some View {
         Group {
-            if engine.isRoundComplete { ResultView(category: category, difficulty: difficulty, score: engine.score, playAgain: nextRound, finish: { dismiss() }) }
+            if engine.isRoundComplete && !engine.questions.isEmpty {
+                ResultView(category: category, difficulty: difficulty, score: engine.score, total: engine.questions.count, playAgain: nextRound, finish: { dismiss() })
+            }
             else if let question = engine.currentQuestion { questionView(question) }
         }
         .background(AppTheme.background.ignoresSafeArea())
+        .task {
+            guard !started else { return }
+            started = true
+            nextRound()
+        }
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -103,8 +102,9 @@ struct GameView: View {
     }
 
     private func nextRound() {
-        let next = QuestionPicker.round(category: category, difficulty: difficulty, excluding: seenIDs)
-        seenIDs.formUnion(next.map(\.id))
+        let seen = scores.seenQuestions(category: category, difficulty: difficulty)
+        let next = QuestionPicker.round(category: category, difficulty: difficulty, excluding: seen)
+        scores.markSeen(Set(next.map(\.id)), category: category, difficulty: difficulty)
         engine = TriviaEngine(questions: next)
     }
 }
@@ -116,11 +116,18 @@ private struct QuestionVisual: View {
         Image(value)
             .resizable()
             .scaledToFit()
-            .frame(maxWidth: 280, minHeight: 150, maxHeight: 180)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            // Nepal is portrait, Switzerland and Vatican City are square, and
+            // Qatar is unusually wide. scaledToFit never crops, so the generous
+            // frame lets those letterbox inside the card rather than fight it.
+            .frame(maxWidth: 280, minHeight: 140, maxHeight: 210)
+            .padding(6)
+            .background(AppTheme.card, in: RoundedRectangle(cornerRadius: 10))
             .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
             .frame(maxWidth: .infinity)
-            .accessibilityHidden(true)
+            // Not hidden: a silent image leaves a VoiceOver user with a prompt
+            // that refers to something they are never told exists.
+            .accessibilityElement()
+            .accessibilityLabel("Flag image for this question")
     }
 }
 
@@ -130,6 +137,7 @@ private struct ResultView: View {
     let category: TriviaCategory
     let difficulty: TriviaDifficulty
     let score: Int
+    let total: Int
     let playAgain: () -> Void
     let finish: () -> Void
     @State private var saved = false
@@ -137,22 +145,22 @@ private struct ResultView: View {
     var body: some View {
         VStack(spacing: 22) {
             Spacer()
-            Image(systemName: score >= 8 ? "trophy.fill" : "sparkles")
+            Image(systemName: ratio >= 0.8 ? "trophy.fill" : "sparkles")
                 .font(.system(size: 54)).foregroundStyle(.yellow).frame(width: 108, height: 108).background(.yellow.opacity(0.15), in: Circle())
-            Text(score >= 8 ? "Trivia champion!" : score >= 5 ? "Nice work!" : "Keep learning!").font(.largeTitle.bold())
+            Text(ratio >= 0.8 ? "Trivia champion!" : ratio >= 0.5 ? "Nice work!" : "Keep learning!").font(.largeTitle.bold())
             Text("You scored").foregroundStyle(.secondary)
-            Text("\(score) / 10").font(.system(size: 52, weight: .bold, design: .rounded)).foregroundStyle(AppTheme.color(for: category))
+            Text("\(score) / \(total)").font(.system(size: 52, weight: .bold, design: .rounded)).foregroundStyle(AppTheme.color(for: category))
             Text(resultMessage).font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.horizontal)
             Spacer()
-            Button("Play 10 more") { playAgain() }
+            Button("Play \(total) more") { playAgain() }
                 .font(.headline).foregroundStyle(.white).frame(maxWidth: .infinity).padding().background(AppTheme.gradient, in: RoundedRectangle(cornerRadius: 16))
             Button("Back to categories") { finish() }.font(.headline).padding(.bottom)
         }
         .padding()
         .onAppear {
             guard !saved else { return }
-            scores.record(category: category, score: score, total: 10)
-            gameCenter.submit(score: score, total: 10, category: category)
+            scores.record(category: category, score: score, total: total)
+            gameCenter.submit(score: score, total: total, category: category)
             Telemetry.log("round_complete", parameters: [
                 "category": category.rawValue,
                 "difficulty": difficulty.rawValue,
@@ -162,10 +170,12 @@ private struct ResultView: View {
         }
     }
 
+    private var ratio: Double { total == 0 ? 0 : Double(score) / Double(total) }
+
     private var resultMessage: String {
-        switch score {
-        case 9...10: "Outstanding — you really know your stuff."
-        case 6...8: "A strong round. Can you beat it next time?"
+        switch ratio {
+        case 0.9...: "Outstanding — you really know your stuff."
+        case 0.6..<0.9: "A strong round. Can you beat it next time?"
         default: "Every question is a chance to learn something new."
         }
     }

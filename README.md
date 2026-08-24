@@ -5,13 +5,13 @@ EZTrivia is a small, native iPhone trivia game built with SwiftUI. Pick a catego
 ## Highlights
 
 - Eleven launch categories: Football, Basketball, Soccer, World Flags, History, Science, Movies, Geography, Music, Animals, and Food & Drink
-- Visual flag-identification questions with four country choices
+- Visual flag-identification questions covering 245 distinct flags
 - Ten-question rounds with immediate answer feedback and short explanations
 - Optional endless follow-up rounds, with unseen questions preferred
-- Easy, medium, and hard modes with 50 questions per category at each difficulty
+- Easy, medium, and hard modes that are genuinely different questions, not the same pool relabelled
 - Local best scores and a lightweight on-device leaderboard
 - Dark-mode support, Dynamic Type-friendly layouts, and VoiceOver labels
-- No third-party dependencies
+- Google Mobile Ads and Firebase Analytics/Crashlytics, both optional at runtime
 
 ## Open in Xcode
 
@@ -21,6 +21,33 @@ EZTrivia is a small, native iPhone trivia game built with SwiftUI. Pick a catego
 The deployment target is iOS 17.0. The home screen contains a Google AdMob banner integration with User Messaging Platform consent; it stays in a non-networking setup state until valid account identifiers are supplied.
 
 Flag questions use a bundled local catalog of all 249 ISO 3166-1 country and territory flags, so flag rounds work without a network connection.
+
+## Question catalog
+
+1,145 questions ship with the app:
+
+| | Easy | Medium | Hard |
+|---|---|---|---|
+| Each of the 10 topic categories | 30 | 30 | 30 |
+| World Flags | 50 | 92 | 103 |
+
+Every question is written by hand and appears exactly once. No question is
+reused across difficulties, and tests in `Tests/EZTriviaCoreTests` fail the
+build if a prompt is ever duplicated or a tier shares questions with another.
+
+Four of the 249 flags are never asked about, because their artwork is
+byte-identical to their parent state's: Bouvet Island and Svalbard fly the
+Norwegian flag, Saint Martin the French tricolour, and the U.S. Minor Outlying
+Islands the Stars and Stripes. They remain in the catalog so the images ship,
+but a question with two visually correct answers is not a question.
+
+Flags that are near-identical at phone size — Egypt and Yemen, Romania and
+Chad, the blue-ensign cluster — are never offered as each other's answer
+choices. Those pairs were measured from the shipped artwork rather than
+guessed; see the `confusable` lists in `Sources/EZTriviaCore/FlagCatalog.swift`.
+
+Answer order is shuffled at runtime, so replaying a question does not put the
+correct answer in the same position.
 
 ## Suggested next steps
 
@@ -60,6 +87,8 @@ Suggested review checks:
 
 - `EZTriviaApp/` — SwiftUI application, views, and local persistence
 - `Sources/EZTriviaCore/` — reusable trivia models, question bank, and round engine
+- `Sources/EZTriviaCore/Questions/` — the authored questions, one file per category
+- `Sources/EZTriviaCore/FlagCatalog.swift` — flag names, difficulty tiers, and confusable pairs
 - `Tests/EZTriviaCoreTests/` — engine tests
 
 ## Production service setup

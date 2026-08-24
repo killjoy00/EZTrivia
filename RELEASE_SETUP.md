@@ -1,5 +1,19 @@
 # EZ Trivia release setup
 
+> **Do this first: the bundle identifier is not valid yet.**
+>
+> The target currently sets `PRODUCT_BUNDLE_IDENTIFIER = EZTrivia`. App Store
+> Connect requires reverse-DNS form, so `EZTrivia` cannot be registered as-is.
+> Pick a real identifier before starting any step below — every occurrence of
+> `EZTrivia` in this document then means *your* identifier. It cannot be changed
+> after the App Store and Firebase records are created, so choose once.
+>
+> Suggested: `com.mindell.eztrivia`
+>
+> Update it in `EZTrivia.xcodeproj/project.pbxproj` (both the Debug and Release
+> configurations) and keep it identical in App Store Connect, the AdMob app
+> record, and the Firebase iOS app record.
+
 This checklist covers the remaining account-side work for the first iOS release in the United States and Canada. The Xcode target is already configured with bundle identifier `EZTrivia`, Apple Team ID `3564X3VTDB`, display name **EZ Trivia**, a 4+ product intent, non-personalized AdMob requests, and the supplied production AdMob identifiers.
 
 > Never paste an Apple `.p8` private key into an issue, PR, source file, or ordinary chat message. Firebase's `GoogleService-Info.plist`, AdMob app ID, and ad-unit ID are app configuration rather than private keys.

@@ -99,6 +99,34 @@ public struct TriviaQuestion: Identifiable, Codable, Equatable, Sendable {
         self.correctAnswerIndex = correctAnswerIndex
         self.explanation = explanation
     }
+
+    /// Returns the same question with its answers reordered.
+    ///
+    /// Answer positions are fixed in the authored data so the review export is
+    /// stable, which would otherwise let a repeat player recognise the position
+    /// rather than the answer. Shuffling at presentation time keeps the data
+    /// reviewable and the game honest.
+    public func shufflingAnswers(using generator: inout some RandomNumberGenerator) -> TriviaQuestion {
+        let correct = answers[correctAnswerIndex]
+        var shuffled = answers
+        shuffled.shuffle(using: &generator)
+        guard let index = shuffled.firstIndex(of: correct) else { return self }
+        return TriviaQuestion(
+            id: id,
+            category: category,
+            prompt: prompt,
+            difficulty: difficulty,
+            visual: visual,
+            answers: shuffled,
+            correctAnswerIndex: index,
+            explanation: explanation
+        )
+    }
+
+    public func shufflingAnswers() -> TriviaQuestion {
+        var generator = SystemRandomNumberGenerator()
+        return shufflingAnswers(using: &generator)
+    }
 }
 
 public struct LeaderboardEntry: Identifiable, Codable, Equatable, Sendable {
