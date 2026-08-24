@@ -2,11 +2,9 @@ import Foundation
 
 /// One entry in the bundled flag catalog.
 ///
-/// `askable` is false for a handful of dependencies whose official flag is
-/// byte-identical to their parent state's (Bouvet Island and Svalbard fly the
-/// Norwegian flag, Saint Martin the French tricolour, the U.S. Minor Outlying
-/// Islands the Stars and Stripes). They stay in the catalog so the images ship,
-/// but they are never asked and never offered as an answer choice.
+/// `askable` is false for dependencies whose official flag is byte-identical
+/// to another answer in the catalog. They stay in the catalog so the images
+/// ship, but they are never asked and never offered as an answer choice.
 ///
 /// `confusable` lists codes whose flag is close enough at phone size that
 /// offering them together would be a coin flip rather than a question. The list
@@ -18,16 +16,19 @@ struct FlagEntry: Sendable {
     let difficulty: TriviaDifficulty
     let askable: Bool
     let confusable: Set<String>
+    let explanation: String?
 
     var asset: String { "flag-\(code.lowercased())" }
 
     init(_ code: String, _ name: String, _ difficulty: TriviaDifficulty,
-         askable: Bool = true, confusable: Set<String> = []) {
+         askable: Bool = true, confusable: Set<String> = [],
+         explanation: String? = nil) {
         self.code = code
         self.name = name
         self.difficulty = difficulty
         self.askable = askable
         self.confusable = confusable
+        self.explanation = explanation
     }
 }
 
@@ -84,7 +85,8 @@ enum FlagCatalog {
         FlagEntry("GB", "United Kingdom", .easy),
         FlagEntry("US", "United States", .easy),
         FlagEntry("VN", "Vietnam", .easy, confusable: ["KG"]),
-        FlagEntry("AF", "Afghanistan", .medium),
+        FlagEntry("AF", "Afghanistan", .medium,
+                  explanation: "This is Afghanistan's former 2004–2021 republic flag; the de facto authorities have used a different white flag since 2021."),
         FlagEntry("AL", "Albania", .medium),
         FlagEntry("DZ", "Algeria", .medium),
         FlagEntry("AD", "Andorra", .medium),
@@ -120,7 +122,7 @@ enum FlagCatalog {
         FlagEntry("HU", "Hungary", .medium),
         FlagEntry("IR", "Iran", .medium),
         FlagEntry("IQ", "Iraq", .medium, confusable: ["EG", "YE"]),
-        FlagEntry("CI", "Ivory Coast", .medium),
+        FlagEntry("CI", "Côte d’Ivoire", .medium),
         FlagEntry("JO", "Jordan", .medium),
         FlagEntry("KZ", "Kazakhstan", .medium),
         FlagEntry("KW", "Kuwait", .medium),
@@ -161,7 +163,8 @@ enum FlagCatalog {
         FlagEntry("LK", "Sri Lanka", .medium),
         FlagEntry("SD", "Sudan", .medium),
         FlagEntry("SY", "Syria", .medium),
-        FlagEntry("TW", "Taiwan", .medium),
+        FlagEntry("TW", "Taiwan", .medium,
+                  explanation: "This flag represents Taiwan, whose political and international status is disputed."),
         FlagEntry("TJ", "Tajikistan", .medium),
         FlagEntry("TZ", "Tanzania", .medium),
         FlagEntry("TT", "Trinidad and Tobago", .medium),
@@ -178,7 +181,8 @@ enum FlagCatalog {
         FlagEntry("ZW", "Zimbabwe", .medium),
         FlagEntry("AS", "American Samoa", .hard),
         FlagEntry("AI", "Anguilla", .hard, confusable: ["FK", "KY", "MS", "SH", "TC"]),
-        FlagEntry("AQ", "Antarctica", .hard),
+        FlagEntry("AQ", "Antarctica", .hard,
+                  explanation: "This is Graham Bartram's widely used unofficial design; Antarctica has no officially adopted sovereign flag."),
         FlagEntry("AG", "Antigua and Barbuda", .hard),
         FlagEntry("AW", "Aruba", .hard),
         FlagEntry("BZ", "Belize", .hard),
@@ -191,8 +195,9 @@ enum FlagCatalog {
                   confusable: ["FK", "GS", "KY", "MS", "NZ", "PN", "SH", "TC"]),
         FlagEntry("BF", "Burkina Faso", .hard),
         FlagEntry("BI", "Burundi", .hard),
-        FlagEntry("CV", "Cape Verde", .hard),
-        FlagEntry("BQ", "Caribbean Netherlands", .hard),
+        FlagEntry("CV", "Cabo Verde", .hard),
+        FlagEntry("BQ", "Bonaire", .hard,
+                  explanation: "This is Bonaire's flag. Bonaire, Sint Eustatius, and Saba do not share a single collective Caribbean Netherlands flag."),
         FlagEntry("KY", "Cayman Islands", .hard, confusable: ["AI", "FK", "GS", "MS", "NZ", "PN", "SH", "TC", "VG"]),
         FlagEntry("CF", "Central African Republic", .hard),
         FlagEntry("TD", "Chad", .hard, confusable: ["RO"]),
@@ -204,13 +209,14 @@ enum FlagCatalog {
         FlagEntry("CD", "Democratic Republic of the Congo", .hard),
         FlagEntry("DJ", "Djibouti", .hard),
         FlagEntry("DM", "Dominica", .hard),
-        FlagEntry("TL", "East Timor", .hard),
+        FlagEntry("TL", "Timor-Leste", .hard),
         FlagEntry("GQ", "Equatorial Guinea", .hard),
         FlagEntry("ER", "Eritrea", .hard),
         FlagEntry("SZ", "Eswatini", .hard),
         FlagEntry("FK", "Falkland Islands", .hard, confusable: ["AI", "GS", "KY", "MS", "SH", "VG"]),
         FlagEntry("FO", "Faroe Islands", .hard),
-        FlagEntry("GF", "French Guiana", .hard),
+        FlagEntry("GF", "French Guiana", .hard,
+                  explanation: "This is an unofficial local flag of French Guiana; the official flag is the French tricolour."),
         FlagEntry("PF", "French Polynesia", .hard, confusable: ["LB"]),
         FlagEntry("TF", "French Southern and Antarctic Lands", .hard),
         FlagEntry("GA", "Gabon", .hard),
@@ -218,13 +224,15 @@ enum FlagCatalog {
         FlagEntry("GI", "Gibraltar", .hard),
         FlagEntry("GL", "Greenland", .hard),
         FlagEntry("GD", "Grenada", .hard),
-        FlagEntry("GP", "Guadeloupe", .hard),
+        FlagEntry("GP", "Guadeloupe", .hard,
+                  explanation: "This is an unofficial local flag of Guadeloupe; the official flag is the French tricolour."),
         FlagEntry("GU", "Guam", .hard),
         FlagEntry("GG", "Guernsey", .hard),
         FlagEntry("GN", "Guinea", .hard),
         FlagEntry("GW", "Guinea-Bissau", .hard),
         FlagEntry("GY", "Guyana", .hard),
-        FlagEntry("HM", "Heard Island and McDonald Islands", .hard),
+        FlagEntry("HM", "Heard Island and McDonald Islands", .hard, askable: false,
+                  explanation: "Heard Island and the McDonald Islands use the Australian National Flag and have no separate official flag."),
         FlagEntry("HK", "Hong Kong", .hard),
         FlagEntry("IM", "Isle of Man", .hard),
         FlagEntry("JE", "Jersey", .hard),
@@ -236,31 +244,38 @@ enum FlagCatalog {
         FlagEntry("MV", "Maldives", .hard),
         FlagEntry("ML", "Mali", .hard),
         FlagEntry("MH", "Marshall Islands", .hard),
-        FlagEntry("MQ", "Martinique", .hard),
+        FlagEntry("MQ", "Martinique", .hard,
+                  explanation: "This is a locally used flag of Martinique rather than the official French tricolour."),
         FlagEntry("MR", "Mauritania", .hard),
         FlagEntry("MU", "Mauritius", .hard),
-        FlagEntry("YT", "Mayotte", .hard),
+        FlagEntry("YT", "Mayotte", .hard,
+                  explanation: "This is an unofficial local flag of Mayotte; the official flag is the French tricolour."),
         FlagEntry("FM", "Micronesia", .hard),
         FlagEntry("MS", "Montserrat", .hard, confusable: ["AI", "FK", "GS", "KY", "NZ", "PN", "SH", "TC", "VG"]),
         FlagEntry("NR", "Nauru", .hard),
-        FlagEntry("NC", "New Caledonia", .hard),
+        FlagEntry("NC", "New Caledonia", .hard,
+                  explanation: "This is the FLNKS or Kanak flag, which is politically contested and is often flown alongside the French tricolour."),
         FlagEntry("NE", "Niger", .hard),
         FlagEntry("NU", "Niue", .hard),
         FlagEntry("NF", "Norfolk Island", .hard),
         FlagEntry("MP", "Northern Mariana Islands", .hard),
         FlagEntry("PW", "Palau", .hard),
-        FlagEntry("PS", "Palestine", .hard, confusable: ["EH"]),
+        FlagEntry("PS", "Palestine", .hard, confusable: ["EH"],
+                  explanation: "This is the Palestinian flag; Palestine's international status remains disputed."),
         FlagEntry("PN", "Pitcairn Islands", .hard, confusable: ["GS", "KY", "MS", "NZ", "SH", "VG"]),
         FlagEntry("PR", "Puerto Rico", .hard),
         FlagEntry("CG", "Republic of the Congo", .hard),
         FlagEntry("RW", "Rwanda", .hard),
-        FlagEntry("RE", "Réunion", .hard),
-        FlagEntry("BL", "Saint Barthélemy", .hard),
+        FlagEntry("RE", "Réunion", .hard,
+                  explanation: "This is an unofficial local flag of Réunion; the official flag is the French tricolour."),
+        FlagEntry("BL", "Saint Barthélemy", .hard,
+                  explanation: "This is an unofficial armorial flag of Saint Barthélemy; the official flag is the French tricolour."),
         FlagEntry("SH", "Saint Helena", .hard, confusable: ["AI", "FK", "GS", "KY", "MS", "NZ", "PN", "TC", "VG"]),
         FlagEntry("KN", "Saint Kitts and Nevis", .hard),
         FlagEntry("LC", "Saint Lucia", .hard),
         FlagEntry("MF", "Saint Martin", .hard, askable: false),
-        FlagEntry("PM", "Saint Pierre and Miquelon", .hard),
+        FlagEntry("PM", "Saint Pierre and Miquelon", .hard,
+                  explanation: "This is a widely used unofficial local flag; the official flag of Saint Pierre and Miquelon is the French tricolour."),
         FlagEntry("VC", "Saint Vincent and the Grenadines", .hard),
         FlagEntry("WS", "Samoa", .hard),
         FlagEntry("SC", "Seychelles", .hard),
@@ -282,8 +297,10 @@ enum FlagCatalog {
         FlagEntry("UM", "United States Minor Outlying Islands", .hard, askable: false),
         FlagEntry("VI", "United States Virgin Islands", .hard),
         FlagEntry("VU", "Vanuatu", .hard),
-        FlagEntry("WF", "Wallis and Futuna", .hard),
-        FlagEntry("EH", "Western Sahara", .hard, confusable: ["PS"]),
+        FlagEntry("WF", "Wallis and Futuna", .hard,
+                  explanation: "This is a locally used flag of Wallis and Futuna rather than the official French tricolour."),
+        FlagEntry("EH", "Western Sahara", .hard, confusable: ["PS"],
+                  explanation: "This is the flag of the Sahrawi Arab Democratic Republic; Western Sahara is a disputed territory."),
         FlagEntry("AX", "Åland Islands", .hard),
     ]
 

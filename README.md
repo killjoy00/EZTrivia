@@ -5,7 +5,7 @@ EZTrivia is a small, native iPhone trivia game built with SwiftUI. Pick a catego
 ## Highlights
 
 - Eleven launch categories: Football, Basketball, Soccer, World Flags, History, Science, Movies, Geography, Music, Animals, and Food & Drink
-- Visual flag-identification questions covering 245 distinct flags
+- Visual flag-identification questions covering 244 distinct flags
 - Ten-question rounds with immediate answer feedback and short explanations
 - Optional endless follow-up rounds, with unseen questions preferred
 - Easy, medium, and hard modes that are genuinely different questions, not the same pool relabelled
@@ -24,21 +24,22 @@ Flag questions use a bundled local catalog of all 249 ISO 3166-1 country and ter
 
 ## Question catalog
 
-1,145 questions ship with the app:
+1,144 questions ship with the app:
 
 | | Easy | Medium | Hard |
 |---|---|---|---|
 | Each of the 10 topic categories | 30 | 30 | 30 |
-| World Flags | 50 | 92 | 103 |
+| World Flags | 50 | 92 | 102 |
 
 Every question is written by hand and appears exactly once. No question is
 reused across difficulties, and tests in `Tests/EZTriviaCoreTests` fail the
 build if a prompt is ever duplicated or a tier shares questions with another.
 
-Four of the 249 flags are never asked about, because their artwork is
-byte-identical to their parent state's: Bouvet Island and Svalbard fly the
-Norwegian flag, Saint Martin the French tricolour, and the U.S. Minor Outlying
-Islands the Stars and Stripes. They remain in the catalog so the images ship,
+Five of the 249 flags are never asked about, because their artwork is
+byte-identical to another valid answer: Bouvet Island and Svalbard fly the
+Norwegian flag, Saint Martin the French tricolour, the U.S. Minor Outlying
+Islands the Stars and Stripes, and Heard Island and the McDonald Islands use
+the Australian National Flag. They remain in the catalog so the images ship,
 but a question with two visually correct answers is not a question.
 
 Flags that are near-identical at phone size — Egypt and Yemen, Romania and
