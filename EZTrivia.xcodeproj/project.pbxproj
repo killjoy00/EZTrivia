@@ -24,7 +24,7 @@
 		A10000000000000000000010 /* GameKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* GameKit.framework */; };
 		A10000000000000000000011 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = C30000000000000000000001 /* GoogleMobileAds */; };
 		A10000000000000000000015 /* AdConsentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* AdConsentManager.swift */; };
-		A10000000000000000000016 /* UserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = C30000000000000000000004 /* UserMessagingPlatform */; };
+		A10000000000000000000016 /* GoogleUserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = C30000000000000000000004 /* GoogleUserMessagingPlatform */; };
 		A10000000000000000000020 /* QuestionSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020 /* QuestionSeed.swift */; };
 		A10000000000000000000021 /* FlagCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000021 /* FlagCatalog.swift */; };
 		A10000000000000000000022 /* FootballQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000022 /* FootballQuestions.swift */; };
@@ -113,7 +113,7 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		C30000000000000000000001 /* GoogleMobileAds */ = {isa = XCSwiftPackageProductDependency; package = C20000000000000000000001; productName = GoogleMobileAds;};
-		C30000000000000000000004 /* UserMessagingPlatform */ = {isa = XCSwiftPackageProductDependency; package = C20000000000000000000003; productName = UserMessagingPlatform;};
+		C30000000000000000000004 /* GoogleUserMessagingPlatform */ = {isa = XCSwiftPackageProductDependency; package = C20000000000000000000003; productName = GoogleUserMessagingPlatform;};
 /* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
