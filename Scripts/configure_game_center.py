@@ -127,8 +127,12 @@ def main() -> None:
                         "vendorIdentifier": vendor_id,
                         "submissionType": "BEST_SCORE",
                         "scoreSortType": "DESC",
-                        "scoreRangeStart": 0,
-                        "scoreRangeEnd": 100,
+                        # Strings, not integers. The API rejects integers with
+                        # ENTITY_ERROR.ATTRIBUTE.TYPE: "Expected a STRING but
+                        # got INTEGER". The football leaderboard that already
+                        # exists reads back as '0'/'100', confirming the type.
+                        "scoreRangeStart": "0",
+                        "scoreRangeEnd": "100",
                         "defaultFormatter": "INTEGER",
                     },
                     "relationships": {
