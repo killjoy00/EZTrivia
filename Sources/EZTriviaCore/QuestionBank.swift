@@ -187,7 +187,7 @@ public enum QuestionBank {
                 category: .flags,
                 prompt: "Which country does this flag represent?",
                 difficulty: difficulty,
-                visual: "https://flagcdn.com/w320/\(country.code.lowercased()).png",
+                visual: "flag-\(country.code.lowercased())",
                 answers: choices.map(\.element),
                 correctAnswerIndex: choices.firstIndex { $0.element == country.name }!,
                 explanation: "This is the national flag of \(country.name)."
@@ -206,6 +206,12 @@ private struct FlagCountry {
     let name: String
 
     static let all: [FlagCountry] = [
+        FlagCountry(code: "AQ", name: "Antarctica"),
+        FlagCountry(code: "BV", name: "Bouvet Island"),
+        FlagCountry(code: "GS", name: "South Georgia and the South Sandwich Islands"),
+        FlagCountry(code: "HM", name: "Heard Island and McDonald Islands"),
+        FlagCountry(code: "TF", name: "French Southern Territories"),
+        FlagCountry(code: "UM", name: "United States Minor Outlying Islands"),
         FlagCountry(code: "AW", name: "Aruba"),
         FlagCountry(code: "AF", name: "Afghanistan"),
         FlagCountry(code: "AO", name: "Angola"),
