@@ -70,10 +70,10 @@ The source integrations are complete, but Apple and Google require account-speci
 
 1. The Release target is configured with the supplied AdMob app and banner identifiers; Debug uses Google's official test identifiers.
 2. Every banner request explicitly sets `npa=1`, so this release requests non-personalized ads only.
-3. Register bundle ID `EZTrivia` in Firebase, enable Analytics and Crashlytics, download the matching `GoogleService-Info.plist`, and add it to the `EZTrivia` application target.
+3. Firebase is optional. Without `GoogleService-Info.plist`, Firebase stays disabled; Apple App Analytics and Xcode Organizer crash reports can support the initial release.
 4. Configure and publish AdMob privacy messages for the United States and Canada, then complete the App Store privacy labels.
 
-Firebase remains disabled safely when `GoogleService-Info.plist` is absent. See [`RELEASE_SETUP.md`](RELEASE_SETUP.md) for the complete Apple, Game Center, AdMob, Firebase, age-rating, storefront, and submission walkthrough.
+Firebase remains disabled safely when `GoogleService-Info.plist` is absent and is not required for release. See [`RELEASE_SETUP.md`](RELEASE_SETUP.md) for the complete Apple, Game Center, AdMob, Firebase, age-rating, storefront, and submission walkthrough.
 
 ### Game Center
 

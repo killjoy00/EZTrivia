@@ -42,23 +42,25 @@ If the record already exists, open **App Information** and confirm the name and 
    - **Score range:** 0 through 100
    - **Score format:** Integer
    - **Submission type:** Best score
-6. Use the exact IDs and English (U.S.) names below:
+6. On Apple's first leaderboard form:
+   - **Reference Name** is an internal App Store Connect label. Use the value in the first column below. Players do not see it.
+   - **Leaderboard ID** is the permanent identifier used by the app. Copy the second-column value exactly, including capitalization and periods. It cannot be changed after creation.
 
-| Leaderboard ID | Reference/display name |
-| --- | --- |
-| `EZTrivia.football` | Football High Scores |
-| `EZTrivia.basketball` | Basketball High Scores |
-| `EZTrivia.soccer` | Soccer High Scores |
-| `EZTrivia.flags` | World Flags High Scores |
-| `EZTrivia.history` | History High Scores |
-| `EZTrivia.science` | Science High Scores |
-| `EZTrivia.movies` | Movies High Scores |
-| `EZTrivia.geography` | Geography High Scores |
-| `EZTrivia.music` | Music High Scores |
-| `EZTrivia.animals` | Animals High Scores |
-| `EZTrivia.food` | Food & Drink High Scores |
+| Reference Name (internal) | Leaderboard ID (exact) | English (U.S.) display name shown to players |
+| --- | --- | --- |
+| Football High Scores | `EZTrivia.football` | Football High Scores |
+| Basketball High Scores | `EZTrivia.basketball` | Basketball High Scores |
+| Soccer High Scores | `EZTrivia.soccer` | Soccer High Scores |
+| World Flags High Scores | `EZTrivia.flags` | World Flags High Scores |
+| History High Scores | `EZTrivia.history` | History High Scores |
+| Science High Scores | `EZTrivia.science` | Science High Scores |
+| Movies High Scores | `EZTrivia.movies` | Movies High Scores |
+| Geography High Scores | `EZTrivia.geography` | Geography High Scores |
+| Music High Scores | `EZTrivia.music` | Music High Scores |
+| Animals High Scores | `EZTrivia.animals` | Animals High Scores |
+| Food & Drink High Scores | `EZTrivia.food` | Food & Drink High Scores |
 
-7. Add exactly one required localization to each leaderboard: **English (U.S.)**, using the display name in the table. “No localization” here means no translations; Apple still requires one default display language.
+7. After creating each leaderboard, add its one required **English (U.S.)** localization and enter the third-column display name. “No localization” means no translations; Apple still requires this one default player-facing language.
 8. Save every leaderboard.
 9. Return to the app version page and associate the Game Center leaderboards with the version if App Store Connect presents that option.
 
@@ -95,18 +97,25 @@ Debug builds deliberately use Google's official test IDs so development cannot g
 2. Open the app matching the production App ID above.
 3. Confirm its platform is iOS and its bundle ID is `EZTrivia`.
 4. Confirm the banner unit above is active.
-5. Open **Privacy & messaging**.
-6. Configure consent/privacy messaging for the United States and Canada. Include both the United States state-regulation message and any Canadian/other-region message AdMob indicates is applicable.
-7. In the message choices, do not offer or enable personalized ads for this release.
-8. Publish the messages.
-9. In **Blocking controls**, select ad categories appropriate for a 4+ general-audience trivia app. Block sensitive categories and review the ad-content rating.
-10. Do not tap live ads during development or testing. Use Debug builds for test ads.
+5. Open **Privacy & messaging** from AdMob's left navigation. If the page opens on an overview, select the **Messages** tab.
+6. Find the **US state regulations** card—not the European regulations/GDPR card—and select **Create message**. If a draft already exists, open the draft instead.
+7. Select **EZ Trivia** under **Select apps**, then select **Confirm**. An unpublished app can still be selected if it is already registered in AdMob.
+8. Enter an internal message name such as `EZ Trivia US privacy choices`.
+9. Keep **English** as the only language. No French translation is planned for this release.
+10. In the message editor, keep the required “Do not sell or share my personal information”/privacy-choice controls enabled. Do not add a personalized-ad upsell.
+11. Review the styling and privacy-policy URL, then select **Publish**. If Google asks whether to use its default consent-management setup, choose the Google-certified/default option used by the existing UMP integration.
+12. Canada does not currently use the US-state message. Because the app always sends `npa=1`, Canadian requests are also non-personalized. If AdMob later presents a Canada-specific regulatory message for this account, publish it using the same English-only, non-personalized approach.
+13. Return to **Privacy & messaging** and confirm the US-state message status is **Published**, not Draft.
+14. In **Blocking controls**, select ad categories appropriate for a 4+ general-audience trivia app. Block sensitive categories and review the ad-content rating.
+15. Do not tap live ads during development or testing. Use Debug builds for test ads.
 
 The application also adds `npa=1` to every banner request, enforcing non-personalized ad requests in addition to the consent flow.
 
-## 7. Create Firebase Analytics and Crashlytics configuration
+## 7. Optional: Firebase Analytics and Crashlytics
 
-Firebase gives EZ Trivia aggregate usage analytics and crash diagnostics. The SDK integration is already in the Xcode project; the missing item is the app-specific configuration file.
+Firebase is **not required** to publish or run EZ Trivia. Without `GoogleService-Info.plist`, the current integration deliberately remains disabled and sends no Firebase events. App Store Connect still provides basic App Analytics, and Apple/Xcode provides opt-in crash reports and Organizer diagnostics.
+
+For the simplest, most privacy-minimal first release, skip Firebase. Use Firebase only if you specifically want its cross-version event dashboards and near-real-time Crashlytics console. The SDK integration is already available; enabling it only requires the app-specific configuration file.
 
 1. Sign in to the [Firebase console](https://console.firebase.google.com/) with the Google account that should own the app data.
 2. Select **Create a project**.
@@ -147,6 +156,8 @@ Do not create or send a Firebase Admin SDK JSON/service-account key. The iOS app
 9. Upload to App Store Connect, distribute to internal TestFlight testers, and test the Release configuration without tapping ads.
 10. Complete export compliance, content rights, age rating, privacy, availability, and review-contact fields, then submit the selected build for review.
 
-## Optional App Store Connect API automation
+## App Store Connect API key security and optional automation
 
-Most Game Center and app-record work can be automated with an App Store Connect API key, but account-owner actions and some review questionnaires may still require the web interface. If automation is desired, create a dedicated key with the minimum **App Manager** access and provide the **Issuer ID**, **Key ID**, and `.p8` file through a secure file-transfer mechanism. Never commit the `.p8` file or paste its contents into chat.
+Any App Store Connect `.p8` private key pasted into chat, email, an issue, or a PR must be treated as compromised and revoked immediately in **App Store Connect → Users and Access → Integrations → App Store Connect API**. Do not reuse that key.
+
+Most Game Center and app-record work can be automated with a fresh App Store Connect API key, but account-owner actions and some review questionnaires may still require the web interface. If automation is desired later, create a new dedicated key with the minimum **App Manager** access and transfer the **Issuer ID**, **Key ID**, and `.p8` file through a secure secret/file-transfer mechanism. Never commit the `.p8` file or paste its contents into chat.
