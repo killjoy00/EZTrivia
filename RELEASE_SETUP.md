@@ -16,7 +16,7 @@ Actions macOS runner. Two workflows do the work:
   core package tests, builds the app for the simulator (this is the only thing
   that type-checks the SwiftUI layer), and fails if `QuestionReview.csv` has
   drifted from the question bank. No secrets needed.
-- `.github/workflows/release.yml` is run by hand from the **Actions** tab. It
+- `.github/workflows/testflight.yml` is run by hand from the **Actions** tab. It
   archives, signs, exports an IPA, and uploads it to TestFlight.
 
 ### What you do once, about fifteen minutes
@@ -54,10 +54,23 @@ what it needs on the runner.
 1. **Actions** tab -> **TestFlight** -> **Run workflow**.
 2. The build number comes from the GitHub run number automatically, so it always
    increases and Apple never sees a duplicate.
-3. Roughly 20-40 minutes. The `.xcarchive` and `.ipa` are both saved as run
-   artifacts, so a failed export does not throw away a successful archive.
-4. The workflow validates the bundle with Apple *before* uploading, so a bundle
-   problem fails fast instead of consuming a build number.
+3. Roughly 20-40 minutes. The signed `.xcarchive` is saved as a run artifact,
+   so a failed upload does not throw away a successful archive. With the export
+   destination set to `upload`, Xcode may upload directly without leaving a
+   local `.ipa`; the workflow's IPA artifact is therefore best-effort.
+4. The workflow validates release-critical configuration in the archived app
+   before uploading. App Store Connect performs its server-side validation as
+   part of the authenticated export-and-upload operation.
+
+### Diagnosing an immediate launch crash
+
+The Google Mobile Ads SDK requires `GADApplicationIdentifier` in the installed
+app's `Info.plist` and terminates during startup when it is absent. Do not rely
+on custom `INFOPLIST_KEY_*` build settings for these identifiers: the iOS 26.2
+archive produced by Xcode 26.3 omitted both custom keys even though the project
+declared them. The app now uses an explicit `EZTriviaApp/Info.plist`; the macOS
+CI build and archive are the definitive checks that Xcode accepts and packages
+that configuration.
 
 ### What CI can and cannot prove
 
