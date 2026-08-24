@@ -8,6 +8,7 @@ struct GameView: View {
     @State private var engine = TriviaEngine(questions: [])
     @State private var showExitConfirmation = false
     @State private var started = false
+    @State private var loadFailed = false
 
     var body: some View {
         Group {
@@ -15,9 +16,14 @@ struct GameView: View {
                 ResultView(category: category, difficulty: difficulty, score: engine.score, total: engine.questions.count, playAgain: nextRound, finish: { dismiss() })
             }
             else if let question = engine.currentQuestion { questionView(question) }
+            else if loadFailed { roundUnavailableView }
+            else {
+                ProgressView("Preparing questions…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .background(AppTheme.background.ignoresSafeArea())
-        .task {
+        .onAppear {
             guard !started else { return }
             started = true
             nextRound()
@@ -34,6 +40,17 @@ struct GameView: View {
             Button("Leave Round", role: .destructive) { dismiss() }
             Button("Keep Playing", role: .cancel) {}
         } message: { Text("Your current score won't be saved.") }
+    }
+
+    private var roundUnavailableView: some View {
+        ContentUnavailableView {
+            Label("Questions unavailable", systemImage: "questionmark.folder")
+        } description: {
+            Text("This round could not be prepared. Try again or choose another category.")
+        } actions: {
+            Button("Try Again") { nextRound() }
+                .buttonStyle(.borderedProminent)
+        }
     }
 
     private func questionView(_ question: TriviaQuestion) -> some View {
@@ -104,6 +121,11 @@ struct GameView: View {
     private func nextRound() {
         let seen = scores.seenQuestions(category: category, difficulty: difficulty)
         let next = QuestionPicker.round(category: category, difficulty: difficulty, excluding: seen)
+        guard !next.isEmpty else {
+            loadFailed = true
+            return
+        }
+        loadFailed = false
         scores.markSeen(Set(next.map(\.id)), category: category, difficulty: difficulty)
         engine = TriviaEngine(questions: next)
     }

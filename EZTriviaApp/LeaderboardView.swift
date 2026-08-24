@@ -47,12 +47,6 @@ struct LeaderboardView: View {
             }
         }
         .sheet(isPresented: $showGameCenter) { GameCenterDashboard().ignoresSafeArea() }
-        .alert("Advertising privacy", isPresented: Binding(
-            get: { adConsent.errorMessage != nil },
-            set: { if !$0 { adConsent.errorMessage = nil } }
-        )) { Button("OK") { adConsent.errorMessage = nil } } message: {
-            Text(adConsent.errorMessage ?? "An unknown error occurred.")
-        }
         .confirmationDialog("Clear all scores?", isPresented: $showClearConfirmation) {
             Button("Clear Scores", role: .destructive) { scores.clear() }
             Button("Cancel", role: .cancel) {}

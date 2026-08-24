@@ -218,9 +218,12 @@ part CI cannot check.
 7. Turn on Airplane Mode and confirm flag rounds still work.
 8. Check VoiceOver, Dynamic Type at large sizes, dark mode, the privacy-options
    sheet, local score deletion, and leaving a round part-way through.
-9. Complete export compliance, content rights, age rating, privacy,
+9. If the banner reports "Ads unavailable", take a screenshot of the full
+   persistent message. Ad failures are non-blocking and no longer appear as a
+   transient alert on the Scores tab.
+10. Complete export compliance, content rights, age rating, privacy,
    availability, and review-contact fields in App Store Connect.
-10. Submit the selected build for review.
+11. Submit the selected build for review.
 
 ## App Store Connect API key security and optional automation
 
