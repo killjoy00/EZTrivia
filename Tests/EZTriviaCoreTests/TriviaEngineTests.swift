@@ -148,10 +148,21 @@ import Testing
     #expect(flagQuestions.allSatisfy { $0.visual?.hasPrefix("flag-") == true })
     #expect(flagQuestions.allSatisfy { $0.prompt == QuestionBank.flagPrompt })
     #expect(flagQuestions.allSatisfy { !$0.explanation.hasPrefix("This is the flag of ") })
+    #expect(flagQuestions.allSatisfy { !$0.explanation.contains("ISO 3166") })
     for difficulty in TriviaDifficulty.allCases {
         let count = flagQuestions.count { $0.difficulty == difficulty }
         #expect(count >= 10, "only \(count) flag questions at \(difficulty)")
     }
+}
+
+@Test func everyAskableFlagHasAFunFact() {
+    let missing = FlagCatalog.askable.filter { entry in
+        guard let fact = FlagFacts.byCode[entry.code] else { return true }
+        return fact.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    #expect(missing.isEmpty, "Missing flag facts for: \(missing.map(\.code).joined(separator: ", "))")
+    let askableCodes = Set(FlagCatalog.askable.map(\.code))
+    #expect(Set(FlagFacts.byCode.keys) == askableCodes)
 }
 
 @Test func flagCatalogCoversEveryShippedImage() {
