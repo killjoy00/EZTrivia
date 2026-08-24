@@ -86,7 +86,9 @@ The repository already contains the Game Center entitlement. Xcode automatic sig
 5. Set **Name** to `EZ Trivia`.
 6. Set **Primary Language** to **English (U.S.)**. This is the single required storefront language; no translated localizations are needed.
 7. Select the Bundle ID for `com.rsm.eztrivia`.
-8. Enter an internal SKU such as `EZTRIVIA-IOS-001`.
+8. The SKU is `EZTrivia`. It is an internal App Store Connect identifier only:
+   never shown to users, unrelated to the bundle ID, and fixed once the app
+   record exists.
 9. Leave user access at **Full Access** unless the account has a specific access policy.
 10. Create the app record.
 
