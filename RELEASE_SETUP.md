@@ -4,7 +4,7 @@
 >
 > Registered in the Apple Developer portal under Team ID `3564X3VTDB` with the
 > description "Trivia for everyone". The Xcode project matches. It cannot be
-> changed once the App Store Connect and Firebase records exist, so every step
+> changed once the App Store Connect record exists, so every step
 > below assumes exactly this string.
 
 ## 0. Building without a Mac
@@ -19,41 +19,52 @@ Actions macOS runner. Two workflows do the work:
 - `.github/workflows/release.yml` is run by hand from the **Actions** tab. It
   archives, signs, exports an IPA, and uploads it to TestFlight.
 
-### Secrets the release workflow needs
+### What you do once, about fifteen minutes
 
-Create an App Store Connect API key first: App Store Connect -> **Users and
-Access** -> **Integrations** -> **App Store Connect API** -> **+**. Give it the
-**App Manager** role. The `.p8` file downloads exactly once.
+1. **App Store Connect API key.** App Store Connect -> **Users and Access** ->
+   **Integrations** -> **App Store Connect API** -> **+**. Create a *team* key
+   with the **App Manager** role. Download the `.p8`: it is downloadable
+   **exactly once**. Note the Key ID and the Issuer ID shown above the list.
+2. **Team ID** from developer.apple.com/account -> **Membership**. For this
+   account it is `3564X3VTDB`.
+3. **GitHub secrets.** Repository **Settings -> Secrets and variables ->
+   Actions**, add four:
 
-Then add these under the repository's **Settings -> Secrets and variables ->
-Actions**:
+   | Secret | Value |
+   | --- | --- |
+   | `ASC_KEY_ID` | Key ID from step 1 |
+   | `ASC_ISSUER_ID` | Issuer ID from step 1 |
+   | `ASC_KEY_P8` | Full contents of the `.p8` file |
+   | `APPLE_TEAM_ID` | `3564X3VTDB` |
 
-| Secret | Where it comes from |
-| --- | --- |
-| `APP_STORE_CONNECT_KEY_ID` | The Key ID column on the Integrations page |
-| `APP_STORE_CONNECT_ISSUER_ID` | The Issuer ID shown above the key list |
-| `APP_STORE_CONNECT_PRIVATE_KEY` | Full text of the downloaded `.p8`, including the BEGIN/END lines |
-| `GOOGLE_SERVICE_INFO_PLIST` | Full text of `GoogleService-Info.plist` (optional; omit to build without Firebase) |
+   Paste the `.p8` straight into GitHub's secret field. Never commit it and
+   never paste it into an issue, a pull request, or a chat message. The
+   workflow normalises the common paste mistakes (Windows line endings,
+   literal `\n`, base64, missing BEGIN/END armour) and validates that it parses
+   before spending a build.
+4. **Create the app record** in App Store Connect (section 2 below). This is
+   not reliably automatable and takes two minutes.
 
-Paste the `.p8` contents into the GitHub secret field directly. Never commit it,
-and never paste it into an issue, a pull request, or a chat message.
-
-Certificates and provisioning profiles do not need to be exported by hand. The
-workflow passes `-allowProvisioningUpdates` with the same API key, so Xcode
-creates and downloads what it needs on the runner.
+No certificate or provisioning profile is ever exported by hand. The workflow
+passes `-allowProvisioningUpdates` with the same API key, and Apple creates
+what it needs on the runner.
 
 ### Running a build
 
-1. Open the **Actions** tab and select **TestFlight**.
-2. Select **Run workflow**.
-3. Enter a build number higher than the last one uploaded. Apple rejects a
-   repeat of a build number that already exists for the same version.
-4. The run takes roughly 15-25 minutes. The IPA is also saved as a run artifact,
-   so a rejected upload can still be inspected.
+1. **Actions** tab -> **TestFlight** -> **Run workflow**.
+2. The build number comes from the GitHub run number automatically, so it always
+   increases and Apple never sees a duplicate.
+3. Roughly 20-40 minutes. The `.xcarchive` and `.ipa` are both saved as run
+   artifacts, so a failed export does not throw away a successful archive.
+4. The workflow validates the bundle with Apple *before* uploading, so a bundle
+   problem fails fast instead of consuming a build number.
 
-This checklist covers the remaining account-side work for the first iOS release in the United States and Canada. The Xcode target is already configured with bundle identifier `com.rsm.eztrivia`, Apple Team ID `3564X3VTDB`, display name **EZ Trivia**, a 4+ product intent, non-personalized AdMob requests, and the supplied production AdMob identifiers.
+### What CI can and cannot prove
 
-> Never paste an Apple `.p8` private key into an issue, PR, source file, or ordinary chat message. Firebase's `GoogleService-Info.plist`, AdMob app ID, and ad-unit ID are app configuration rather than private keys.
+CI proves the app compiles, archives, exports, validates against Apple's
+server-side checks, and uploads. It **cannot** prove a banner renders, a flag
+image looks right, a layout fits, or a gesture feels correct. Those need a real
+device with a TestFlight build.
 
 ## 1. Confirm the Apple App ID and enable Game Center
 
@@ -161,50 +172,40 @@ Debug builds deliberately use Google's official test IDs so development cannot g
 
 The application also adds `npa=1` to every banner request, enforcing non-personalized ad requests in addition to the consent flow.
 
-## 7. Optional: Firebase Analytics and Crashlytics
-
-Firebase is **not required** to publish or run EZ Trivia. Without `GoogleService-Info.plist`, the current integration deliberately remains disabled and sends no Firebase events. App Store Connect still provides basic App Analytics, and Apple/Xcode provides opt-in crash reports and Organizer diagnostics.
-
-For the simplest, most privacy-minimal first release, skip Firebase. Use Firebase only if you specifically want its cross-version event dashboards and near-real-time Crashlytics console. The SDK integration is already available; enabling it only requires the app-specific configuration file.
-
-1. Sign in to the [Firebase console](https://console.firebase.google.com/) with the Google account that should own the app data.
-2. Select **Create a project**.
-3. Name it `EZ Trivia` (the internal Firebase project ID may be different and globally unique).
-4. Enable Google Analytics when prompted.
-5. Select or create the Analytics account owned by the same business/account, then finish creating the project.
-6. On the project overview, select **Add app → iOS**.
-7. Enter the Apple bundle ID exactly as `com.rsm.eztrivia`. Bundle IDs are case-sensitive and cannot be changed for that Firebase app later.
-8. Enter `EZ Trivia` as the optional app nickname. The App Store ID can be left blank until Apple assigns one.
-9. Register the app.
-10. Download `GoogleService-Info.plist`.
-11. Provide that file for inclusion in the repository/app target. It is configuration, not a service-account private key, but it must match this exact Firebase project and `com.rsm.eztrivia` bundle ID.
-12. In the Firebase console, open **Build → Crashlytics** and select **Enable/Get started** if prompted.
-13. Open **Analytics → Dashboard** once the first test build has run to confirm events arrive.
-14. Open **Crashlytics** after a test crash or nonfatal report to confirm symbolicated reports arrive.
-
-Do not create or send a Firebase Admin SDK JSON/service-account key. The iOS app only needs `GoogleService-Info.plist`.
-
-## 8. App privacy and release metadata
+## 7. App privacy and release metadata
 
 1. Host `PRIVACY.md` at a public HTTPS URL. The GitHub file URL can be used initially, though a stable product website is preferable.
 2. In App Store Connect, enter that URL in **App Privacy → Privacy Policy URL**.
-3. Complete App Privacy answers for Google Mobile Ads, Firebase Analytics, Firebase Crashlytics, and Game Center based on the final enabled settings and Google's current SDK disclosures.
-4. State that ads are requested as non-personalized and that gameplay interaction/crash diagnostics are used for analytics and app functionality.
+3. Complete App Privacy answers for Google Mobile Ads and Game Center based on Google's current SDK disclosures. The app ships no analytics or crash-reporting SDK and collects nothing itself.
+4. State that ads are requested as non-personalized. There is no analytics or crash-reporting SDK, so nothing is collected for those purposes.
 5. Add support and marketing URLs, copyright holder, category (**Games → Trivia**), description, keywords, screenshots, and review notes.
 6. In review notes, explain that Game Center is optional and the home-screen banner uses non-personalized AdMob requests.
 
-## 9. Final device and submission checks
+## 8. Verify on a device, then submit
 
-1. Open the project in the latest production Xcode on macOS and let Swift packages resolve.
-2. Confirm the selected signing team is `3564X3VTDB` and automatic signing reports no errors.
-3. Add the downloaded `GoogleService-Info.plist` to the `EZTrivia` target with **Copy items if needed** enabled.
-4. Run a Debug build on a physical iPhone. Confirm the banner is Google's test banner, not the live ad unit.
-5. Sign in with a Game Center sandbox tester, complete rounds in multiple categories, and verify scores appear in Apple's dashboard.
-6. Verify local flag questions with Airplane Mode enabled.
-7. Test VoiceOver, Dynamic Type, dark mode, consent/privacy options, local score deletion, and interrupted rounds.
-8. Archive a Release build and validate it in Xcode Organizer.
-9. Upload to App Store Connect, distribute to internal TestFlight testers, and test the Release configuration without tapping ads.
-10. Complete export compliance, content rights, age rating, privacy, availability, and review-contact fields, then submit the selected build for review.
+There is no Mac in this project, so everything below happens on an iPhone with
+a TestFlight build rather than in Xcode. CI has already proved the app compiles,
+archives, exports and passes Apple's server-side validation; what follows is the
+part CI cannot check.
+
+1. Run the **TestFlight** workflow (section 0) and wait for processing.
+2. Install the build on an iPhone from TestFlight.
+3. Play a round in several categories. Confirm answer order varies between
+   plays of the same question, and that a second round does not repeat the
+   first round's questions.
+4. Open **World Flags** at each difficulty. Confirm flags render right way up
+   and are legible, that Nepal and Switzerland letterbox rather than crop, and
+   that no question offers two flags you cannot tell apart.
+5. Confirm the banner is Google's **test** banner in a Debug build and a real
+   unit only in Release.
+6. Sign in with a Game Center sandbox tester, finish rounds in several
+   categories, and confirm scores reach the leaderboards.
+7. Turn on Airplane Mode and confirm flag rounds still work.
+8. Check VoiceOver, Dynamic Type at large sizes, dark mode, the privacy-options
+   sheet, local score deletion, and leaving a round part-way through.
+9. Complete export compliance, content rights, age rating, privacy,
+   availability, and review-contact fields in App Store Connect.
+10. Submit the selected build for review.
 
 ## App Store Connect API key security and optional automation
 

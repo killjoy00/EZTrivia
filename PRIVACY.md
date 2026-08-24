@@ -2,13 +2,13 @@
 
 **Effective date: August 23, 2026**
 
-EZTrivia is a trivia game. This policy explains the information used when you play, view ads, use Game Center, or opt into diagnostics.
+EZTrivia is a trivia game. This policy explains the information used when you play, view ads, or use Game Center.
 
 ## Information EZTrivia uses
 
 - **Scores and preferences:** Personal scores are stored on your device. You can erase them from the Leaderboard screen.
 - **Game Center:** If you sign in to Apple Game Center, EZTrivia submits your score percentage to the leaderboard for the category you played. Apple processes your Game Center identity and leaderboard data under Apple's privacy policy. EZTrivia does not receive your Apple ID credentials.
-- **Analytics and crash diagnostics:** When Firebase is configured, EZTrivia records gameplay events such as category, difficulty, and final score, plus app diagnostics and crash reports. These events do not include question answers, names, email addresses, or precise location. Firebase installations may use an installation identifier and device/app information to provide these services.
+- **Analytics and crash diagnostics:** EZTrivia ships no analytics or crash-reporting SDK and sends no gameplay events anywhere. Apple provides the developer with aggregate App Store analytics and opt-in crash reports; that data comes from Apple, not from the app, and is governed by Apple's privacy policy.
 - **Advertising:** Google AdMob may process device identifiers, IP-derived approximate location, ad interactions, diagnostics, and other data needed to deliver and measure ads and prevent fraud. EZ Trivia requests non-personalized ads only.
 
 ## Tracking and consent
@@ -21,7 +21,7 @@ National flag images are bundled with the app. Viewing a flag question does not 
 
 ## Retention and deletion
 
-Local scores remain until you clear them or delete the app. Game Center leaderboard data is managed through Apple. Analytics, crash, and advertising retention are controlled through the configured Google/Firebase account settings and their applicable terms.
+Local scores remain until you clear them or delete the app. Game Center leaderboard data is managed through Apple. Advertising retention is controlled through Google AdMob account settings and their applicable terms.
 
 ## Children
 
