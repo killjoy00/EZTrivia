@@ -36,6 +36,7 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 header
+                DailyChallengeCard()
                 Text("Choose a category")
                     .font(.title2.bold())
                     .accessibilityAddTraits(.isHeader)
@@ -51,6 +52,7 @@ struct HomeView: View {
         }
         .background(AppTheme.background)
         .navigationDestination(for: TriviaCategory.self) { DifficultyView(category: $0) }
+        .navigationDestination(for: DailyRoute.self) { _ in DailyChallengeView() }
         .navigationTitle("EZ Trivia")
         .navigationBarTitleDisplayMode(.inline)
     }

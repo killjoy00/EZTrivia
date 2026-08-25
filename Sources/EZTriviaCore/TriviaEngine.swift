@@ -6,6 +6,17 @@ public struct TriviaEngine: Sendable {
     public private(set) var score = 0
     public private(set) var selectedAnswerIndex: Int?
 
+    /// Difficulty-weighted score, used by the daily challenge.
+    ///
+    /// Tracked for every round rather than only the daily so the two paths
+    /// share one engine. A category round simply ignores it.
+    public private(set) var points = 0
+
+    /// Whether each answered question was correct, in the order they were
+    /// asked. This is what the shareable result grid is drawn from, so it has
+    /// to survive to the end of the round rather than being recomputed.
+    public private(set) var outcomes: [Bool] = []
+
     public init(questions: [TriviaQuestion]) {
         self.questions = questions
     }
@@ -22,7 +33,11 @@ public struct TriviaEngine: Sendable {
         guard selectedAnswerIndex == nil, let question = currentQuestion, question.answers.indices.contains(index) else { return false }
         selectedAnswerIndex = index
         let correct = index == question.correctAnswerIndex
-        if correct { score += 1 }
+        if correct {
+            score += 1
+            points += DailyScoring.points(for: question)
+        }
+        outcomes.append(correct)
         return correct
     }
 

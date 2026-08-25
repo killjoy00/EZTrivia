@@ -6,6 +6,15 @@ final class ScoreStore: ObservableObject {
     private let defaults: UserDefaults
     private let key = "leaderboard.v1"
     private let seenDefaultsKey = "seenQuestions.v1"
+    private let dailyDefaultsKey = "dailyResults.v1"
+
+    /// Finished daily challenges, keyed by day number.
+    ///
+    /// Keeping the whole history rather than just the streak length means the
+    /// streak can be recomputed rather than incremented, so a clock change or
+    /// a skipped launch cannot leave a counter that disagrees with what the
+    /// player actually played.
+    @Published private(set) var dailyResults: [Int: DailyResult] = [:]
 
     /// Question IDs the player has already been served, keyed by
     /// "category-difficulty". Persisting these is what stops a player from
@@ -20,6 +29,31 @@ final class ScoreStore: ObservableObject {
         if let data = defaults.data(forKey: seenDefaultsKey), let decoded = try? JSONDecoder().decode([String: Set<String>].self, from: data) {
             seenQuestionIDs = decoded
         }
+        if let data = defaults.data(forKey: dailyDefaultsKey), let decoded = try? JSONDecoder().decode([Int: DailyResult].self, from: data) {
+            dailyResults = decoded
+        }
+    }
+
+    // MARK: - Daily challenge
+
+    func dailyResult(for day: Int) -> DailyResult? { dailyResults[day] }
+
+    /// The streak as of `today`. See `DailyStreak.current`.
+    func dailyStreak(today: Int) -> Int {
+        DailyStreak.current(playedDays: Set(dailyResults.keys), today: today)
+    }
+
+    /// Records a finished daily. The first result for a day wins: a daily is
+    /// one attempt, so a replay must not be able to overwrite a worse score
+    /// with a better one.
+    func recordDaily(_ result: DailyResult) {
+        guard dailyResults[result.day] == nil else { return }
+        dailyResults[result.day] = result
+        persistDaily()
+    }
+
+    private func persistDaily() {
+        defaults.set(try? JSONEncoder().encode(dailyResults), forKey: dailyDefaultsKey)
     }
 
     private func cacheKey(_ category: TriviaCategory, _ difficulty: TriviaDifficulty) -> String {
@@ -58,6 +92,11 @@ final class ScoreStore: ObservableObject {
             .max()
     }
 
+    /// Clears the personal leaderboard and the seen-question history.
+    ///
+    /// Daily results are deliberately not cleared. "Clear scores" is about the
+    /// local score list; wiping a streak someone has spent weeks on because
+    /// they tidied their leaderboard would be a genuinely upsetting surprise.
     func clear() {
         entries = []
         seenQuestionIDs = [:]
@@ -67,5 +106,24 @@ final class ScoreStore: ObservableObject {
 
     private func persist() {
         defaults.set(try? JSONEncoder().encode(entries), forKey: key)
+    }
+}
+
+/// One finished daily challenge.
+struct DailyResult: Codable, Equatable {
+    let day: Int
+    let score: Int
+    let total: Int
+    let points: Int
+    let outcomes: [Bool]
+    let date: Date
+
+    init(day: Int, score: Int, total: Int, points: Int, outcomes: [Bool], date: Date = Date()) {
+        self.day = day
+        self.score = score
+        self.total = total
+        self.points = points
+        self.outcomes = outcomes
+        self.date = date
     }
 }

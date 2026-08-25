@@ -33,9 +33,29 @@ final class GameCenterManager: ObservableObject {
         }
     }
 
+    /// Submits a daily challenge score.
+    ///
+    /// Points rather than a percentage, and a leaderboard that resets every
+    /// day, so the board keeps ranking people instead of filling up with
+    /// identical perfect scores.
+    func submitDaily(points: Int) {
+        guard isAuthenticated, points > 0 else { return }
+        GKLeaderboard.submitScore(
+            points,
+            context: 0,
+            player: GKLocalPlayer.local,
+            leaderboardIDs: [Self.dailyLeaderboardID]
+        ) { [weak self] error in
+            guard let error else { return }
+            Task { @MainActor in self?.errorMessage = error.localizedDescription }
+        }
+    }
+
     static func leaderboardID(for category: TriviaCategory) -> String {
         "\(leaderboardPrefix).\(category.rawValue)"
     }
+
+    static let dailyLeaderboardID = "\(leaderboardPrefix).daily"
 }
 
 struct GameCenterAuthenticationView: UIViewControllerRepresentable {

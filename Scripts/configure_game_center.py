@@ -14,18 +14,26 @@ import requests
 
 BASE_URL = "https://api.appstoreconnect.apple.com/v1"
 BUNDLE_ID = "com.rsm.eztrivia"
+# vendor-id suffix -> (display name, highest submittable score)
+#
+# Category boards carry a percentage, so 0-100. The daily challenge carries
+# difficulty-weighted points instead, because a percentage saturates: on a
+# ten-question round a great many players reach 100, and a board where the top
+# thousand entries are identical has stopped ranking anyone. A perfect daily is
+# 1,650 points, so 2,000 leaves headroom if the ramp is ever retuned.
 LEADERBOARDS = {
-    "football": "Football High Scores",
-    "basketball": "Basketball High Scores",
-    "soccer": "Soccer High Scores",
-    "flags": "World Flags High Scores",
-    "history": "History High Scores",
-    "science": "Science High Scores",
-    "movies": "Movies High Scores",
-    "geography": "Geography High Scores",
-    "music": "Music High Scores",
-    "animals": "Animals High Scores",
-    "food": "Food & Drink High Scores",
+    "football": ("Football High Scores", 100),
+    "basketball": ("Basketball High Scores", 100),
+    "soccer": ("Soccer High Scores", 100),
+    "flags": ("World Flags High Scores", 100),
+    "history": ("History High Scores", 100),
+    "science": ("Science High Scores", 100),
+    "movies": ("Movies High Scores", 100),
+    "geography": ("Geography High Scores", 100),
+    "music": ("Music High Scores", 100),
+    "animals": ("Animals High Scores", 100),
+    "food": ("Food & Drink High Scores", 100),
+    "daily": ("Daily Challenge", 2000),
 }
 
 
@@ -113,7 +121,7 @@ def main() -> None:
     existing = api.get_all(f"/gameCenterDetails/{detail_id}/gameCenterLeaderboards")
     by_vendor_id = {item["attributes"]["vendorIdentifier"]: item for item in existing}
 
-    for category, display_name in LEADERBOARDS.items():
+    for category, (display_name, score_range_end) in LEADERBOARDS.items():
         vendor_id = f"EZTrivia.{category}"
         leaderboard = by_vendor_id.get(vendor_id)
         if leaderboard:
@@ -132,7 +140,7 @@ def main() -> None:
                         # got INTEGER". The football leaderboard that already
                         # exists reads back as '0'/'100', confirming the type.
                         "scoreRangeStart": "0",
-                        "scoreRangeEnd": "100",
+                        "scoreRangeEnd": str(score_range_end),
                         "defaultFormatter": "INTEGER",
                     },
                     "relationships": {
