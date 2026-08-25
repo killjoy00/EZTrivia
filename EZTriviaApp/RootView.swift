@@ -1,11 +1,33 @@
 import SwiftUI
 
+/// A pushed round, addressed by value.
+///
+/// Value-based rather than a `NavigationLink(destination:)` because the
+/// result screen needs to return the player all the way to the category
+/// grid, and only a path the app owns can be truncated like that. A
+/// destination-based link pushes a screen the NavigationPath does not track,
+/// which is why "Back to categories" previously landed on the difficulty
+/// picker instead of home.
+struct GameRoute: Hashable {
+    let category: TriviaCategory
+    let difficulty: TriviaDifficulty
+}
+
+@MainActor
+final class PlayRouter: ObservableObject {
+    @Published var path = NavigationPath()
+
+    func popToRoot() { path = NavigationPath() }
+}
+
 struct RootView: View {
     @EnvironmentObject private var gameCenter: GameCenterManager
+    @StateObject private var playRouter = PlayRouter()
 
     var body: some View {
         TabView {
-            NavigationStack { HomeView() }
+            NavigationStack(path: $playRouter.path) { HomeView() }
+                .environmentObject(playRouter)
                 .tabItem { Label("Play", systemImage: "play.fill") }
             NavigationStack { LeaderboardView() }
                 .tabItem { Label("Scores", systemImage: "trophy.fill") }
@@ -37,7 +59,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 22) {
                 header
                 DailyChallengeCard()
-                Text("Choose a category")
+                Text("Or choose a category to play")
                     .font(.title2.bold())
                     .accessibilityAddTraits(.isHeader)
                 LazyVGrid(columns: columns, spacing: 12) {
@@ -59,27 +81,29 @@ struct HomeView: View {
         // of the NavigationStack this inset isn't rendered either.
         .safeAreaInset(edge: .bottom, spacing: 0) { AdBannerView() }
         .navigationDestination(for: TriviaCategory.self) { DifficultyView(category: $0) }
+        .navigationDestination(for: GameRoute.self) { GameView(category: $0.category, difficulty: $0.difficulty) }
         .navigationDestination(for: DailyRoute.self) { _ in DailyChallengeView() }
         .navigationTitle("EZ Trivia")
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    /// Plain type rather than a filled card.
+    ///
+    /// This was a gradient-filled rounded rectangle sitting directly above
+    /// the Daily Challenge card, which is a gradient-filled rounded rectangle
+    /// that *is* tappable. Two identical-looking blocks where only one
+    /// responds to a tap is a straightforward usability bug, so the gradient
+    /// now means exactly one thing on this screen: you can tap this.
     private var header: some View {
-        HStack(spacing: 16) {
-            Image(systemName: "brain.head.profile.fill")
-                .font(.system(size: 38))
-                .foregroundStyle(.white)
-                .frame(width: 68, height: 68)
-                .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 18))
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Ready to play?").font(.title2.bold())
-                Text("Ten quick questions. One great score.").font(.subheadline).opacity(0.9)
-            }
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Ready to play?")
+                .font(.largeTitle.bold())
+                .accessibilityAddTraits(.isHeader)
+            Text("Ten quick questions. One great score.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
-        .foregroundStyle(.white)
-        .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.gradient, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
 }
 
@@ -99,9 +123,7 @@ private struct DifficultyView: View {
             Text("Choose your challenge").font(.title.bold()).accessibilityAddTraits(.isHeader)
             Text(availabilityMessage).foregroundStyle(.secondary)
             ForEach(TriviaDifficulty.allCases) { difficulty in
-                NavigationLink {
-                    GameView(category: category, difficulty: difficulty)
-                } label: {
+                NavigationLink(value: GameRoute(category: category, difficulty: difficulty)) {
                     HStack(spacing: 16) {
                         Image(systemName: difficulty.symbol).font(.title2).foregroundStyle(AppTheme.color(for: category)).frame(width: 44, height: 44).background(AppTheme.color(for: category).opacity(0.12), in: Circle())
                         VStack(alignment: .leading) {

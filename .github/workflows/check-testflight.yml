@@ -200,6 +200,59 @@ jobs:
                     f"Game Center: {gc_state}")
           print()
 
+          # --- Store listing ------------------------------------------------
+          # Verifying what is actually saved in App Store Connect, rather than
+          # trusting that a paste landed. Every one of these is required before
+          # a version can be submitted, and an empty field here is the whole
+          # reason a submission gets blocked.
+          print("=== Store listing ===")
+
+          infos = get(f"/apps/{app_id}/appInfos", **{"limit": 5})
+          for info in infos.get("data", []):
+              locs = get(f"/appInfos/{info['id']}/appInfoLocalizations",
+                         **{"fields[appInfoLocalizations]":
+                            "locale,name,subtitle,privacyPolicyUrl"})
+              for loc in locs.get("data", []):
+                  a = loc["attributes"]
+                  if not a.get("name") and not a.get("subtitle"):
+                      continue
+                  print(f"  [{a.get('locale')}]")
+                  print(f"    name:     {a.get('name') or '(EMPTY)'}")
+                  print(f"    subtitle: {a.get('subtitle') or '(EMPTY)'}")
+                  print(f"    privacy:  {a.get('privacyPolicyUrl') or '(EMPTY)'}")
+
+          for v in versions.get("data", []):
+              vlocs = get(f"/appStoreVersions/{v['id']}/appStoreVersionLocalizations",
+                          **{"fields[appStoreVersionLocalizations]":
+                             "locale,description,keywords,promotionalText,supportUrl,marketingUrl,whatsNew"})
+              for loc in vlocs.get("data", []):
+                  a = loc["attributes"]
+                  desc = (a.get("description") or "").strip()
+                  print(f"  [{v['attributes'].get('versionString')} / {a.get('locale')}]")
+                  print(f"    description:  {len(desc)} chars"
+                        + (f" -- starts: {desc[:60]}..." if desc else " (EMPTY)"))
+                  print(f"    keywords:     {a.get('keywords') or '(EMPTY)'}")
+                  print(f"    promo text:   {a.get('promotionalText') or '(EMPTY)'}")
+                  print(f"    support URL:  {a.get('supportUrl') or '(EMPTY)'}")
+                  print(f"    marketing URL:{a.get('marketingUrl') or '(none, optional)'}")
+
+              # Screenshots are the one required asset that cannot be pasted,
+              # so report per display size how many are actually uploaded.
+              sets = get(f"/appStoreVersions/{v['id']}/appStoreVersionLocalizations",
+                         **{"fields[appStoreVersionLocalizations]": "locale"})
+              for loc in sets.get("data", []):
+                  shots = get(f"/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets",
+                              **{"fields[appScreenshotSets]": "screenshotDisplayType"})
+                  if not shots.get("data"):
+                      print(f"    screenshots:  NONE uploaded")
+                      continue
+                  for st in shots.get("data", []):
+                      kind = st["attributes"].get("screenshotDisplayType")
+                      imgs = get(f"/appScreenshotSets/{st['id']}/appScreenshots",
+                                 **{"fields[appScreenshots]": "assetDeliveryState"})
+                      print(f"    screenshots:  {kind}: {len(imgs.get('data', []))}")
+          print()
+
           groups = get(
               f"/apps/{app_id}/betaGroups",
               **{"fields[betaGroups]": "name,isInternalGroup,publicLinkEnabled"},

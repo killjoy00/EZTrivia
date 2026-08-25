@@ -67,6 +67,7 @@ struct DailyChallengeView: View {
     @EnvironmentObject private var scores: ScoreStore
     @EnvironmentObject private var gameCenter: GameCenterManager
     @EnvironmentObject private var feedback: Feedback
+    @EnvironmentObject private var router: PlayRouter
     @Environment(\.dismiss) private var dismiss
 
     @State private var engine = TriviaEngine(questions: [])
@@ -78,7 +79,7 @@ struct DailyChallengeView: View {
     var body: some View {
         Group {
             if let result = scores.dailyResult(for: today) {
-                DailyResultView(result: result, streak: scores.dailyStreak(today: today), finish: { dismiss() })
+                DailyResultView(result: result, streak: scores.dailyStreak(today: today), finish: { router.popToRoot() })
             } else if engine.isRoundComplete && !engine.questions.isEmpty {
                 // Momentary: finishRound() writes the record as the last
                 // question is advanced past, which swaps this for the branch

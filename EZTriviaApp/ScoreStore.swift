@@ -111,11 +111,17 @@ final class ScoreStore: ObservableObject {
         defaults.set(try? JSONEncoder().encode(seenQuestionIDs), forKey: seenDefaultsKey)
     }
 
+    /// Records a finished round, newest first.
+    ///
+    /// Ordered by date rather than by score. Ranking ten-question rounds
+    /// against each other has the same saturation problem the Game Center
+    /// boards had before they moved to lifetime points: perfect rounds are
+    /// common, so a score-ranked list becomes a wall of 10/10 with the oldest
+    /// one arbitrarily on top. As a history it is useful; as a ranking it
+    /// stopped saying anything. Lifetime points is where ranking lives now.
     func record(category: TriviaCategory, difficulty: TriviaDifficulty, score: Int, total: Int) {
         entries.append(LeaderboardEntry(category: category, difficulty: difficulty, score: score, total: total))
-        entries = Array(entries.sorted { lhs, rhs in
-            lhs.percentage == rhs.percentage ? lhs.date > rhs.date : lhs.percentage > rhs.percentage
-        }.prefix(50))
+        entries = Array(entries.sorted { $0.date > $1.date }.prefix(50))
         persist()
     }
 

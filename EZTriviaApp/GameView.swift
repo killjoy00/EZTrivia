@@ -3,6 +3,7 @@ import SwiftUI
 struct GameView: View {
     @EnvironmentObject private var scores: ScoreStore
     @EnvironmentObject private var feedback: Feedback
+    @EnvironmentObject private var router: PlayRouter
     @Environment(\.dismiss) private var dismiss
     let category: TriviaCategory
     let difficulty: TriviaDifficulty
@@ -22,7 +23,10 @@ struct GameView: View {
                     points: engine.points,
                     outcomes: engine.outcomes,
                     playAgain: nextRound,
-                    finish: { dismiss() }
+                    // All the way home, not one screen back. dismiss() here
+                    // returned the player to the difficulty picker, which is
+                    // not what "Back to categories" says.
+                    finish: { router.popToRoot() }
                 )
             }
             else if engine.currentQuestion != nil {

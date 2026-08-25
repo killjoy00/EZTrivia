@@ -10,6 +10,14 @@ public enum RoundSummary {
     private static let correctMark = "🟩"
     private static let wrongMark = "⬜️"
 
+    /// Where a shared score sends someone who does not have the app.
+    ///
+    /// The numeric App Store id is stable from the moment the app record is
+    /// created, so this link is correct in advance of release -- it just
+    /// 404s until the listing goes live. Shipping it now means launch day
+    /// needs no code change and no forgotten follow-up.
+    static let appStoreURL = "https://apps.apple.com/app/id6804526553"
+
     /// The result grid: one square per question, in the order they were asked.
     public static func grid(_ outcomes: [Bool]) -> String {
         outcomes.map { $0 ? correctMark : wrongMark }.joined()
@@ -34,6 +42,7 @@ public enum RoundSummary {
         if streak > 1 {
             lines.append("\(streak) day streak 🔥")
         }
+        lines.append(appStoreURL)
         return lines.joined(separator: "\n")
     }
 
@@ -46,7 +55,8 @@ public enum RoundSummary {
         [
             "EZ Trivia — \(category.title), \(difficulty.title)",
             grid(outcomes),
-            "\(outcomes.filter { $0 }.count)/\(outcomes.count) correct"
+            "\(outcomes.filter { $0 }.count)/\(outcomes.count) correct",
+            appStoreURL
         ].joined(separator: "\n")
     }
 }
