@@ -52,6 +52,10 @@ CATEGORIES = [
     ("music",      "Music",          "#5E5CE6", "#3730A3"),
     ("animals",    "Animals",        "#30B0C7", "#0F766E"),
     ("food",       "Food & Drink",   "#FF453A", "#B91C1C"),
+    # Orange-to-pink rather than a category colour: it matches the Daily
+    # Challenge card's gradient in the app (RootView), so the leaderboard
+    # reads as the same feature rather than a twelfth topic.
+    ("daily",      "Daily Challenge","#FF9500", "#D6336C"),
 ]
 CATEGORIES[2] = ("soccer", "Soccer", "#34C759", "#15803D")
 
@@ -165,6 +169,29 @@ ICONS: dict[str, str] = {
         <path d="M26,66 H78 A26,26 0 0,1 58,98 L58,182 A6,6 0 0,1 46,182 L46,98 A26,26 0 0,1 26,66 Z"/>
         <path d="M150,14 C176,40 176,84 156,102 L156,182 A6,6 0 0,1 144,182 L144,110 C126,104 126,40 150,14 Z"/>
       </g>""",
+    # A flame, matching the streak icon players already see in the app
+    # (DailyChallengeCard / DailyResultView both use flame.fill), so the
+    # leaderboard is recognisable as "the daily" at a glance rather than
+    # needing its name read first.
+    "daily": """
+      <path d="M100,16
+               C74,52 58,78 58,112
+               C58,150 78,178 100,178
+               C122,178 142,150 142,112
+               C142,90 130,70 118,56
+               C121,76 111,90 98,90
+               C86,90 80,78 82,64
+               C84,48 90,32 100,16 Z"
+            fill="white"/>
+      <path d="M100,110
+               C90,122 86,136 86,148
+               C86,164 92,174 100,174
+               C108,174 114,164 114,148
+               C114,138 110,126 102,116
+               C104,126 100,134 96,134
+               C91,134 88,126 92,116
+               C95,113 98,111 100,110 Z"
+            fill="#00000026"/>""",
 }
 
 PAGE = """<!doctype html>
