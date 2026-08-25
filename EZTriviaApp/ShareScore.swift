@@ -56,11 +56,19 @@ struct ScoreCard: View {
 
 /// Share button for a finished round.
 ///
-/// Shares the App Store link as the item, with the rendered score card as that
-/// link's preview image. The card is therefore the tappable thing: a recipient
-/// gets one rich bubble showing the score that opens the App Store when tapped,
-/// rather than an image attachment sitting next to a bare URL that reads like
-/// an advert stapled to a screenshot.
+/// Shares the rendered card as the item, with the App Store link left in
+/// `message`'s trailing line for Messages to turn into its own link bubble.
+///
+/// An earlier version tried to make the card itself the tappable thing by
+/// sharing the App Store URL as the item and the card as that URL's preview
+/// image. That does not work: Messages generates a link's preview by fetching
+/// the destination itself rather than trusting an app-supplied image, so
+/// before launch -- while the App Store URL still 404s -- the recipient sees a
+/// bare "apps.apple.com" bubble with no image at all. After launch it would
+/// likely show Apple's own App Store icon instead of the score card, which is
+/// not an improvement either. There is no supported way to make a plain image
+/// attachment itself open a link when tapped: only a real link preview is
+/// tappable, and Messages owns generating those for the URLs it recognises.
 ///
 /// Renders the card up front rather than on tap. `ImageRenderer` is main-actor
 /// work, and doing it while the share sheet is already animating in produces a
@@ -71,17 +79,11 @@ struct ShareResultButton: View {
     let card: ScoreCard
     @State private var rendered: Image?
 
-    private var link: URL {
-        // The literal is a compile-time constant that is known to parse, so the
-        // fallback is unreachable; it exists only to avoid forcing.
-        URL(string: RoundSummary.appStoreURL) ?? URL(string: "https://apps.apple.com")!
-    }
-
     var body: some View {
         Group {
             if let rendered {
                 ShareLink(
-                    item: link,
+                    item: rendered,
                     subject: Text("EZ Trivia"),
                     message: Text(message),
                     preview: SharePreview(headline, image: rendered)
@@ -89,15 +91,9 @@ struct ShareResultButton: View {
                     Label("Share result", systemImage: "square.and.arrow.up")
                 }
             } else {
-                // Used only if rendering ever fails. The link is still the item,
-                // so the share is never reduced to a bare URL -- it just loses
-                // the card.
-                ShareLink(
-                    item: link,
-                    subject: Text("EZ Trivia"),
-                    message: Text(message),
-                    preview: SharePreview(headline)
-                ) {
+                // Text-only fallback, used if rendering ever fails. Sharing
+                // something is much better than a dead button.
+                ShareLink(item: message) {
                     Label("Share result", systemImage: "square.and.arrow.up")
                 }
             }

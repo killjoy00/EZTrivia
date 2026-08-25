@@ -143,15 +143,8 @@ private struct ResultView: View {
         }
     }
 
-    /// No link: the share carries the App Store URL as its item, so the score
-    /// card itself is what opens the listing.
     private var shareText: String {
-        RoundSummary.round(
-            category: category,
-            difficulty: difficulty,
-            outcomes: outcomes,
-            includingLink: false
-        )
+        RoundSummary.round(category: category, difficulty: difficulty, outcomes: outcomes)
     }
 
     private var shareHeadline: String {
