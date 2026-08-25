@@ -178,6 +178,20 @@ import Testing
     #expect(!text.contains("?"))
 }
 
+@Test func shareTextLinksBackToTheApp() {
+    // The link is the whole growth loop: someone who receives a shared score
+    // and does not have the app needs a way to get it.
+    let daily = RoundSummary.daily(day: 3, outcomes: [true, true], points: 200, streak: 1)
+    let round = RoundSummary.round(category: .music, difficulty: .easy, outcomes: [true])
+
+    #expect(daily.contains(RoundSummary.appStoreURL))
+    #expect(round.contains(RoundSummary.appStoreURL))
+    // Last line, so the text reads as a result with a link under it rather
+    // than an advert with a score attached.
+    #expect(daily.hasSuffix(RoundSummary.appStoreURL))
+    #expect(round.hasSuffix(RoundSummary.appStoreURL))
+}
+
 @Test func aSingleDayIsNotDescribedAsAStreak() {
     let text = RoundSummary.daily(day: 1, outcomes: [true], points: 100, streak: 1)
     #expect(!text.contains("streak"))

@@ -16,16 +16,19 @@ struct LeaderboardView: View {
             if scores.entries.isEmpty {
                 Section {
                     ContentUnavailableView(
-                        "No scores yet",
+                        "No rounds yet",
                         systemImage: "trophy",
-                        description: Text("Finish a round and your best runs will appear here.")
+                        description: Text("Finish a round and it will appear here.")
                     )
                 }
             } else {
-                Section("Personal leaderboard") {
-                    ForEach(Array(scores.entries.enumerated()), id: \.element.id) { rank, entry in
+                // "Recent rounds", not "Personal leaderboard", and no rank
+                // column: these are ordered by when they were played, so a
+                // position number would imply a ranking the list no longer
+                // carries.
+                Section("Recent rounds") {
+                    ForEach(scores.entries) { entry in
                         HStack(spacing: 14) {
-                            Text("\(rank + 1)").font(.headline.monospacedDigit()).foregroundStyle(.secondary).frame(width: 28)
                             Image(systemName: entry.category.symbol).foregroundStyle(AppTheme.color(for: entry.category)).frame(width: 30)
                             VStack(alignment: .leading) {
                                 Text(entry.category.title).font(.headline)
