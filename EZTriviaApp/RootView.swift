@@ -46,11 +46,18 @@ struct HomeView: View {
                             .buttonStyle(.plain)
                     }
                 }
-                AdBannerView()
             }
             .padding()
         }
         .background(AppTheme.background)
+        // Pinned above the tab bar rather than left at the end of the
+        // scrolling content, where it sat below the whole category grid and
+        // was essentially never on screen. Living here rather than on the
+        // TabView itself means it also disappears automatically the moment a
+        // round is pushed: GameView hides the tab bar for the same reason a
+        // round should be distraction-free, and once HomeView is off the top
+        // of the NavigationStack this inset isn't rendered either.
+        .safeAreaInset(edge: .bottom, spacing: 0) { AdBannerView() }
         .navigationDestination(for: TriviaCategory.self) { DifficultyView(category: $0) }
         .navigationDestination(for: DailyRoute.self) { _ in DailyChallengeView() }
         .navigationTitle("EZ Trivia")
