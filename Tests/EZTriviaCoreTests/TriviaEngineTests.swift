@@ -135,7 +135,7 @@ import Testing
     for category in TriviaCategory.allCases where category != .flags {
         for difficulty in TriviaDifficulty.allCases {
             let count = QuestionPicker.availableCount(category: category, difficulty: difficulty)
-            #expect(count == 30, "\(category) \(difficulty) has \(count) questions")
+            #expect(count == 40, "\(category) \(difficulty) has \(count) questions")
         }
     }
 }

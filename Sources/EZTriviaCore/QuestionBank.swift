@@ -27,7 +27,7 @@ public enum QuestionBank {
 
     private static func buildAll() -> [TriviaQuestion] {
         var questions: [TriviaQuestion] = []
-        questions.reserveCapacity(1200)
+        questions.reserveCapacity(1500)
 
         for (category, seeds) in seedsByCategory {
             for difficulty in TriviaDifficulty.allCases {
