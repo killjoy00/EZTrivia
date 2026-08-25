@@ -8,7 +8,10 @@ import UserMessagingPlatform
 final class AdConsentManager: ObservableObject {
     @Published private(set) var canRequestAds = false
     @Published private(set) var privacyOptionsRequired = false
-    @Published var errorMessage: String?
+    /// Kept for a future settings/debug surface. AdBannerView deliberately
+    /// does not show this to players -- see its doc comment -- so failures
+    /// are only visible via Telemetry.record below.
+    @Published private(set) var errorMessage: String?
     private var didStartAds = false
 
     func configure() {
@@ -18,9 +21,9 @@ final class AdConsentManager: ObservableObject {
         let parameters = RequestParameters()
         ConsentInformation.shared.requestConsentInfoUpdate(with: parameters) { [weak self] error in
             Task { @MainActor in
-                if let error { self?.errorMessage = error.localizedDescription }
+                if let error { self?.record(error) }
                 do { try await ConsentForm.loadAndPresentIfRequired(from: nil) }
-                catch { self?.errorMessage = error.localizedDescription }
+                catch { self?.record(error) }
                 self?.refreshState()
             }
         }
@@ -31,7 +34,7 @@ final class AdConsentManager: ObservableObject {
     func presentPrivacyOptions() async {
         #if canImport(UserMessagingPlatform)
         do { try await ConsentForm.presentPrivacyOptionsForm(from: nil) }
-        catch { errorMessage = error.localizedDescription }
+        catch { record(error) }
         refreshState()
         #endif
     }
@@ -44,5 +47,10 @@ final class AdConsentManager: ObservableObject {
         didStartAds = true
         MobileAds.shared.start()
         #endif
+    }
+
+    private func record(_ error: Error) {
+        errorMessage = error.localizedDescription
+        Telemetry.record(error)
     }
 }
