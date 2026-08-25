@@ -54,68 +54,94 @@ public enum QuestionBank {
 
     /// Builds one question per askable flag.
     ///
-    /// Distractors are drawn from the same difficulty tier where possible, so an
-    /// easy round offers three other well-known flags rather than three obscure
-    /// dependencies. Any flag measured as visually confusable with the answer is
-    /// excluded from its own options: telling Egypt from Yemen at phone size is a
-    /// coin flip, not a question.
+    /// The options stored here are only a starting point: `presenting` redraws
+    /// them before the question is ever shown. What this pass fixes is the
+    /// reviewable form of the question -- the row that lands in
+    /// QuestionReview.csv -- so a human proofing the bank sees one concrete,
+    /// stable set of choices per flag rather than a sample that changes on
+    /// every export.
     private static func flagQuestions() -> [TriviaQuestion] {
-        let catalog = FlagCatalog.askable
         var generator = SeededGenerator(seed: 0x455A_5452_4956_4941)
         var questions: [TriviaQuestion] = []
-        questions.reserveCapacity(catalog.count)
+        questions.reserveCapacity(FlagCatalog.askable.count)
 
-        for (offset, entry) in catalog.enumerated() {
-            let sameTier = catalog.filter {
-                $0.code != entry.code
-                    && $0.difficulty == entry.difficulty
-                    && !entry.confusable.contains($0.code)
-                    && !$0.confusable.contains(entry.code)
-            }
-            let anyTier = catalog.filter {
-                $0.code != entry.code
-                    && !entry.confusable.contains($0.code)
-                    && !$0.confusable.contains(entry.code)
-            }
-
-            var distractors = Array(deterministicallyShuffled(sameTier, using: &generator).prefix(3))
-            if distractors.count < 3 {
-                let chosen = Set(distractors.map(\.code))
-                let filler = anyTier.filter { !chosen.contains($0.code) }
-                distractors += deterministicallyShuffled(filler, using: &generator).prefix(3 - distractors.count)
-            }
-
-            let options = deterministicallyShuffled((distractors + [entry]).map(\.name), using: &generator)
-            guard let correctIndex = options.firstIndex(of: entry.name) else { continue }
-            let fact = FlagFacts.byCode[entry.code]
-                ?? "This country or territory has a distinctive cultural and geographic history."
-            let explanation = entry.explanation.map { "\($0) \(fact)" } ?? fact
-
-            questions.append(
-                TriviaQuestion(
-                    id: "flags-\(entry.difficulty.rawValue)-\(offset + 1)",
-                    category: .flags,
-                    prompt: flagPrompt,
-                    difficulty: entry.difficulty,
-                    visual: entry.asset,
-                    answers: options,
-                    correctAnswerIndex: correctIndex,
-                    explanation: explanation
-                )
-            )
+        for entry in FlagCatalog.askable {
+            questions.append(flagQuestion(for: entry, using: &generator))
         }
 
         return questions
     }
 
-    /// Fisher-Yates with this package's generator rather than the standard
-    /// library's shuffle implementation, so exported answer choices remain
-    /// stable across Swift toolchain versions.
-    private static func deterministicallyShuffled<Element>(
-        _ values: [Element],
-        using generator: inout SeededGenerator
-    ) -> [Element] {
-        var result = values
+    /// One flag question with a freshly drawn set of options.
+    ///
+    /// The id is derived from the flag's own code rather than its position in
+    /// the catalog. Positional ids renumbered every question after any entry
+    /// that was added or withdrawn, which silently invalidated the "already
+    /// seen" set on players' devices and made review notes referring to a row
+    /// number point at a different flag after the next edit.
+    static func flagQuestion(
+        for entry: FlagEntry,
+        using generator: inout some RandomNumberGenerator
+    ) -> TriviaQuestion {
+        let options = FlagCatalog.options(for: entry, using: &generator)
+        let names = options.map(\.name)
+        let fact = FlagFacts.byCode[entry.code]
+            ?? "This country or territory has a distinctive cultural and geographic history."
+
+        return TriviaQuestion(
+            id: "flags-\(entry.difficulty.rawValue)-\(entry.code.lowercased())",
+            category: .flags,
+            prompt: flagPrompt,
+            difficulty: entry.difficulty,
+            visual: entry.asset,
+            answers: names,
+            // `options` always contains `entry`, so this index always exists.
+            correctAnswerIndex: options.firstIndex { $0.code == entry.code } ?? 0,
+            explanation: entry.explanation.map { "\($0) \(fact)" } ?? fact
+        )
+    }
+
+    /// The form of a question that is actually put in front of a player.
+    ///
+    /// Every round goes through here. For an ordinary question that means
+    /// reordering the authored answers; for a flag question it means drawing a
+    /// new set of wrong answers as well, so the same flag asked twice is a
+    /// genuinely different question rather than the same four names in a new
+    /// order.
+    ///
+    /// The generator is the caller's, which is what lets the daily challenge
+    /// stay identical for everyone while ordinary rounds vary.
+    public static func presenting(
+        _ question: TriviaQuestion,
+        using generator: inout some RandomNumberGenerator
+    ) -> TriviaQuestion {
+        guard question.category == .flags, let entry = flagEntry(for: question) else {
+            return question.shufflingAnswers(using: &generator)
+        }
+        return flagQuestion(for: entry, using: &generator)
+    }
+
+    /// The catalog entry a flag question is asking about.
+    ///
+    /// Read from the artwork name rather than the id, because the artwork is
+    /// what the player is actually looking at: if the two ever disagreed, the
+    /// options must match the image on screen, not the label on the record.
+    static func flagEntry(for question: TriviaQuestion) -> FlagEntry? {
+        guard let asset = question.visual, asset.hasPrefix("flag-") else { return nil }
+        return FlagCatalog.byCode[String(asset.dropFirst("flag-".count)).uppercased()]
+    }
+}
+
+extension Array {
+    /// Fisher-Yates driven only by `generator`, rather than the standard
+    /// library's shuffle.
+    ///
+    /// The bundled bank is exported to QuestionReview.csv and diffed in CI, so
+    /// authored answer order has to depend on nothing but the seed. Using
+    /// `shuffled(using:)` would tie that file to the toolchain's shuffle
+    /// implementation and let an unrelated Swift upgrade fail the check.
+    func deterministicallyShuffled(using generator: inout some RandomNumberGenerator) -> [Element] {
+        var result = self
         guard result.count > 1 else { return result }
 
         for index in stride(from: result.count - 1, through: 1, by: -1) {

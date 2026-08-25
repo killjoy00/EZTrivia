@@ -80,7 +80,8 @@ public enum QuestionPicker {
     /// being served questions they had just answered.
     ///
     /// Answer order is shuffled per round so a replayed question does not have
-    /// its correct answer in the same position.
+    /// its correct answer in the same position, and flag questions additionally
+    /// get a fresh set of wrong answers -- see `QuestionBank.presenting`.
     public static func round(
         category: TriviaCategory,
         difficulty: TriviaDifficulty = .easy,
@@ -97,7 +98,8 @@ public enum QuestionPicker {
             pool += matching.filter { !chosen.contains($0.id) }.shuffled()
         }
 
-        return pool.prefix(count).map { $0.shufflingAnswers() }
+        var generator = SystemRandomNumberGenerator()
+        return pool.prefix(count).map { QuestionBank.presenting($0, using: &generator) }
     }
 
     /// The number of distinct questions available for a category and difficulty.

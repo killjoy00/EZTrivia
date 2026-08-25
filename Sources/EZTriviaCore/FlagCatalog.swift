@@ -2,9 +2,18 @@ import Foundation
 
 /// One entry in the bundled flag catalog.
 ///
-/// `askable` is false for dependencies whose official flag is byte-identical
-/// to another answer in the catalog. They stay in the catalog so the images
-/// ship, but they are never asked and never offered as an answer choice.
+/// `askable` is false for two kinds of entry, both of which stay in the catalog
+/// so the images still ship, but are never asked and never offered as an answer
+/// choice:
+///
+/// - Dependencies whose official flag is byte-identical to another answer, so
+///   the question would have no single right answer (BV, HM, MF, SJ, UM).
+/// - Flags whose shipped artwork is outdated or politically contested enough
+///   that grading an answer against it is not defensible (AF, NC, EH).
+///
+/// The second group is a content judgement rather than a measurement, so it is
+/// deliberately narrow: a flag is only withdrawn when the artwork itself is
+/// disputed, not merely because the place is.
 ///
 /// `confusable` lists codes whose flag is close enough at phone size that
 /// offering them together would be a coin flip rather than a question. The list
@@ -85,7 +94,7 @@ enum FlagCatalog {
         FlagEntry("GB", "United Kingdom", .easy),
         FlagEntry("US", "United States", .easy),
         FlagEntry("VN", "Vietnam", .easy, confusable: ["KG"]),
-        FlagEntry("AF", "Afghanistan", .medium,
+        FlagEntry("AF", "Afghanistan", .medium, askable: false,
                   explanation: "This is Afghanistan's former 2004–2021 republic flag; the de facto authorities have used a different white flag since 2021."),
         FlagEntry("AL", "Albania", .medium),
         FlagEntry("DZ", "Algeria", .medium),
@@ -253,7 +262,7 @@ enum FlagCatalog {
         FlagEntry("FM", "Micronesia", .hard),
         FlagEntry("MS", "Montserrat", .hard, confusable: ["AI", "FK", "GS", "KY", "NZ", "PN", "SH", "TC", "VG"]),
         FlagEntry("NR", "Nauru", .hard),
-        FlagEntry("NC", "New Caledonia", .hard,
+        FlagEntry("NC", "New Caledonia", .hard, askable: false,
                   explanation: "This is the FLNKS or Kanak flag, which is politically contested and is often flown alongside the French tricolour."),
         FlagEntry("NE", "Niger", .hard),
         FlagEntry("NU", "Niue", .hard),
@@ -299,11 +308,74 @@ enum FlagCatalog {
         FlagEntry("VU", "Vanuatu", .hard),
         FlagEntry("WF", "Wallis and Futuna", .hard,
                   explanation: "This is a locally used flag of Wallis and Futuna rather than the official French tricolour."),
-        FlagEntry("EH", "Western Sahara", .hard, confusable: ["PS"],
+        FlagEntry("EH", "Western Sahara", .hard, askable: false, confusable: ["PS"],
                   explanation: "The design shown is used by the Sahrawi Arab Democratic Republic; Western Sahara is a disputed territory."),
         FlagEntry("AX", "Åland Islands", .hard),
     ]
 
     /// The flags that are actually asked about.
     static let askable: [FlagEntry] = all.filter(\.askable)
+
+    static let byCode: [String: FlagEntry] = Dictionary(
+        uniqueKeysWithValues: all.map { ($0.code, $0) }
+    )
+
+    /// Askable flags bucketed by tier, so drawing distractors does not rescan
+    /// the whole catalog for every question in every round.
+    private static let askableByDifficulty: [TriviaDifficulty: [FlagEntry]] = Dictionary(
+        grouping: askable,
+        by: \.difficulty
+    )
+
+    /// Whether two flags may appear as options in the same question.
+    ///
+    /// Confusability is declared on whichever entry the measurement happened to
+    /// name, so both directions have to be checked — otherwise Egypt would
+    /// exclude Yemen but Yemen would happily offer Egypt.
+    static func mayAppearTogether(_ a: FlagEntry, _ b: FlagEntry) -> Bool {
+        a.code != b.code
+            && !a.confusable.contains(b.code)
+            && !b.confusable.contains(a.code)
+    }
+
+    /// The four answer choices for a flag question, already shuffled.
+    ///
+    /// Distractors are drawn fresh from `generator` rather than being fixed in
+    /// the question bank. A fixed set is memorable in a way the flag is not:
+    /// after a few rounds a player recognises "the one offered with Chile and
+    /// Uruguay" and stops looking at the artwork. Redrawing every time means
+    /// the only stable signal in the question is the flag itself.
+    ///
+    /// The caller supplies the generator so the daily challenge can pass its
+    /// seeded one and keep every player's round identical. There is deliberately
+    /// no convenience overload that reaches for system randomness: a daily built
+    /// with a stray `SystemRandomNumberGenerator` would show two players
+    /// different options for the same question, and that is exactly the bug this
+    /// signature exists to make unrepresentable.
+    static func options(
+        for entry: FlagEntry,
+        distractors count: Int = 3,
+        using generator: inout some RandomNumberGenerator
+    ) -> [FlagEntry] {
+        let sameTier = (askableByDifficulty[entry.difficulty] ?? [])
+            .filter { mayAppearTogether(entry, $0) }
+
+        var chosen = Array(sameTier.deterministicallyShuffled(using: &generator).prefix(count))
+
+        // Unreachable today -- the smallest same-tier pool in the catalog is 48
+        // candidates, and `everyFlagHasEnoughSameTierAnswers` fails CI if an
+        // edit ever takes one below `count`. It stays as a fallback rather than
+        // a precondition because this runs inside a lazily initialised `static
+        // let`: trapping here would crash the app on launch, and one off-tier
+        // option is a far better outcome than that.
+        if chosen.count < count {
+            let taken = Set(chosen.map(\.code))
+            let filler = askable.filter {
+                mayAppearTogether(entry, $0) && !taken.contains($0.code)
+            }
+            chosen += filler.deterministicallyShuffled(using: &generator).prefix(count - chosen.count)
+        }
+
+        return (chosen + [entry]).deterministicallyShuffled(using: &generator)
+    }
 }

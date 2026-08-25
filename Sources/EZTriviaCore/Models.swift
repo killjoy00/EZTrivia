@@ -106,10 +106,16 @@ public struct TriviaQuestion: Identifiable, Codable, Equatable, Sendable {
     /// stable, which would otherwise let a repeat player recognise the position
     /// rather than the answer. Shuffling at presentation time keeps the data
     /// reviewable and the game honest.
+    ///
+    /// Fisher-Yates rather than the standard library's `shuffle(using:)`,
+    /// because the daily challenge drives this from a seeded generator and
+    /// promises every player an identical round. `shuffle(using:)` only promises
+    /// a uniform permutation, not a particular one, so two players on different
+    /// OS versions could see the same daily question with its options in
+    /// different orders -- which would make a shared screenshot wrong.
     public func shufflingAnswers(using generator: inout some RandomNumberGenerator) -> TriviaQuestion {
         let correct = answers[correctAnswerIndex]
-        var shuffled = answers
-        shuffled.shuffle(using: &generator)
+        let shuffled = answers.deterministicallyShuffled(using: &generator)
         guard let index = shuffled.firstIndex(of: correct) else { return self }
         return TriviaQuestion(
             id: id,

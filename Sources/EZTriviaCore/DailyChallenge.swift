@@ -92,7 +92,9 @@ public struct DailyChallenge: Sendable, Equatable {
             guard let picked = (pool.isEmpty ? fallback : pool).randomElement(using: &generator) else { continue }
 
             used.insert(picked.id)
-            questions.append(picked.shufflingAnswers(using: &generator))
+            // Seeded, so a flag question's redrawn options are the same options
+            // every other player sees today.
+            questions.append(QuestionBank.presenting(picked, using: &generator))
         }
 
         return DailyChallenge(day: day, questions: questions)

@@ -57,7 +57,6 @@ enum FlagFacts {
         "US": "Yellowstone, established in 1872, is widely regarded as the world's first national park.",
         "VN": "Vietnam's Sơn Đoòng is the world's largest known cave passage by volume.",
 
-        "AF": "Lapis lazuli has been mined in Afghanistan for thousands of years.",
         "AL": "Thousands of concrete bunkers remain from Albania's decades of communist isolation.",
         "DZ": "Algeria is Africa's largest country by land area.",
         "AD": "Andorra is jointly headed by two co-princes: a Spanish bishop and the president of France.",
@@ -214,7 +213,6 @@ enum FlagFacts {
         "FM": "The island of Yap is famous for traditional stone money called rai.",
         "MS": "Eruptions of the Soufrière Hills volcano buried much of Montserrat's former capital, Plymouth.",
         "NR": "Nauru is the world's smallest island republic.",
-        "NC": "New Caledonia is surrounded by one of the world's largest lagoon systems.",
         "NE": "Niger is named for the Niger River, which crosses its southwest corner.",
         "NU": "Niue is one of the world's largest raised coral islands.",
         "NF": "The distinctive Norfolk Island pine is native to this small Pacific island.",
@@ -250,7 +248,6 @@ enum FlagFacts {
         "VI": "Cars in the U.S. Virgin Islands drive on the left even though most have left-hand steering.",
         "VU": "Vanuatu's land-diving tradition helped inspire modern bungee jumping.",
         "WF": "Wallis and Futuna maintains three customary Polynesian kingdoms alongside French administration.",
-        "EH": "Western Sahara's Atlantic coast borders one of the world's richest fishing grounds.",
         "AX": "Åland is an autonomous, demilitarized, Swedish-speaking region of Finland."
     ]
 }
