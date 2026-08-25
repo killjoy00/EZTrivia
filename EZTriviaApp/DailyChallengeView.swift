@@ -204,15 +204,12 @@ private struct DailyResultView: View {
         }
     }
 
-    /// No link: the share carries the App Store URL as its item, so the score
-    /// card itself is what opens the listing.
     private var shareText: String {
         RoundSummary.daily(
             day: result.day + 1,
             outcomes: result.outcomes,
             points: result.points,
-            streak: streak,
-            includingLink: false
+            streak: streak
         )
     }
 

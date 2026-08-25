@@ -18,10 +18,7 @@ public enum RoundSummary {
     /// needs no code change and no forgotten follow-up.
     public static let appStoreURL = "https://apps.apple.com/app/id6804526553"
 
-    /// A one-line headline for the shared link preview.
-    ///
-    /// This is the text that sits under the score card in a Messages bubble, so
-    /// it has to stand alone: the grid is in the image, not here.
+    /// A one-line title for the share sheet's preview of the rendered card.
     public static func headline(correct: Int, total: Int) -> String {
         "I scored \(correct)/\(total) on EZ Trivia"
     }
@@ -36,15 +33,11 @@ public enum RoundSummary {
     /// Deliberately does not name the questions or the answers. Someone who has
     /// not played today should be able to read this without it spoiling their
     /// round, which is the whole reason the grid is squares rather than words.
-    /// `includingLink` is false when the share itself carries the App Store URL
-    /// as its item -- the score card is the tappable link in that case, so
-    /// repeating the address in the text would send the same URL twice.
     public static func daily(
         day: Int,
         outcomes: [Bool],
         points: Int,
-        streak: Int,
-        includingLink: Bool = true
+        streak: Int
     ) -> String {
         var lines = [
             "EZ Trivia Daily #\(day) — \(outcomes.filter { $0 }.count)/\(outcomes.count)",
@@ -54,9 +47,7 @@ public enum RoundSummary {
         if streak > 1 {
             lines.append("\(streak) day streak 🔥")
         }
-        if includingLink {
-            lines.append(appStoreURL)
-        }
+        lines.append(appStoreURL)
         return lines.joined(separator: "\n")
     }
 
@@ -64,17 +55,13 @@ public enum RoundSummary {
     public static func round(
         category: TriviaCategory,
         difficulty: TriviaDifficulty,
-        outcomes: [Bool],
-        includingLink: Bool = true
+        outcomes: [Bool]
     ) -> String {
-        var lines = [
+        [
             "EZ Trivia — \(category.title), \(difficulty.title)",
             grid(outcomes),
-            "\(outcomes.filter { $0 }.count)/\(outcomes.count) correct"
-        ]
-        if includingLink {
-            lines.append(appStoreURL)
-        }
-        return lines.joined(separator: "\n")
+            "\(outcomes.filter { $0 }.count)/\(outcomes.count) correct",
+            appStoreURL
+        ].joined(separator: "\n")
     }
 }
