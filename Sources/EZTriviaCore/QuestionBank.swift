@@ -27,7 +27,7 @@ public enum QuestionBank {
 
     private static func buildAll() -> [TriviaQuestion] {
         var questions: [TriviaQuestion] = []
-        questions.reserveCapacity(1200)
+        questions.reserveCapacity(1500)
 
         for (category, seeds) in seedsByCategory {
             for difficulty in TriviaDifficulty.allCases {
@@ -87,6 +87,9 @@ public enum QuestionBank {
 
             let options = deterministicallyShuffled((distractors + [entry]).map(\.name), using: &generator)
             guard let correctIndex = options.firstIndex(of: entry.name) else { continue }
+            let fact = FlagFacts.byCode[entry.code]
+                ?? "This country or territory has a distinctive cultural and geographic history."
+            let explanation = entry.explanation.map { "\($0) \(fact)" } ?? fact
 
             questions.append(
                 TriviaQuestion(
@@ -97,8 +100,7 @@ public enum QuestionBank {
                     visual: entry.asset,
                     answers: options,
                     correctAnswerIndex: correctIndex,
-                    explanation: entry.explanation
-                        ?? "The ISO 3166-1 alpha-2 code associated with \(entry.name) is \(entry.code)."
+                    explanation: explanation
                 )
             )
         }
