@@ -56,29 +56,48 @@ struct ScoreCard: View {
 
 /// Share button for a finished round.
 ///
-/// Renders the card up front rather than on tap. `ImageRenderer` is
-/// main-actor work, and doing it while the share sheet is already animating in
-/// produces a visible hitch.
+/// Shares the App Store link as the item, with the rendered score card as that
+/// link's preview image. The card is therefore the tappable thing: a recipient
+/// gets one rich bubble showing the score that opens the App Store when tapped,
+/// rather than an image attachment sitting next to a bare URL that reads like
+/// an advert stapled to a screenshot.
+///
+/// Renders the card up front rather than on tap. `ImageRenderer` is main-actor
+/// work, and doing it while the share sheet is already animating in produces a
+/// visible hitch.
 struct ShareResultButton: View {
     let message: String
+    let headline: String
     let card: ScoreCard
     @State private var rendered: Image?
+
+    private var link: URL {
+        // The literal is a compile-time constant that is known to parse, so the
+        // fallback is unreachable; it exists only to avoid forcing.
+        URL(string: RoundSummary.appStoreURL) ?? URL(string: "https://apps.apple.com")!
+    }
 
     var body: some View {
         Group {
             if let rendered {
                 ShareLink(
-                    item: rendered,
+                    item: link,
                     subject: Text("EZ Trivia"),
                     message: Text(message),
-                    preview: SharePreview("My EZ Trivia result", image: rendered)
+                    preview: SharePreview(headline, image: rendered)
                 ) {
                     Label("Share result", systemImage: "square.and.arrow.up")
                 }
             } else {
-                // Text-only fallback, used if rendering ever fails. Sharing
-                // something is much better than a dead button.
-                ShareLink(item: message) {
+                // Used only if rendering ever fails. The link is still the item,
+                // so the share is never reduced to a bare URL -- it just loses
+                // the card.
+                ShareLink(
+                    item: link,
+                    subject: Text("EZ Trivia"),
+                    message: Text(message),
+                    preview: SharePreview(headline)
+                ) {
                     Label("Share result", systemImage: "square.and.arrow.up")
                 }
             }

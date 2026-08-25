@@ -120,7 +120,7 @@ private struct ResultView: View {
             Text(RoundSummary.grid(outcomes)).font(.title3).lineLimit(1).minimumScaleFactor(0.5)
             Text(resultMessage).font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.horizontal)
             Spacer()
-            ShareResultButton(message: shareText, card: shareCard)
+            ShareResultButton(message: shareText, headline: shareHeadline, card: shareCard)
                 .font(.headline)
                 .padding(.bottom, 4)
             Button("Play \(total) more") { playAgain() }
@@ -143,8 +143,19 @@ private struct ResultView: View {
         }
     }
 
+    /// No link: the share carries the App Store URL as its item, so the score
+    /// card itself is what opens the listing.
     private var shareText: String {
-        RoundSummary.round(category: category, difficulty: difficulty, outcomes: outcomes)
+        RoundSummary.round(
+            category: category,
+            difficulty: difficulty,
+            outcomes: outcomes,
+            includingLink: false
+        )
+    }
+
+    private var shareHeadline: String {
+        RoundSummary.headline(correct: score, total: total)
     }
 
     private var shareCard: ScoreCard {

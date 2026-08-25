@@ -20,6 +20,27 @@ import Testing
     #expect(first.questions.map(\.correctAnswerIndex) == second.questions.map(\.correctAnswerIndex))
 }
 
+/// Flag questions draw their wrong answers at presentation time, so the daily
+/// is only fair if that draw is seeded from the day rather than from system
+/// randomness. `aDailyIsIdenticalEveryTimeItIsBuilt` would pass on a day that
+/// happens to contain no flag question, so this one seeks a day that does.
+@Test func aDailyWithAFlagQuestionIsStillIdenticalEveryTime() {
+    guard let day = (0..<60).first(where: { day in
+        DailyChallenge.challenge(for: day).questions.contains { $0.category == .flags }
+    }) else {
+        Issue.record("no daily in the first 60 days contains a flag question")
+        return
+    }
+
+    let first = DailyChallenge.challenge(for: day)
+    let second = DailyChallenge.challenge(for: day)
+    let flags = first.questions.filter { $0.category == .flags }
+
+    #expect(!flags.isEmpty)
+    #expect(first.questions.map(\.answers) == second.questions.map(\.answers))
+    #expect(first.questions.map(\.correctAnswerIndex) == second.questions.map(\.correctAnswerIndex))
+}
+
 @Test func consecutiveDaysAreNotCorrelated() {
     // Consecutive seeds fed straight into an xorshift produce visibly related
     // streams, which would show as near-identical rounds two days running.

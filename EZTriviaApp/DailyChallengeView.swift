@@ -181,7 +181,7 @@ private struct DailyResultView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
 
-                ShareResultButton(message: shareText, card: shareCard)
+                ShareResultButton(message: shareText, headline: shareHeadline, card: shareCard)
                     .font(.headline)
                     .padding(.top, 4)
 
@@ -204,13 +204,20 @@ private struct DailyResultView: View {
         }
     }
 
+    /// No link: the share carries the App Store URL as its item, so the score
+    /// card itself is what opens the listing.
     private var shareText: String {
         RoundSummary.daily(
             day: result.day + 1,
             outcomes: result.outcomes,
             points: result.points,
-            streak: streak
+            streak: streak,
+            includingLink: false
         )
+    }
+
+    private var shareHeadline: String {
+        RoundSummary.headline(correct: result.score, total: result.total)
     }
 
     private var shareCard: ScoreCard {

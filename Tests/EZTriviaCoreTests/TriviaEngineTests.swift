@@ -171,12 +171,31 @@ import Testing
     #expect(FlagCatalog.all.allSatisfy { !$0.name.isEmpty })
 }
 
-/// These dependencies use artwork identical to another answer in the catalog.
-/// Asking about one of them would have no single right answer.
+/// Two separate reasons a flag ships but is never asked, asserted together so
+/// neither list can be edited by accident.
 @Test func flagsWithIdenticalArtworkAreNotAsked() {
     let excluded = Set(FlagCatalog.all.filter { !$0.askable }.map(\.code))
-    #expect(excluded == ["BV", "HM", "SJ", "MF", "UM"])
-    #expect(FlagCatalog.askable.count == 244)
+
+    // Artwork identical to another answer: the question would have no single
+    // right answer.
+    let identicalArtwork: Set<String> = ["BV", "HM", "SJ", "MF", "UM"]
+    // Artwork outdated or contested enough that grading against it is not
+    // defensible.
+    let contestedArtwork: Set<String> = ["AF", "NC", "EH"]
+
+    #expect(excluded == identicalArtwork.union(contestedArtwork))
+    #expect(FlagCatalog.askable.count == 241)
+}
+
+/// A withdrawn flag must vanish from the game completely, not just stop being
+/// the answer -- it must never turn up as someone else's wrong option either.
+@Test func withdrawnFlagsAppearNowhereInTheBank() {
+    let withdrawn = Set(FlagCatalog.all.filter { !$0.askable }.map(\.name))
+    for question in QuestionBank.all where question.category == .flags {
+        for option in question.answers {
+            #expect(!withdrawn.contains(option), "\(question.id) offers withdrawn \(option)")
+        }
+    }
 }
 
 /// Names come from the flag catalog, so no answer option should read like the
@@ -213,18 +232,171 @@ import Testing
     }
 }
 
-@Test func flagDistractorsPreferTheSameDifficultyTier() {
-    let byName = Dictionary(uniqueKeysWithValues: FlagCatalog.all.map { ($0.name, $0) })
-    var sameTier = 0
-    var total = 0
-    for question in QuestionBank.all where question.category == .flags {
-        for option in question.answers {
-            guard let entry = byName[option] else { continue }
-            total += 1
-            if entry.difficulty == question.difficulty { sameTier += 1 }
+// MARK: - Redrawn flag options
+//
+// Flag questions no longer carry a fixed set of wrong answers. The bank stores
+// one set so the CSV export is reviewable, but every round redraws them, so
+// these tests cover the redraw rather than the stored row.
+
+/// The reason the feature exists: the same flag asked twice must not arrive
+/// with the same three wrong answers, or a player learns the option set instead
+/// of the flag.
+@Test func flagDistractorsAreRedrawnEachTime() {
+    guard let entry = FlagCatalog.askable.first(where: { $0.difficulty == .easy }) else {
+        Issue.record("the catalog has no easy flags")
+        return
+    }
+
+    var generator = SystemRandomNumberGenerator()
+    var seen: Set<String> = []
+    for _ in 0..<25 {
+        let distractors = FlagCatalog.options(for: entry, using: &generator)
+            .filter { $0.code != entry.code }
+            .map(\.name)
+            .sorted()
+        seen.insert(distractors.joined(separator: "|"))
+    }
+
+    // Three drawn from roughly forty candidates is thousands of possible sets,
+    // so an occasional repeat is plausible and a near-constant set is not.
+    #expect(seen.count >= 5, "only \(seen.count) distinct option sets in 25 draws")
+}
+
+@Test func redrawnFlagOptionsStayWellFormed() {
+    var generator = SystemRandomNumberGenerator()
+
+    for entry in FlagCatalog.askable {
+        for _ in 0..<5 {
+            let options = FlagCatalog.options(for: entry, using: &generator)
+            #expect(options.count == 4, "\(entry.code) drew \(options.count) options")
+            #expect(Set(options.map(\.code)).count == 4, "\(entry.code) drew a duplicate option")
+            #expect(options.contains { $0.code == entry.code }, "\(entry.code) lost its own answer")
+
+            for option in options where option.code != entry.code {
+                #expect(option.askable, "\(entry.code) offered withdrawn \(option.code)")
+                #expect(FlagCatalog.mayAppearTogether(entry, option),
+                        "\(entry.name) offered against near-identical \(option.name)")
+            }
         }
     }
-    #expect(Double(sameTier) / Double(total) > 0.9)
+}
+
+/// The invariant that keeps the cross-tier fallback in `FlagCatalog.options`
+/// unreachable, checked here rather than with a runtime precondition: the bank
+/// is built inside a lazily initialised `static let`, so a trap would surface
+/// as a crash on launch instead of a failed build.
+@Test func everyFlagHasEnoughSameTierAnswers() {
+    for entry in FlagCatalog.askable {
+        let sameTier = FlagCatalog.askable.count {
+            $0.difficulty == entry.difficulty && FlagCatalog.mayAppearTogether(entry, $0)
+        }
+        #expect(sameTier >= 3, "\(entry.code) has only \(sameTier) safe same-tier answers")
+    }
+}
+
+/// Given the invariant above, every option is same-tier -- an easy question
+/// never offers an obscure dependency as one of its wrong answers.
+@Test func redrawnFlagDistractorsAreAlwaysSameTier() {
+    var generator = SystemRandomNumberGenerator()
+
+    for entry in FlagCatalog.askable {
+        for _ in 0..<3 {
+            for option in FlagCatalog.options(for: entry, using: &generator) {
+                #expect(option.difficulty == entry.difficulty,
+                        "\(entry.code) (\(entry.difficulty)) offered \(option.code) (\(option.difficulty))")
+            }
+        }
+    }
+}
+
+/// Authored distractors are replaced, not merely reordered. Builds a question
+/// whose stored wrong answers are all from the wrong tier and checks that none
+/// of them survives into the round.
+@Test func roundCreationReplacesAuthoredFlagDistractors() {
+    guard let answer = FlagCatalog.askable.first(where: { $0.difficulty == .easy }) else {
+        Issue.record("the catalog has no easy flags")
+        return
+    }
+    let wrongTier = Array(FlagCatalog.askable.filter { $0.difficulty == .hard }.prefix(3))
+    #expect(wrongTier.count == 3)
+
+    let authored = TriviaQuestion(
+        id: "flags-easy-\(answer.code.lowercased())",
+        category: .flags,
+        prompt: QuestionBank.flagPrompt,
+        difficulty: .easy,
+        visual: answer.asset,
+        answers: [answer.name] + wrongTier.map(\.name),
+        correctAnswerIndex: 0,
+        explanation: "Test fact."
+    )
+
+    let round = QuestionPicker.round(category: .flags, difficulty: .easy, count: 1, using: [authored])
+    #expect(round.count == 1)
+    guard let played = round.first else { return }
+
+    #expect(played.answers[played.correctAnswerIndex] == answer.name)
+    #expect(Set(played.answers).isDisjoint(with: Set(wrongTier.map(\.name))))
+}
+
+/// Redrawing must not disturb anything the round already depends on: the id it
+/// is tracked by, the artwork on screen, or which name is correct.
+@Test func presentingAFlagQuestionKeepsItsIdentity() {
+    var generator = SystemRandomNumberGenerator()
+
+    for question in QuestionBank.all where question.category == .flags {
+        let expected = question.answers[question.correctAnswerIndex]
+        for _ in 0..<3 {
+            let presented = QuestionBank.presenting(question, using: &generator)
+            #expect(presented.id == question.id)
+            #expect(presented.visual == question.visual)
+            #expect(presented.explanation == question.explanation)
+            #expect(presented.answers.count == 4)
+            #expect(Set(presented.answers).count == 4)
+            #expect(presented.answers[presented.correctAnswerIndex] == expected)
+        }
+    }
+}
+
+@Test func presentingANonFlagQuestionOnlyReordersIt() {
+    var generator = SystemRandomNumberGenerator()
+
+    for question in QuestionBank.all where question.category != .flags {
+        let presented = QuestionBank.presenting(question, using: &generator)
+        #expect(presented.id == question.id)
+        #expect(Set(presented.answers) == Set(question.answers))
+        #expect(presented.answers[presented.correctAnswerIndex]
+                == question.answers[question.correctAnswerIndex])
+    }
+}
+
+/// Ids are derived from the flag's code, so withdrawing or adding a flag cannot
+/// renumber every question after it.
+@Test func flagQuestionIDsAreDerivedFromTheFlagCode() {
+    for question in QuestionBank.all where question.category == .flags {
+        guard let entry = QuestionBank.flagEntry(for: question) else {
+            Issue.record("\(question.id) has no catalog entry")
+            continue
+        }
+        #expect(question.id == "flags-\(entry.difficulty.rawValue)-\(entry.code.lowercased())")
+    }
+}
+
+/// The same guarantee as `redrawnFlagDistractorsAreAlwaysSameTier`, but for the
+/// authored rows that reach QuestionReview.csv, so a reviewer proofing the file
+/// sees the tiering the game actually uses.
+@Test func flagDistractorsAreFromTheSameDifficultyTier() {
+    let byName = Dictionary(uniqueKeysWithValues: FlagCatalog.all.map { ($0.name, $0) })
+    for question in QuestionBank.all where question.category == .flags {
+        for option in question.answers {
+            guard let entry = byName[option] else {
+                Issue.record("\(question.id) option '\(option)' is not in the catalog")
+                continue
+            }
+            #expect(entry.difficulty == question.difficulty,
+                    "\(question.id) offers \(entry.difficulty) option \(entry.name)")
+        }
+    }
 }
 
 /// Easy flags should be recognisable ones. The old bank sorted by ISO code, so
