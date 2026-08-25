@@ -35,7 +35,7 @@ public struct DailyChallenge: Sendable, Equatable {
 
     public var displayNumber: Int { day + 1 }
 
-    public var totalPoints: Int { questions.reduce(0) { $0 + DailyScoring.points(for: $1) } }
+    public var totalPoints: Int { questions.reduce(0) { $0 + Scoring.points(for: $1) } }
 
     // MARK: - Day numbering
 
@@ -128,26 +128,5 @@ public enum DailyStreak {
             day -= 1
         }
         return length
-    }
-}
-
-/// Points for the daily leaderboard.
-///
-/// A daily is scored in points rather than as a percentage because a
-/// percentage saturates: on a ten-question round a great many players reach
-/// 100, and a leaderboard where the top thousand entries are identical has
-/// stopped ranking anything. Weighting by difficulty means the two hard
-/// questions at the end are what actually separate players.
-public enum DailyScoring {
-    public static func points(for question: TriviaQuestion) -> Int {
-        points(for: question.difficulty)
-    }
-
-    public static func points(for difficulty: TriviaDifficulty) -> Int {
-        switch difficulty {
-        case .easy: 100
-        case .medium: 150
-        case .hard: 250
-        }
     }
 }

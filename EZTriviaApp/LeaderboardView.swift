@@ -44,6 +44,7 @@ struct LeaderboardView: View {
                     }
                 }
             }
+            lifetimeSection
             feedbackSection
         }
         .navigationTitle("Leaderboard")
@@ -65,6 +66,39 @@ struct LeaderboardView: View {
         .confirmationDialog("Clear all scores?", isPresented: $showClearConfirmation) {
             Button("Clear Scores", role: .destructive) { scores.clear() }
             Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    /// Lifetime points, which is what the Game Center category boards now
+    /// rank. Without this the new scoring would be invisible in the app: a
+    /// player would only ever see it by opening the Game Center dashboard.
+    @ViewBuilder
+    private var lifetimeSection: some View {
+        // A plain [TriviaCategory] rather than an array of pairs: Swift has no
+        // key paths into tuples, so `ForEach(pairs, id: \.0)` would not compile.
+        // TriviaCategory is already Identifiable, so this needs no id at all.
+        let earned = TriviaCategory.allCases
+            .filter { scores.lifetimePoints(for: $0) > 0 }
+            .sorted { scores.lifetimePoints(for: $0) > scores.lifetimePoints(for: $1) }
+
+        if !earned.isEmpty {
+            Section {
+                ForEach(earned) { category in
+                    HStack(spacing: 14) {
+                        Image(systemName: category.symbol)
+                            .foregroundStyle(AppTheme.color(for: category))
+                            .frame(width: 30)
+                        Text(category.title)
+                        Spacer()
+                        Text(scores.lifetimePoints(for: category).formatted())
+                            .font(.body.bold().monospacedDigit())
+                    }
+                }
+            } header: {
+                Text("Lifetime points")
+            } footer: {
+                Text("Harder questions are worth more. This total is what the Game Center leaderboards rank, and it only ever goes up.")
+            }
         }
     }
 

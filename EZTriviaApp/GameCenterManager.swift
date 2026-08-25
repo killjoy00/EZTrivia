@@ -19,11 +19,20 @@ final class GameCenterManager: ObservableObject {
         }
     }
 
-    func submit(score: Int, total: Int, category: TriviaCategory) {
-        guard isAuthenticated, total > 0 else { return }
-        let percentage = Int((Double(score) / Double(total) * 100).rounded())
+    /// Submits a category's lifetime points total.
+    ///
+    /// The total rather than the round, and points rather than a percentage.
+    /// A percentage saturates on a ten-question round, so the board fills with
+    /// identical scores and stops ranking anyone; a lifetime total only ever
+    /// grows and keeps separating players indefinitely.
+    ///
+    /// BEST_SCORE suits this exactly. Because the value is monotonic, the best
+    /// score Game Center has ever seen is the current total, so a submission
+    /// that arrives late or out of order can never lower a player's standing.
+    func submit(lifetimePoints: Int, category: TriviaCategory) {
+        guard isAuthenticated, lifetimePoints > 0 else { return }
         GKLeaderboard.submitScore(
-            percentage,
+            lifetimePoints,
             context: 0,
             player: GKLocalPlayer.local,
             leaderboardIDs: [Self.leaderboardID(for: category)]

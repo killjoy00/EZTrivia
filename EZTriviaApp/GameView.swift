@@ -19,6 +19,7 @@ struct GameView: View {
                     difficulty: difficulty,
                     score: engine.score,
                     total: engine.questions.count,
+                    points: engine.points,
                     outcomes: engine.outcomes,
                     playAgain: nextRound,
                     finish: { dismiss() }
@@ -98,6 +99,7 @@ private struct ResultView: View {
     let difficulty: TriviaDifficulty
     let score: Int
     let total: Int
+    let points: Int
     let outcomes: [Bool]
     let playAgain: () -> Void
     let finish: () -> Void
@@ -125,11 +127,13 @@ private struct ResultView: View {
         .onAppear {
             guard !saved else { return }
             scores.record(category: category, difficulty: difficulty, score: score, total: total)
-            gameCenter.submit(score: score, total: total, category: category)
+            let lifetime = scores.addLifetimePoints(points, category: category)
+            gameCenter.submit(lifetimePoints: lifetime, category: category)
             Telemetry.log("round_complete", parameters: [
                 "category": category.rawValue,
                 "difficulty": difficulty.rawValue,
-                "score": score
+                "score": score,
+                "points": points
             ])
             saved = true
         }

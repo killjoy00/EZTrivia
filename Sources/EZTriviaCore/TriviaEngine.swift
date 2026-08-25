@@ -1,15 +1,35 @@
 import Foundation
 
+/// Difficulty weighting for every score the app reports.
+///
+/// One table for both leaderboards, because they are answering the same
+/// question in different time windows: what is a correct answer worth? A hard
+/// question is worth more than an easy one in a daily round and in a lifetime
+/// total alike, and two tables would eventually disagree.
+public enum Scoring {
+    public static func points(for question: TriviaQuestion) -> Int {
+        points(for: question.difficulty)
+    }
+
+    public static func points(for difficulty: TriviaDifficulty) -> Int {
+        switch difficulty {
+        case .easy: 100
+        case .medium: 150
+        case .hard: 250
+        }
+    }
+}
+
 public struct TriviaEngine: Sendable {
     public private(set) var questions: [TriviaQuestion]
     public private(set) var currentIndex = 0
     public private(set) var score = 0
     public private(set) var selectedAnswerIndex: Int?
 
-    /// Difficulty-weighted score, used by the daily challenge.
+    /// Difficulty-weighted score for this round.
     ///
-    /// Tracked for every round rather than only the daily so the two paths
-    /// share one engine. A category round simply ignores it.
+    /// Feeds the daily leaderboard directly, and is added to the category's
+    /// lifetime total at the end of an ordinary round.
     public private(set) var points = 0
 
     /// Whether each answered question was correct, in the order they were
@@ -35,7 +55,7 @@ public struct TriviaEngine: Sendable {
         let correct = index == question.correctAnswerIndex
         if correct {
             score += 1
-            points += DailyScoring.points(for: question)
+            points += Scoring.points(for: question)
         }
         outcomes.append(correct)
         return correct

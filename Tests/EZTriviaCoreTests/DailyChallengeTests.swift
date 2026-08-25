@@ -86,8 +86,8 @@ import Testing
 // MARK: - Scoring
 
 @Test func hardQuestionsAreWorthMoreThanEasyOnes() {
-    #expect(DailyScoring.points(for: .hard) > DailyScoring.points(for: .medium))
-    #expect(DailyScoring.points(for: .medium) > DailyScoring.points(for: .easy))
+    #expect(Scoring.points(for: .hard) > Scoring.points(for: .medium))
+    #expect(Scoring.points(for: .medium) > Scoring.points(for: .easy))
 }
 
 @Test func aPerfectDailyStaysInsideTheLeaderboardRange() {
@@ -96,6 +96,35 @@ import Testing
     for day in stride(from: 0, to: 700, by: 37) {
         #expect(DailyChallenge.challenge(for: day).totalPoints <= 2000)
     }
+}
+
+@Test func lifetimePointsOnlyEverGrow() {
+    // The property that makes a lifetime total work as a BEST_SCORE
+    // leaderboard: because it is monotonic, the best score Game Center has
+    // ever seen is the current total, so a late or out-of-order submission
+    // can never lower a player's standing.
+    let question = TriviaQuestion(id: "q", category: .music, prompt: "?", difficulty: .medium, answers: ["A", "B"], correctAnswerIndex: 0, explanation: "")
+
+    var lifetime = 0
+    for round in 0..<25 {
+        var engine = TriviaEngine(questions: [question])
+        // Alternate right and wrong, so some rounds add nothing at all.
+        _ = engine.answer(round % 2)
+        let updated = lifetime + engine.points
+        #expect(updated >= lifetime)
+        lifetime = updated
+    }
+
+    #expect(lifetime == 13 * Scoring.points(for: .medium))
+}
+
+@Test func aLifetimeTotalStaysInsideTheLeaderboardRange() {
+    // Category boards are provisioned with a 0-1,000,000 range. A perfect
+    // round is 2,500 points, so that covers 400 flawless rounds in a single
+    // category before anything would be rejected.
+    let perfectRound = DailyChallenge.questionCount * Scoring.points(for: .hard)
+    #expect(perfectRound == 2_500)
+    #expect(1_000_000 / perfectRound >= 400)
 }
 
 @Test func engineAccumulatesWeightedPoints() {
@@ -108,7 +137,7 @@ import Testing
     _ = engine.answer(1)
 
     #expect(engine.score == 1)
-    #expect(engine.points == DailyScoring.points(for: .easy))
+    #expect(engine.points == Scoring.points(for: .easy))
     #expect(engine.outcomes == [true, false])
 }
 

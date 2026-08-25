@@ -7,6 +7,7 @@ final class ScoreStore: ObservableObject {
     private let key = "leaderboard.v1"
     private let seenDefaultsKey = "seenQuestions.v1"
     private let dailyDefaultsKey = "dailyResults.v1"
+    private let lifetimeDefaultsKey = "lifetimePoints.v1"
 
     /// Finished daily challenges, keyed by day number.
     ///
@@ -15,6 +16,18 @@ final class ScoreStore: ObservableObject {
     /// a skipped launch cannot leave a counter that disagrees with what the
     /// player actually played.
     @Published private(set) var dailyResults: [Int: DailyResult] = [:]
+
+    /// Difficulty-weighted points earned per category, for all time.
+    ///
+    /// This is what the category leaderboards report, in place of a per-round
+    /// percentage. A percentage saturates -- a great many players reach 100 on
+    /// a ten-question round, and a board whose top entries are all identical
+    /// has stopped ranking anyone. A lifetime total only ever grows, so it
+    /// keeps separating players indefinitely.
+    ///
+    /// Keyed by raw value rather than by TriviaCategory so the stored JSON
+    /// survives a category being added, renamed in the UI, or reordered.
+    @Published private(set) var lifetimePointsByCategory: [String: Int] = [:]
 
     /// Question IDs the player has already been served, keyed by
     /// "category-difficulty". Persisting these is what stops a player from
@@ -32,6 +45,27 @@ final class ScoreStore: ObservableObject {
         if let data = defaults.data(forKey: dailyDefaultsKey), let decoded = try? JSONDecoder().decode([Int: DailyResult].self, from: data) {
             dailyResults = decoded
         }
+        if let data = defaults.data(forKey: lifetimeDefaultsKey), let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+            lifetimePointsByCategory = decoded
+        }
+    }
+
+    // MARK: - Lifetime points
+
+    func lifetimePoints(for category: TriviaCategory) -> Int {
+        lifetimePointsByCategory[category.rawValue] ?? 0
+    }
+
+    var lifetimePointsTotal: Int { lifetimePointsByCategory.values.reduce(0, +) }
+
+    /// Adds a round's points to a category's lifetime total and returns the new
+    /// total, which is what gets submitted to Game Center.
+    @discardableResult
+    func addLifetimePoints(_ points: Int, category: TriviaCategory) -> Int {
+        let updated = lifetimePoints(for: category) + points
+        lifetimePointsByCategory[category.rawValue] = updated
+        defaults.set(try? JSONEncoder().encode(lifetimePointsByCategory), forKey: lifetimeDefaultsKey)
+        return updated
     }
 
     // MARK: - Daily challenge
@@ -94,9 +128,12 @@ final class ScoreStore: ObservableObject {
 
     /// Clears the personal leaderboard and the seen-question history.
     ///
-    /// Daily results are deliberately not cleared. "Clear scores" is about the
-    /// local score list; wiping a streak someone has spent weeks on because
-    /// they tidied their leaderboard would be a genuinely upsetting surprise.
+    /// Daily results and lifetime points are deliberately not cleared. "Clear
+    /// scores" is about the local score list. Wiping a streak someone spent
+    /// weeks on would be an upsetting surprise, and resetting lifetime points
+    /// would be worse than useless: Game Center keeps the high-water mark, so
+    /// the device would start counting from zero and the two would disagree
+    /// permanently.
     func clear() {
         entries = []
         seenQuestionIDs = [:]
