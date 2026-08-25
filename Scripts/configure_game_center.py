@@ -14,18 +14,29 @@ import requests
 
 BASE_URL = "https://api.appstoreconnect.apple.com/v1"
 BUNDLE_ID = "com.rsm.eztrivia"
+# vendor-id suffix -> (display name, highest submittable score)
+#
+# Every board carries difficulty-weighted points rather than a percentage. A
+# percentage saturates: on a ten-question round a great many players reach 100,
+# and a board whose top thousand entries are identical has stopped ranking
+# anyone.
+#
+# Category boards report a lifetime total, which only ever grows, so the range
+# has to cover years of play -- a million is roughly 4,000 perfect rounds.
+# The daily is one round, so a perfect 1,650 fits inside 2,000.
 LEADERBOARDS = {
-    "football": "Football High Scores",
-    "basketball": "Basketball High Scores",
-    "soccer": "Soccer High Scores",
-    "flags": "World Flags High Scores",
-    "history": "History High Scores",
-    "science": "Science High Scores",
-    "movies": "Movies High Scores",
-    "geography": "Geography High Scores",
-    "music": "Music High Scores",
-    "animals": "Animals High Scores",
-    "food": "Food & Drink High Scores",
+    "football": ("Football High Scores", 1_000_000),
+    "basketball": ("Basketball High Scores", 1_000_000),
+    "soccer": ("Soccer High Scores", 1_000_000),
+    "flags": ("World Flags High Scores", 1_000_000),
+    "history": ("History High Scores", 1_000_000),
+    "science": ("Science High Scores", 1_000_000),
+    "movies": ("Movies High Scores", 1_000_000),
+    "geography": ("Geography High Scores", 1_000_000),
+    "music": ("Music High Scores", 1_000_000),
+    "animals": ("Animals High Scores", 1_000_000),
+    "food": ("Food & Drink High Scores", 1_000_000),
+    "daily": ("Daily Challenge", 2_000),
 }
 
 
@@ -60,6 +71,20 @@ class API:
             "Authorization": f"Bearer {api_token()}",
             "Content-Type": "application/json",
         })
+
+    def try_request(self, method: str, path: str, **kwargs) -> tuple[bool, str]:
+        """A request whose failure is reported to the caller rather than fatal.
+
+        `request` exits the process on any HTTP error, which is right for the
+        calls this script cannot continue without. It is wrong for the score
+        range update: aborting there would leave the remaining leaderboards
+        untouched and the daily one uncreated, turning a small fixable problem
+        into a bigger one.
+        """
+        response = self.session.request(method, f"{BASE_URL}{path}", timeout=30, **kwargs)
+        if response.status_code >= 300:
+            return False, f"HTTP {response.status_code}: {response.text[:300]}"
+        return True, ""
 
     def request(self, method: str, path: str, **kwargs) -> dict:
         response = self.session.request(method, f"{BASE_URL}{path}", timeout=30, **kwargs)
@@ -113,11 +138,30 @@ def main() -> None:
     existing = api.get_all(f"/gameCenterDetails/{detail_id}/gameCenterLeaderboards")
     by_vendor_id = {item["attributes"]["vendorIdentifier"]: item for item in existing}
 
-    for category, display_name in LEADERBOARDS.items():
+    range_failures: list[tuple[str, object, int, str]] = []
+
+    for category, (display_name, score_range_end) in LEADERBOARDS.items():
         vendor_id = f"EZTrivia.{category}"
         leaderboard = by_vendor_id.get(vendor_id)
         if leaderboard:
             print(f"exists:  {vendor_id}")
+            current_end = leaderboard["attributes"].get("scoreRangeEnd")
+            if str(current_end) != str(score_range_end):
+                patch = {
+                    "data": {
+                        "type": "gameCenterLeaderboards",
+                        "id": leaderboard["id"],
+                        "attributes": {"scoreRangeEnd": str(score_range_end)},
+                    }
+                }
+                ok, error = api.try_request(
+                    "PATCH", f"/gameCenterLeaderboards/{leaderboard['id']}", json=patch
+                )
+                if ok:
+                    print(f"         score range {current_end} -> {score_range_end}")
+                else:
+                    range_failures.append((vendor_id, current_end, score_range_end, error))
+                    print(f"         COULD NOT widen score range from {current_end}: {error}")
         else:
             body = {
                 "data": {
@@ -132,7 +176,7 @@ def main() -> None:
                         # got INTEGER". The football leaderboard that already
                         # exists reads back as '0'/'100', confirming the type.
                         "scoreRangeStart": "0",
-                        "scoreRangeEnd": "100",
+                        "scoreRangeEnd": str(score_range_end),
                         "defaultFormatter": "INTEGER",
                     },
                     "relationships": {
@@ -163,6 +207,19 @@ def main() -> None:
         }
         api.request("POST", "/gameCenterLeaderboardLocalizations", json=localization_body)
         print(f"         created en-US localization")
+
+    if range_failures:
+        # Not a warning. A board still capped at 100 rejects every real
+        # submission, and the app would look like it had simply stopped
+        # recording scores.
+        print("\nSCORE RANGES NOT UPDATED — fix these before submitting:")
+        for vendor_id, current_end, wanted, error in range_failures:
+            print(f"  {vendor_id}: is {current_end}, needs {wanted}  ({error})")
+        print(
+            "\nSet 'Score range' on each board in App Store Connect "
+            "(Game Center -> Leaderboards) if the API will not."
+        )
+        raise SystemExit(1)
 
     print(f"Game Center configuration complete: {len(LEADERBOARDS)} leaderboards.")
 
