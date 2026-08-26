@@ -1,7 +1,7 @@
 import Foundation
 
 public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendable {
-    case football, basketball, soccer, flags, history, science, movies, geography, music, animals, food
+    case football, basketball, soccer, flags, history, science, movies, tv, geography, music, animals, food
 
     public var id: String { rawValue }
 
@@ -14,6 +14,7 @@ public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendabl
         case .history: "History"
         case .science: "Science"
         case .movies: "Movies"
+        case .tv: "TV"
         case .geography: "Geography"
         case .music: "Music"
         case .animals: "Animals"
@@ -30,6 +31,7 @@ public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendabl
         case .history: "People who shaped our world"
         case .science: "Nature, space & discovery"
         case .movies: "Big-screen favorites"
+        case .tv: "Small-screen favorites"
         case .geography: "Places near & far"
         case .music: "Artists, songs & sounds"
         case .animals: "Wildlife & nature"
@@ -46,6 +48,7 @@ public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendabl
         case .history: "building.columns.fill"
         case .science: "atom"
         case .movies: "film.fill"
+        case .tv: "tv.fill"
         case .geography: "globe.americas.fill"
         case .music: "music.note"
         case .animals: "pawprint.fill"

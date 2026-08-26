@@ -14,6 +14,7 @@ enum AppTheme {
         case .history: .brown
         case .science: .purple
         case .movies: .pink
+        case .tv: .mint
         case .geography: .cyan
         case .music: .indigo
         case .animals: .teal

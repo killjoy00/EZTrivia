@@ -48,6 +48,7 @@ CATEGORIES = [
     ("history",    "History",        "#A2845E", "#6B4F2A"),
     ("science",    "Science",        "#AF52DE", "#6D28D9"),
     ("movies",     "Movies",         "#FF375F", "#9F1239"),
+    ("tv",         "TV",             "#00C7BE", "#0F766E"),
     ("geography",  "Geography",      "#32ADE6", "#0E7490"),
     ("music",      "Music",          "#5E5CE6", "#3730A3"),
     ("animals",    "Animals",        "#30B0C7", "#0F766E"),
@@ -120,6 +121,11 @@ ICONS: dict[str, str] = {
         <ellipse cx="100" cy="100" rx="88" ry="34" transform="rotate(120 100 100)"/>
       </g>
       <circle cx="100" cy="100" r="19" fill="white"/>""",
+    "tv": """
+      <rect x="24" y="44" width="152" height="102" rx="14" fill="none" stroke="white" stroke-width="12"/>
+      <path d="M70 26 L100 56 L130 26" fill="none" stroke="white" stroke-width="12"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="62" y="164" width="76" height="12" rx="6" fill="white"/>""",
     "movies": """
       <mask id="cut">
         <rect width="200" height="200" fill="white"/>

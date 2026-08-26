@@ -32,6 +32,7 @@ LEADERBOARDS = {
     "history": ("History High Scores", 1_000_000),
     "science": ("Science High Scores", 1_000_000),
     "movies": ("Movies High Scores", 1_000_000),
+    "tv": ("TV High Scores", 1_000_000),
     "geography": ("Geography High Scores", 1_000_000),
     "music": ("Music High Scores", 1_000_000),
     "animals": ("Animals High Scores", 1_000_000),
