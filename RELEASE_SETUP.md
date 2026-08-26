@@ -16,7 +16,7 @@ Actions macOS runner. Two workflows do the work:
   core package tests, builds the app for the simulator (this is the only thing
   that type-checks the SwiftUI layer), and fails if `QuestionReview.csv` has
   drifted from the question bank. No secrets needed.
-- `.github/workflows/release.yml` is run by hand from the **Actions** tab. It
+- `.github/workflows/testflight.yml` is run by hand from the **Actions** tab. It
   archives, signs, exports an IPA, and uploads it to TestFlight.
 
 ### What you do once, about fifteen minutes
@@ -54,10 +54,23 @@ what it needs on the runner.
 1. **Actions** tab -> **TestFlight** -> **Run workflow**.
 2. The build number comes from the GitHub run number automatically, so it always
    increases and Apple never sees a duplicate.
-3. Roughly 20-40 minutes. The `.xcarchive` and `.ipa` are both saved as run
-   artifacts, so a failed export does not throw away a successful archive.
-4. The workflow validates the bundle with Apple *before* uploading, so a bundle
-   problem fails fast instead of consuming a build number.
+3. Roughly 20-40 minutes. The signed `.xcarchive` is saved as a run artifact,
+   so a failed upload does not throw away a successful archive. With the export
+   destination set to `upload`, Xcode may upload directly without leaving a
+   local `.ipa`; the workflow's IPA artifact is therefore best-effort.
+4. The workflow validates release-critical configuration in the archived app
+   before uploading. App Store Connect performs its server-side validation as
+   part of the authenticated export-and-upload operation.
+
+### Diagnosing an immediate launch crash
+
+The Google Mobile Ads SDK requires `GADApplicationIdentifier` in the installed
+app's `Info.plist` and terminates during startup when it is absent. Do not rely
+on custom `INFOPLIST_KEY_*` build settings for these identifiers: the iOS 26.2
+archive produced by Xcode 26.3 omitted both custom keys even though the project
+declared them. The app now uses an explicit `EZTriviaApp/Info.plist`; the macOS
+CI build and archive are the definitive checks that Xcode accepts and packages
+that configuration.
 
 ### What CI can and cannot prove
 
@@ -95,6 +108,21 @@ The repository already contains the Game Center entitlement. Xcode automatic sig
 If the record already exists, open **App Information** and confirm the name and bundle ID rather than creating another record.
 
 ## 3. Enable and configure Game Center
+
+The repository includes `Scripts/configure_game_center.py`, an idempotent App
+Store Connect API client that creates the eleven classic leaderboards below,
+adds their English (U.S.) localizations, and leaves existing records unchanged.
+It expects `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_KEY_PATH` in its environment.
+The key must have App Manager access. It intentionally stops with a readable
+message if the app has no Game Center detail yet, because enabling Game Center
+for the bundle identifier is a Developer portal operation rather than a
+leaderboard API operation.
+
+Authenticated TestFlight archives run this client automatically from an Xcode
+build phase. Ordinary local and unsigned CI builds have no App Store Connect
+environment variables, so the phase prints a skip message and performs no
+network request. This keeps the provisioning operation repeatable without
+placing an API key in the repository or requiring a Mac.
 
 1. In App Store Connect, open **EZ Trivia**.
 2. Open the app's **Game Center** section. Depending on the current App Store Connect layout, this can appear under the app's Services or Features area.
@@ -205,9 +233,12 @@ part CI cannot check.
 7. Turn on Airplane Mode and confirm flag rounds still work.
 8. Check VoiceOver, Dynamic Type at large sizes, dark mode, the privacy-options
    sheet, local score deletion, and leaving a round part-way through.
-9. Complete export compliance, content rights, age rating, privacy,
+9. If the banner reports "Ads unavailable", take a screenshot of the full
+   persistent message. Ad failures are non-blocking and no longer appear as a
+   transient alert on the Scores tab.
+10. Complete export compliance, content rights, age rating, privacy,
    availability, and review-contact fields in App Store Connect.
-10. Submit the selected build for review.
+11. Submit the selected build for review.
 
 ## App Store Connect API key security and optional automation
 

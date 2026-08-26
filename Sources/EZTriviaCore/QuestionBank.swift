@@ -78,15 +78,14 @@ public enum QuestionBank {
                     && !$0.confusable.contains(entry.code)
             }
 
-            var distractors = Array(sameTier.shuffled(using: &generator).prefix(3))
+            var distractors = Array(deterministicallyShuffled(sameTier, using: &generator).prefix(3))
             if distractors.count < 3 {
                 let chosen = Set(distractors.map(\.code))
                 let filler = anyTier.filter { !chosen.contains($0.code) }
-                distractors += filler.shuffled(using: &generator).prefix(3 - distractors.count)
+                distractors += deterministicallyShuffled(filler, using: &generator).prefix(3 - distractors.count)
             }
 
-            var options = (distractors + [entry]).map(\.name)
-            options.shuffle(using: &generator)
+            let options = deterministicallyShuffled((distractors + [entry]).map(\.name), using: &generator)
             guard let correctIndex = options.firstIndex(of: entry.name) else { continue }
 
             questions.append(
@@ -98,12 +97,30 @@ public enum QuestionBank {
                     visual: entry.asset,
                     answers: options,
                     correctAnswerIndex: correctIndex,
-                    explanation: "This is the flag of \(entry.name)."
+                    explanation: entry.explanation
+                        ?? "The ISO 3166-1 alpha-2 code associated with \(entry.name) is \(entry.code)."
                 )
             )
         }
 
         return questions
+    }
+
+    /// Fisher-Yates with this package's generator rather than the standard
+    /// library's shuffle implementation, so exported answer choices remain
+    /// stable across Swift toolchain versions.
+    private static func deterministicallyShuffled<Element>(
+        _ values: [Element],
+        using generator: inout SeededGenerator
+    ) -> [Element] {
+        var result = values
+        guard result.count > 1 else { return result }
+
+        for index in stride(from: result.count - 1, through: 1, by: -1) {
+            let other = Int(generator.next() % UInt64(index + 1))
+            if other != index { result.swapAt(index, other) }
+        }
+        return result
     }
 }
 

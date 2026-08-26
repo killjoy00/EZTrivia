@@ -13,6 +13,8 @@ private func csvField(_ value: String) -> String {
 /// so a reviewer can make a call rather than discover it from a user complaint.
 private let flagReviewNotes: [String: String] = [
     "flag-af": "Artwork is the pre-2021 tricolour; the de facto flag since 2021 is the white shahada flag. Contested either way.",
+    "flag-aq": "Artwork is Graham Bartram's unofficial design; Antarctica has no officially adopted sovereign flag.",
+    "flag-bq": "Artwork is Bonaire's flag; the Caribbean Netherlands has no collective flag.",
     "flag-gp": "Artwork is an unofficial local flag. The official flag of Guadeloupe is the French tricolour.",
     "flag-gf": "Artwork is an unofficial local flag. The official flag of French Guiana is the French tricolour.",
     "flag-bl": "Artwork is an unofficial armorial flag. The official flag of Saint Barthelemy is the French tricolour.",
@@ -20,6 +22,8 @@ private let flagReviewNotes: [String: String] = [
     "flag-re": "Artwork is an unofficial local flag. The official flag of Reunion is the French tricolour.",
     "flag-yt": "Artwork is an unofficial local flag. The official flag of Mayotte is the French tricolour.",
     "flag-wf": "Artwork is a local flag rather than the official French tricolour.",
+    "flag-nc": "Artwork is the politically contested FLNKS or Kanak flag, often flown alongside the French tricolour.",
+    "flag-pm": "Artwork is a widely used unofficial local flag. The official flag is the French tricolour.",
     "flag-eh": "Western Sahara is a disputed territory; the flag shown is that of the Sahrawi Arab Democratic Republic.",
     "flag-ps": "Palestine's status is disputed; included as a territory.",
     "flag-tw": "Taiwan's status is disputed. Listed under its common name rather than the ISO label.",

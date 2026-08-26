@@ -125,13 +125,20 @@ private struct CategoryCard: View {
                 .background(AppTheme.color(for: category), in: RoundedRectangle(cornerRadius: 13))
             Text(category.title).font(.headline).foregroundStyle(.primary)
             Text(category.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            if let best = scores.bestScore(for: category) {
-                Label("Best \(best)%", systemImage: "star.fill").font(.caption2.bold()).foregroundStyle(AppTheme.color(for: category))
-            } else {
-                Text("10 questions").font(.caption2.bold()).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                ForEach(TriviaDifficulty.allCases) { difficulty in
+                    Label {
+                        Text(scores.bestScore(for: category, difficulty: difficulty).map { "\($0)%" } ?? "—")
+                    } icon: {
+                        Image(systemName: difficulty.symbol)
+                    }
+                    .accessibilityLabel("\(difficulty.title) best \(scores.bestScore(for: category, difficulty: difficulty).map { "\($0) percent" } ?? "not played")")
+                }
             }
+            .font(.caption2.bold().monospacedDigit())
+            .foregroundStyle(AppTheme.color(for: category))
         }
-        .frame(maxWidth: .infinity, minHeight: 142, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 154, alignment: .leading)
         .cardStyle()
         .accessibilityElement(children: .combine)
         .accessibilityHint("Starts a ten-question round")
