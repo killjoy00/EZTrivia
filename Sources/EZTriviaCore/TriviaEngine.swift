@@ -102,6 +102,28 @@ public enum QuestionPicker {
         return pool.prefix(count).map { QuestionBank.presenting($0, using: &generator) }
     }
 
+    /// Builds a round from questions the player previously got wrong.
+    ///
+    /// Ids rather than stored questions, resolved against the current bank, so
+    /// an id that no longer exists is skipped rather than crashing or
+    /// resurrecting a withdrawn question. Order is preserved: the caller holds
+    /// the misses oldest-first, and practising the longest-outstanding ones
+    /// first is what stops a stale backlog accumulating behind recent misses.
+    ///
+    /// Answers are redrawn exactly as in an ordinary round, so a question is
+    /// not re-answerable from memory of where the correct option sat.
+    public static func practiceRound(
+        ids: [String],
+        count: Int = 10,
+        using bank: [String: TriviaQuestion] = QuestionBank.byID
+    ) -> [TriviaQuestion] {
+        var generator = SystemRandomNumberGenerator()
+        return ids
+            .compactMap { bank[$0] }
+            .prefix(count)
+            .map { QuestionBank.presenting($0, using: &generator) }
+    }
+
     /// The number of distinct questions available for a category and difficulty.
     public static func availableCount(
         category: TriviaCategory,

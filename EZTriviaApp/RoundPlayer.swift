@@ -12,7 +12,10 @@ struct RoundPlayer: View {
     let tint: Color
     /// Label for the final button of the round.
     let finishTitle: String
-    let onAnswer: (Bool) -> Void
+    /// The question just answered, and whether the player got it right. The
+    /// question is passed rather than only the outcome so callers can record
+    /// which question was missed, not merely that one was.
+    let onAnswer: (TriviaQuestion, Bool) -> Void
     let onAdvance: () -> Void
 
     var body: some View {
@@ -122,7 +125,7 @@ struct RoundPlayer: View {
     private func answerButton(_ question: TriviaQuestion, index: Int) -> some View {
         Button {
             let wasCorrect = engine.answer(index)
-            onAnswer(wasCorrect)
+            onAnswer(question, wasCorrect)
         } label: {
             HStack(spacing: 14) {
                 Text(String(UnicodeScalar(65 + index)!))

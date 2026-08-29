@@ -90,8 +90,14 @@ struct DailyChallengeView: View {
                     engine: $engine,
                     tint: .orange,
                     finishTitle: "Finish",
-                    onAnswer: { correct in
-                        if correct { feedback.correct() } else { feedback.wrong() }
+                    onAnswer: { question, correct in
+                        if correct {
+                            feedback.correct()
+                            scores.clearMiss(question.id)
+                        } else {
+                            feedback.wrong()
+                            scores.recordMiss(question.id)
+                        }
                     },
                     onAdvance: { if engine.isRoundComplete { finishRound() } }
                 )

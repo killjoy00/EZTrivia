@@ -4,11 +4,12 @@ EZTrivia is a small, native iPhone trivia game built with SwiftUI. Pick a catego
 
 ## Highlights
 
-- Eleven launch categories: Football, Basketball, Soccer, World Flags, History, Science, Movies, Geography, Music, Animals, and Food & Drink
-- Visual flag-identification questions covering 244 distinct flags
+- Twelve categories: Football, Basketball, Soccer, World Flags, History, Science, Movies, TV, Geography, Music, Animals, and Food & Drink
+- Visual flag-identification questions covering 241 distinct flags
 - Ten-question rounds with immediate answer feedback and short explanations
 - Optional endless follow-up rounds, with unseen questions preferred
 - Easy, medium, and hard modes that are genuinely different questions, not the same pool relabelled
+- Practice mode: questions you answer wrong are collected, and clearing one requires answering it correctly again
 - Local best scores and a lightweight on-device leaderboard
 - Dark-mode support, Dynamic Type-friendly layouts, and VoiceOver labels
 - Google Mobile Ads for a single banner placement; no analytics or crash-reporting SDK
@@ -24,12 +25,12 @@ Flag questions use a bundled local catalog of all 249 ISO 3166-1 country and ter
 
 ## Question catalog
 
-1,144 questions ship with the app:
+1,561 questions ship with the app:
 
 | | Easy | Medium | Hard |
 |---|---|---|---|
-| Each of the 10 topic categories | 30 | 30 | 30 |
-| World Flags | 50 | 92 | 102 |
+| Each of the 11 topic categories | 40 | 40 | 40 |
+| World Flags | 50 | 91 | 100 |
 
 Every question is written by hand and appears exactly once. No question is
 reused across difficulties, and tests in `Tests/EZTriviaCoreTests` fail the
@@ -49,6 +50,12 @@ guessed; see the `confusable` lists in `Sources/EZTriviaCore/FlagCatalog.swift`.
 
 Answer order is shuffled at runtime, so replaying a question does not put the
 correct answer in the same position.
+
+The correct answer is also not identifiable by length. Authored distractors used
+to be terser than the answer they sat beside, which made the hard tier 73.8%
+answerable by always picking the longest option -- three times chance. 267
+distractors were rewritten in 1.0.1 to close that gap; a test now fails the build
+if any tier drifts back above 40%.
 
 ## Suggested next steps
 
@@ -108,7 +115,7 @@ See [`RELEASE_SETUP.md`](RELEASE_SETUP.md) for the complete Apple, Game Center, 
 
 1. The Xcode target now uses explicit bundle ID `EZTrivia`, display name **EZ Trivia**, and Apple Team ID `3564X3VTDB`.
 2. Enable Game Center for that App ID in Certificates, Identifiers & Profiles and for the app record in App Store Connect.
-3. Create eleven classic leaderboards configured for a **high score** from 0 through 100 using IDs `EZTrivia.<category>`, as listed in `RELEASE_SETUP.md`.
+3. Create twelve classic leaderboards configured for a **high score** from 0 through 100 using IDs `EZTrivia.<category>`, as listed in `RELEASE_SETUP.md`.
 4. Add only the required default English (U.S.) display metadata—no translated localizations—and test authentication/submission with sandbox Game Center accounts on physical devices.
 
 EZTrivia authenticates at launch, submits the completed round percentage to its category leaderboard, and opens Apple's native Game Center leaderboard dashboard from the Scores tab.

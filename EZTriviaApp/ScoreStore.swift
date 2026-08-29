@@ -8,6 +8,7 @@ final class ScoreStore: ObservableObject {
     private let seenDefaultsKey = "seenQuestions.v1"
     private let dailyDefaultsKey = "dailyResults.v1"
     private let lifetimeDefaultsKey = "lifetimePoints.v1"
+    private let missedDefaultsKey = "missedQuestions.v1"
 
     /// Finished daily challenges, keyed by day number.
     ///
@@ -29,6 +30,22 @@ final class ScoreStore: ObservableObject {
     /// survives a category being added, renamed in the UI, or reordered.
     @Published private(set) var lifetimePointsByCategory: [String: Int] = [:]
 
+    /// Question IDs the player has answered wrong and not yet re-answered
+    /// correctly, oldest miss first.
+    ///
+    /// Ids rather than whole questions, so a question corrected in a later
+    /// release is practised in its corrected form and a withdrawn one simply
+    /// stops resolving. Oldest-first because practice serves from the front:
+    /// a miss from three weeks ago should not sit behind every miss since.
+    ///
+    /// Capped at `missedLimit`. Without a cap this grows for the lifetime of
+    /// the install, and a backlog of several hundred is a list nobody clears
+    /// -- it reads as a chore rather than as something to finish.
+    @Published private(set) var missedQuestionIDs: [String] = []
+
+    /// The most misses kept. Ten rounds' worth.
+    static let missedLimit = 100
+
     /// Question IDs the player has already been served, keyed by
     /// "category-difficulty". Persisting these is what stops a player from
     /// being handed the same ten questions every time they open a category.
@@ -47,6 +64,13 @@ final class ScoreStore: ObservableObject {
         }
         if let data = defaults.data(forKey: lifetimeDefaultsKey), let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
             lifetimePointsByCategory = decoded
+        }
+        if let data = defaults.data(forKey: missedDefaultsKey), let decoded = try? JSONDecoder().decode([String].self, from: data) {
+            // Filtered against the current bank on load rather than at every
+            // read: an id withdrawn by an app update would otherwise be counted
+            // on the home screen badge but skipped by the round, leaving a
+            // "3 to practise" card that opens a two-question round.
+            missedQuestionIDs = decoded.filter { QuestionBank.byID[$0] != nil }
         }
     }
 
@@ -88,6 +112,34 @@ final class ScoreStore: ObservableObject {
 
     private func persistDaily() {
         defaults.set(try? JSONEncoder().encode(dailyResults), forKey: dailyDefaultsKey)
+    }
+
+    // MARK: - Missed questions
+
+    var missedCount: Int { missedQuestionIDs.count }
+
+    /// Notes a wrong answer. A repeat miss keeps its original position rather
+    /// than moving to the back, so a question the player keeps getting wrong
+    /// stays at the front of the practice queue instead of being pushed behind
+    /// newer misses every time they fail it.
+    func recordMiss(_ id: String) {
+        guard !missedQuestionIDs.contains(id) else { return }
+        missedQuestionIDs.append(id)
+        if missedQuestionIDs.count > Self.missedLimit {
+            missedQuestionIDs.removeFirst(missedQuestionIDs.count - Self.missedLimit)
+        }
+        persistMissed()
+    }
+
+    /// Retires a question from practice, once answered correctly.
+    func clearMiss(_ id: String) {
+        guard let index = missedQuestionIDs.firstIndex(of: id) else { return }
+        missedQuestionIDs.remove(at: index)
+        persistMissed()
+    }
+
+    private func persistMissed() {
+        defaults.set(try? JSONEncoder().encode(missedQuestionIDs), forKey: missedDefaultsKey)
     }
 
     private func cacheKey(_ category: TriviaCategory, _ difficulty: TriviaDifficulty) -> String {
@@ -143,7 +195,9 @@ final class ScoreStore: ObservableObject {
     func clear() {
         entries = []
         seenQuestionIDs = [:]
+        missedQuestionIDs = []
         defaults.removeObject(forKey: seenDefaultsKey)
+        defaults.removeObject(forKey: missedDefaultsKey)
         persist()
     }
 

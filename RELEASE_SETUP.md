@@ -110,7 +110,7 @@ If the record already exists, open **App Information** and confirm the name and 
 ## 3. Enable and configure Game Center
 
 The repository includes `Scripts/configure_game_center.py`, an idempotent App
-Store Connect API client that creates the eleven classic leaderboards below,
+Store Connect API client that creates the thirteen classic leaderboards below,
 adds their English (U.S.) localizations, and leaves existing records unchanged.
 It expects `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_KEY_PATH` in its environment.
 The key must have App Manager access. It intentionally stops with a readable
@@ -127,7 +127,7 @@ placing an API key in the repository or requiring a Mac.
 1. In App Store Connect, open **EZ Trivia**.
 2. Open the app's **Game Center** section. Depending on the current App Store Connect layout, this can appear under the app's Services or Features area.
 3. Enable Game Center for the app if an enable/setup button is shown.
-4. Create eleven **Classic Leaderboards**—not a leaderboard set or recurring leaderboard.
+4. Create thirteen **Classic Leaderboards**—not a leaderboard set or recurring leaderboard.
 5. For every leaderboard, choose:
    - **Sort order:** High to Low
    - **Score range:** 0 through 100
@@ -146,10 +146,12 @@ placing an API key in the repository or requiring a Mac.
 | History High Scores | `EZTrivia.history` | History High Scores |
 | Science High Scores | `EZTrivia.science` | Science High Scores |
 | Movies High Scores | `EZTrivia.movies` | Movies High Scores |
+| TV High Scores | `EZTrivia.tv` | TV High Scores |
 | Geography High Scores | `EZTrivia.geography` | Geography High Scores |
 | Music High Scores | `EZTrivia.music` | Music High Scores |
 | Animals High Scores | `EZTrivia.animals` | Animals High Scores |
 | Food & Drink High Scores | `EZTrivia.food` | Food & Drink High Scores |
+| Daily Challenge | `EZTrivia.daily` | Daily Challenge |
 
 7. After creating each leaderboard, add its one required **English (U.S.)** localization and enter the third-column display name. “No localization” means no translations; Apple still requires this one default player-facing language.
 8. Save every leaderboard.
