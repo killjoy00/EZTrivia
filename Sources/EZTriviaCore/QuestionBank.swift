@@ -19,6 +19,7 @@ public enum QuestionBank {
         (.history, HistoryQuestions.seeds),
         (.science, ScienceQuestions.seeds),
         (.movies, MoviesQuestions.seeds),
+        (.tv, TelevisionQuestions.seeds),
         (.geography, GeographyQuestions.seeds),
         (.music, MusicQuestions.seeds),
         (.animals, AnimalsQuestions.seeds),

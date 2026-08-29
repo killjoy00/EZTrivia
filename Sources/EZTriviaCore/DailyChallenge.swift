@@ -67,8 +67,8 @@ public struct DailyChallenge: Sendable, Equatable {
         var generator = SeededGenerator(seed: seed(for: day))
 
         // Categories are drawn without replacement, so a single daily never
-        // asks two questions from the same category. There are eleven
-        // categories and ten slots, so exactly one sits out each day.
+        // asks two questions from the same category. There are twelve
+        // categories and ten slots, so two sit out each day.
         var categories = TriviaCategory.allCases.shuffled(using: &generator)
         if categories.count > questionCount {
             categories.removeLast(categories.count - questionCount)
