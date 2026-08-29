@@ -1,4 +1,3 @@
-import EZTriviaCore
 import Foundation
 
 @MainActor

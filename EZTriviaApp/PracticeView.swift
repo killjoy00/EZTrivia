@@ -1,4 +1,3 @@
-import EZTriviaCore
 import SwiftUI
 
 /// Routes to the practice round. A distinct type so the navigation path can

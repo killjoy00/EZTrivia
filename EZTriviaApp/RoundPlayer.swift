@@ -1,4 +1,3 @@
-import EZTriviaCore
 import SwiftUI
 
 /// The question-and-answers screen, shared by category rounds and the daily
