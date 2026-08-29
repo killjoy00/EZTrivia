@@ -411,3 +411,76 @@ import Testing
         #expect(hard.contains(code), "\(code) should be a hard flag")
     }
 }
+
+// MARK: - Practice rounds
+
+@Test func questionsAreUniquelyAddressableByID() {
+    #expect(QuestionBank.byID.count == QuestionBank.all.count)
+    for question in QuestionBank.all {
+        #expect(QuestionBank.byID[question.id]?.prompt == question.prompt)
+    }
+}
+
+/// Practice serves the longest-outstanding miss first. Reordering here would
+/// let a growing backlog hide behind whatever the player missed most recently.
+@Test func practiceRoundPreservesTheOrderOfMisses() {
+    let ids = Array(QuestionBank.all.prefix(6).map(\.id))
+    let round = QuestionPicker.practiceRound(ids: ids)
+    #expect(round.map(\.id) == ids)
+}
+
+/// An id that no longer resolves -- a question withdrawn by an app update --
+/// is skipped rather than shortening the round by crashing on it.
+@Test func practiceRoundSkipsUnknownIDs() {
+    let real = QuestionBank.all[0].id
+    let round = QuestionPicker.practiceRound(ids: ["not-a-question", real, "also-gone"])
+    #expect(round.map(\.id) == [real])
+}
+
+@Test func practiceRoundIsCappedAtTheRequestedCount() {
+    let ids = Array(QuestionBank.all.prefix(25).map(\.id))
+    #expect(QuestionPicker.practiceRound(ids: ids).count == 10)
+    #expect(QuestionPicker.practiceRound(ids: ids, count: 4).count == 4)
+    #expect(QuestionPicker.practiceRound(ids: []).isEmpty)
+}
+
+/// Every question handed to the player must still be answerable: presenting a
+/// question redraws its options, and a practice round goes through the same
+/// path as an ordinary one.
+@Test func practiceRoundQuestionsKeepTheirCorrectAnswer() {
+    let ids = Array(QuestionBank.all.prefix(10).map(\.id))
+    for question in QuestionPicker.practiceRound(ids: ids) {
+        #expect(question.answers.count == 4)
+        #expect(Set(question.answers).count == 4)
+        #expect(question.answers.indices.contains(question.correctAnswerIndex))
+        let original = QuestionBank.byID[question.id]
+        #expect(original != nil)
+        if let original {
+            // Flag questions redraw their wrong answers, so only the keyed
+            // answer is guaranteed to survive presentation.
+            #expect(question.answers[question.correctAnswerIndex]
+                    == original.answers[original.correctAnswerIndex])
+        }
+    }
+}
+
+// MARK: - Answer quality
+
+/// The correct answer must not be identifiable from its length alone.
+///
+/// A player who always picks the longest option should do no better than one
+/// guessing at random. Before the 1.0.1 distractor rewrite the hard tier sat at
+/// 73.8% -- three times chance, which made the whole tier answerable without
+/// knowing anything. Flags are excluded: their options are country names drawn
+/// from the catalog, so their lengths are not authored.
+@Test func theLongestAnswerIsNotUsuallyTheCorrectOne() {
+    for difficulty in TriviaDifficulty.allCases {
+        let tier = QuestionBank.all.filter { $0.difficulty == difficulty && $0.category != .flags }
+        let tell = tier.count { question in
+            let longest = question.answers.max { $0.count < $1.count }
+            return longest == question.answers[question.correctAnswerIndex]
+        }
+        let rate = Double(tell) / Double(tier.count)
+        #expect(rate < 0.40, "\(difficulty.title): correct answer is longest in \(tell)/\(tier.count)")
+    }
+}

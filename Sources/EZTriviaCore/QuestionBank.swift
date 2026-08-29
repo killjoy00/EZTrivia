@@ -6,6 +6,15 @@ public enum QuestionBank {
     /// appears at more than one difficulty.
     public static let all: [TriviaQuestion] = buildAll()
 
+    /// Every question keyed by id, for the practice round.
+    ///
+    /// Practice stores ids rather than whole questions, so a question whose
+    /// wording is corrected in a later release is practised in its corrected
+    /// form, and a question withdrawn entirely simply stops resolving instead
+    /// of stranding a stale copy on the device.
+    public static let byID: [String: TriviaQuestion] =
+        Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
     /// The prompt shown for every flag question.
     ///
     /// Roughly 40 percent of the catalog is territories and dependencies rather
