@@ -12,6 +12,13 @@ final class GameCenterManager: ObservableObject {
     @Published private(set) var availableAchievementIDs: Set<String> = []
     @Published private(set) var isSyncingAchievements = false
     private var didLoadAchievementMetadata = false
+    /// Depth rather than a flag: a round-end sync and an open Achievements
+    /// screen can overlap, and a plain Bool let whichever finished first clear
+    /// the spinner out from under the one still running.
+    private var activeAchievementSyncs = 0
+    /// Whether `achievementProgressByID` reflects a real load from Game Center.
+    /// Until it does, an empty map means "unknown", not "no progress".
+    private var didLoadAchievementProgress = false
 
     func authenticate() {
         GKLocalPlayer.local.authenticateHandler = { [weak self] viewController, error in
@@ -118,36 +125,36 @@ final class GameCenterManager: ObservableObject {
     /// for this device; taking the maximum means neither side can move a badge
     /// backward after a reinstall, delayed callback, or offline session.
     func refreshAchievements(localProgress: [String: Double]) async {
-        guard isAuthenticated else { return }
-        isSyncingAchievements = true
-        defer { isSyncingAchievements = false }
-
-        do {
-            try await loadAchievementMetadataIfNeeded()
-            let achievements: [GKAchievement] = try await withCheckedThrowingContinuation { continuation in
-                GKAchievement.loadAchievements { achievements, error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(returning: achievements ?? [])
-                    }
-                }
-            }
-            achievementProgressByID = Dictionary(
-                uniqueKeysWithValues: achievements.map { ($0.identifier, $0.percentComplete) }
-            )
-            try await reportHigherLocalProgress(localProgress)
-        } catch {
-            Telemetry.record(error)
-        }
+        await sync(localProgress: localProgress, reloadProgress: true)
     }
 
     func syncAchievements(localProgress: [String: Double]) async {
+        await sync(localProgress: localProgress, reloadProgress: false)
+    }
+
+    /// Loads what Game Center already has, then reports anything local play has
+    /// pushed higher.
+    ///
+    /// `reloadProgress` forces a re-read even when one has already succeeded;
+    /// the Achievements screen wants fresh server state, a round ending only
+    /// needs a baseline to compare against. Either way the remote progress is
+    /// loaded at least once before anything is reported: comparing against an
+    /// empty map would re-report every earned achievement, asking Game Center
+    /// to redisplay banners the player has already seen.
+    private func sync(localProgress: [String: Double], reloadProgress: Bool) async {
         guard isAuthenticated else { return }
+        activeAchievementSyncs += 1
         isSyncingAchievements = true
-        defer { isSyncingAchievements = false }
+        defer {
+            activeAchievementSyncs -= 1
+            if activeAchievementSyncs == 0 { isSyncingAchievements = false }
+        }
+
         do {
             try await loadAchievementMetadataIfNeeded()
+            if reloadProgress || !didLoadAchievementProgress {
+                try await loadAchievementProgress()
+            }
             try await reportHigherLocalProgress(localProgress)
         } catch {
             // A missing App Store Connect component must not interrupt a quiz
@@ -155,6 +162,26 @@ final class GameCenterManager: ObservableObject {
             // progress, and a later successful sync will catch up.
             Telemetry.record(error)
         }
+    }
+
+    private func loadAchievementProgress() async throws {
+        let achievements: [GKAchievement] = try await withCheckedThrowingContinuation { continuation in
+            GKAchievement.loadAchievements { achievements, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: achievements ?? [])
+                }
+            }
+        }
+        // `uniqueKeysWithValues` traps on a duplicate key, and these identifiers
+        // come from Game Center rather than from the catalog. Keeping the higher
+        // value is both crash-proof and the right answer for progress.
+        achievementProgressByID = Dictionary(
+            achievements.map { ($0.identifier, $0.percentComplete) },
+            uniquingKeysWith: max
+        )
+        didLoadAchievementProgress = true
     }
 
     private func loadAchievementMetadataIfNeeded() async throws {

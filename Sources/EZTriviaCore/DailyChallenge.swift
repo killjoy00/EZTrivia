@@ -50,6 +50,16 @@ public struct DailyChallenge: Sendable, Equatable {
         return calendar.dateComponents([.day], from: from, to: to).day ?? 0
     }
 
+    /// Local midnight that opens `day`. The inverse of `day(for:in:)`.
+    ///
+    /// Added by date arithmetic rather than by multiplying out seconds, so a
+    /// day that is 23 or 25 hours long across a daylight-saving change still
+    /// starts where the calendar says it does.
+    public static func startOfDay(_ day: Int, in calendar: Calendar = .current) -> Date? {
+        guard let epochDate = calendar.date(from: epoch) else { return nil }
+        return calendar.date(byAdding: .day, value: day, to: calendar.startOfDay(for: epochDate))
+    }
+
     // MARK: - Building
 
     public static func today(in calendar: Calendar = .current, using bank: [TriviaQuestion] = QuestionBank.all) -> DailyChallenge {
@@ -130,5 +140,26 @@ public enum DailyStreak {
             day -= 1
         }
         return length
+    }
+
+    /// The next day on which an unplayed daily would end the current streak,
+    /// and how many days are riding on it.
+    ///
+    /// This is what a reminder is scheduled against. `current` deliberately
+    /// keeps yesterday's streak alive through today, which means the day a
+    /// streak is actually *at risk* is the first unplayed one: today if today
+    /// is still open, otherwise tomorrow. Miss that day entirely and the run
+    /// is gone at the next local midnight.
+    ///
+    /// Returns nil below `minimumStreak`, because a one-day run is not yet a
+    /// streak worth interrupting someone's evening over.
+    public static func dayAtRisk(
+        playedDays: Set<Int>,
+        today: Int,
+        minimumStreak: Int = 2
+    ) -> (day: Int, streak: Int)? {
+        let streak = current(playedDays: playedDays, today: today)
+        guard streak >= minimumStreak else { return nil }
+        return (playedDays.contains(today) ? today + 1 : today, streak)
     }
 }

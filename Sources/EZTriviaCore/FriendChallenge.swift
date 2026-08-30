@@ -74,6 +74,19 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
         uniqueKeysWithValues: alphabet.enumerated().map { ($0.element, UInt64($0.offset)) }
     )
 
+    /// The literal that opens every code, derived from `codeVersion` rather
+    /// than spelled out, so bumping the version actually changes what is
+    /// printed and what is accepted. Spelling it out in two places meant a
+    /// future version would still emit `EZ1` and reject genuine old codes as
+    /// checksum failures -- reported to the player as a typo, which is the one
+    /// thing the visible version exists to prevent.
+    ///
+    /// One character, so versions run 1 through 9. A tenth would need a wider
+    /// field, and by then the format has earned a rethink anyway.
+    static var prefix: String { "EZ\(FriendChallenge.codeVersion)" }
+    private static let prefixLength = 3
+    private static let bodyLength = 19
+
     public let version: Int
     public let seed: UInt64
     public let targetScore: Int
@@ -82,13 +95,26 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
     public var id: String { attemptID }
     public var attemptID: String { "v\(version)-\(seed)" }
 
+    /// Largest values the fixed-width fields can carry: one Base32 character
+    /// for the score, three for the points. `codeFieldsAreWideEnough` checks
+    /// these still exceed the gameplay maximums.
+    static let maximumEncodableScore = 31
+    static let maximumEncodablePoints = 32_767
+
     public init(seed: UInt64, targetScore: Int, targetPoints: Int) {
-        precondition((0...FriendChallenge.questionCount).contains(targetScore))
-        precondition((0...FriendChallenge.maximumPoints).contains(targetPoints))
+        // Debug-only, so a difficulty-ramp change that outgrows the fields is
+        // caught by the test suite. A `precondition` here would instead crash a
+        // player mid-round in release over a result that is merely surprising,
+        // which is a far worse failure than a clamped share code.
+        assert((0...FriendChallenge.questionCount).contains(targetScore))
+        assert((0...FriendChallenge.maximumPoints).contains(targetPoints))
+
+        // Clamped to what `init?(_:)` will accept, not to what the fields can
+        // hold, so every code this emits parses back to the same values.
         self.version = FriendChallenge.codeVersion
         self.seed = seed
-        self.targetScore = targetScore
-        self.targetPoints = targetPoints
+        self.targetScore = min(max(targetScore, 0), FriendChallenge.questionCount)
+        self.targetPoints = min(max(targetPoints, 0), FriendChallenge.maximumPoints)
     }
 
     /// Parses a code while tolerating spaces, hyphens, lowercase, and the
@@ -105,10 +131,10 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
                 }
             }
 
-        guard compact.count == 22,
-              String(compact.prefix(3)) == "EZ1" else { return nil }
+        guard compact.count == Self.prefixLength + Self.bodyLength,
+              String(compact.prefix(Self.prefixLength)) == Self.prefix else { return nil }
 
-        let body = Array(compact.dropFirst(3))
+        let body = Array(compact.dropFirst(Self.prefixLength))
         guard let decodedSeed = Self.decode(Array(body[0..<13])),
               let decodedScore = Self.decode(Array(body[13..<14])),
               let decodedPoints = Self.decode(Array(body[14..<17])),
@@ -142,7 +168,7 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
             let end = body.index(start, offsetBy: min(4, body.count - offset))
             return String(body[start..<end])
         }
-        return "EZ1-" + groups.joined(separator: "-")
+        return Self.prefix + "-" + groups.joined(separator: "-")
     }
 
     private static func encode(_ value: UInt64, width: Int) -> String {
