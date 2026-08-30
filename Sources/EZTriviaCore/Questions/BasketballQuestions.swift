@@ -101,7 +101,7 @@ enum BasketballQuestions {
                      ["It is taken before the buzzer", "It uses the backboard", "It is shot with one hand", "It follows a timeout"], 1,
                      "A bank shot rebounds from the backboard into the basket."),
         QuestionSeed("What violation occurs when a player dribbles, stops, and then dribbles again?",
-                     ["Traveling", "Double dribble", "Goaltending", "Charging"], 1,
+                     ["A palming or carrying violation", "Double dribble", "Goaltending", "Charging"], 1,
                      "Once a player ends a dribble and controls the ball, starting another dribble is illegal."),
         QuestionSeed("What is a shot made just before the game clock expires commonly called?",
                      ["A buzzer-beater", "A bank shot", "A putback", "A hook shot"], 0,
@@ -122,7 +122,7 @@ enum BasketballQuestions {
                      ["The free-throw line", "The baseline", "The midcourt line", "The three-point line"], 2,
                      "The midcourt line runs through the centre circle and separates the two halves of the floor."),
         QuestionSeed("What is the pass used to resume play from outside the boundary called?",
-                     ["An outlet pass", "An inbound pass", "A bounce pass", "A skip pass"], 1,
+                     ["A full-court outlet pass", "An inbound pass", "A bounce pass", "A skip pass"], 1,
                      "The inbounder must release the ball onto the court within the allowed count."),
     ]
 
