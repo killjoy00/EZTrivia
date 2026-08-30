@@ -414,21 +414,33 @@ import Testing
 
 // MARK: - Answer quality
 
-/// The correct answer must not be identifiable from its length alone.
+/// The correct answer must not be identifiable from its length alone in any
+/// individual category and difficulty pool. Aggregating all categories can hide
+/// a badly biased pool behind unrelated balanced ones.
 ///
-/// A player who always picks the longest option should do no better than one
-/// guessing at random. Before the 1.0.1 distractor rewrite the hard tier sat at
-/// 73.8% -- three times chance, which made the whole tier answerable without
-/// knowing anything. Flags are excluded: their options are country names drawn
-/// from the catalog, so their lengths are not authored.
-@Test func theLongestAnswerIsNotUsuallyTheCorrectOne() {
-    for difficulty in TriviaDifficulty.allCases {
-        let tier = QuestionBank.all.filter { $0.difficulty == difficulty && $0.category != .flags }
-        let tell = tier.count { question in
-            let longest = question.answers.max { $0.count < $1.count }
-            return longest == question.answers[question.correctAnswerIndex]
+/// Answers are shuffled before presentation, so tied longest choices share the
+/// heuristic's credit equally rather than inheriting their authored positions.
+/// Flags are excluded because their country-name distractors are drawn at runtime.
+@Test func theLongestAnswerIsNotUsuallyTheCorrectOneInAnyPool() {
+    for category in TriviaCategory.allCases where category != .flags {
+        for difficulty in TriviaDifficulty.allCases {
+            let pool = QuestionBank.all.filter {
+                $0.category == category && $0.difficulty == difficulty
+            }
+            let expectedCorrect = pool.reduce(0.0) { total, question in
+                let lengths = question.answers.map(\.count)
+                let longest = lengths.max() ?? 0
+                guard lengths[question.correctAnswerIndex] == longest else { return total }
+                let tied = lengths.count { $0 == longest }
+                return total + 1.0 / Double(tied)
+            }
+            let rate = expectedCorrect / Double(pool.count)
+            #expect(rate <= 0.35,
+                    "\(category.title) / \(difficulty.title): longest-answer heuristic scores \(rate)")
         }
-        let rate = Double(tell) / Double(tier.count)
-        #expect(rate < 0.40, "\(difficulty.title): correct answer is longest in \(tell)/\(tier.count)")
     }
+}
+
+@Test func flagsWhoseArtworkPrintsTheirNameStayEasy() {
+    #expect(FlagCatalog.byCode["YT"]?.difficulty == .easy)
 }
