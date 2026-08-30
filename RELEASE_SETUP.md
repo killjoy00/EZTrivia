@@ -210,8 +210,8 @@ This setting is controlled by App Store Connect and cannot be enforced by applic
 
 The Release build already uses:
 
-- App ID: `ca-app-pub-3388571830343061~4987263013`
-- Banner ad-unit ID: `ca-app-pub-3388571830343061/4408678515`
+- App ID: `ca-app-pub-1217971050094766~8213692580`
+- Banner ad-unit ID: `ca-app-pub-1217971050094766/8869132851`
 
 Debug builds deliberately use Google's official test IDs so development cannot generate invalid live-ad traffic.
 
