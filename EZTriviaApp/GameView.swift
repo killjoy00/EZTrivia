@@ -133,6 +133,11 @@ private struct ResultView: View {
             scores.record(category: category, difficulty: difficulty, score: score, total: total)
             let lifetime = scores.addLifetimePoints(points, category: category)
             gameCenter.submit(lifetimePoints: lifetime, category: category)
+            Task {
+                await gameCenter.syncAchievements(
+                    localProgress: AchievementCatalog.progress(using: scores)
+                )
+            }
             Telemetry.log("round_complete", parameters: [
                 "category": category.rawValue,
                 "difficulty": difficulty.rawValue,

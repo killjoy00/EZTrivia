@@ -22,6 +22,7 @@ final class PlayRouter: ObservableObject {
 
 struct RootView: View {
     @EnvironmentObject private var gameCenter: GameCenterManager
+    @EnvironmentObject private var scores: ScoreStore
     @StateObject private var playRouter = PlayRouter()
 
     var body: some View {
@@ -31,6 +32,8 @@ struct RootView: View {
                 .tabItem { Label("Play", systemImage: "play.fill") }
             NavigationStack { LeaderboardView() }
                 .tabItem { Label("Scores", systemImage: "trophy.fill") }
+            NavigationStack { SettingsView() }
+                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
         }
         .sheet(isPresented: Binding(
             get: { gameCenter.authenticationViewController != nil },
@@ -48,17 +51,31 @@ struct RootView: View {
         )) { Button("OK") { gameCenter.errorMessage = nil } } message: {
             Text(gameCenter.errorMessage ?? "An unknown error occurred.")
         }
+        .task(id: gameCenter.isAuthenticated) {
+            guard gameCenter.isAuthenticated else { return }
+            await gameCenter.refreshAchievements(
+                localProgress: AchievementCatalog.progress(using: scores)
+            )
+        }
     }
 }
 
 struct HomeView: View {
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var columns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 header
                 DailyChallengeCard()
+                FriendChallengeCard()
                 Text("Or choose a category to play")
                     .font(.title2.bold())
                     .accessibilityAddTraits(.isHeader)
@@ -83,6 +100,14 @@ struct HomeView: View {
         .navigationDestination(for: TriviaCategory.self) { DifficultyView(category: $0) }
         .navigationDestination(for: GameRoute.self) { GameView(category: $0.category, difficulty: $0.difficulty) }
         .navigationDestination(for: DailyRoute.self) { _ in DailyChallengeView() }
+        .navigationDestination(for: FriendChallengeRoute.self) { route in
+            switch route {
+            case .lobby:
+                FriendChallengeLobbyView()
+            case let .play(seed, invitation):
+                FriendChallengeGameView(seed: seed, invitation: invitation)
+            }
+        }
         .navigationTitle("EZ Trivia")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -154,15 +179,21 @@ private struct CategoryCard: View {
                 .foregroundStyle(.white)
                 .frame(width: 44, height: 44)
                 .background(AppTheme.color(for: category), in: RoundedRectangle(cornerRadius: 13))
-            Text(category.title).font(.headline).foregroundStyle(.primary)
+            Text(category.title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
             Text(category.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 ForEach(TriviaDifficulty.allCases) { difficulty in
-                    Label {
-                        Text(scores.bestScore(for: category, difficulty: difficulty).map { "\($0)%" } ?? "—")
-                    } icon: {
+                    VStack(spacing: 2) {
                         Image(systemName: difficulty.symbol)
+                        Text(scores.bestScore(for: category, difficulty: difficulty).map { "\($0)%" } ?? "—")
                     }
+                    .frame(maxWidth: .infinity)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
                     .accessibilityLabel("\(difficulty.title) best \(scores.bestScore(for: category, difficulty: difficulty).map { "\($0) percent" } ?? "not played")")
                 }
             }
