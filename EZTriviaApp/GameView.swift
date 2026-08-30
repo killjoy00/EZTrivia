@@ -34,14 +34,8 @@ struct GameView: View {
                     engine: $engine,
                     tint: AppTheme.color(for: category),
                     finishTitle: "See results",
-                    onAnswer: { question, correct in
-                        if correct {
-                            feedback.correct()
-                            scores.clearMiss(question.id)
-                        } else {
-                            feedback.wrong()
-                            scores.recordMiss(question.id)
-                        }
+                    onAnswer: { correct in
+                        if correct { feedback.correct() } else { feedback.wrong() }
                     },
                     onAdvance: { if engine.isRoundComplete { feedback.roundComplete() } }
                 )

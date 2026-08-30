@@ -52,7 +52,6 @@ struct RootView: View {
 }
 
 struct HomeView: View {
-    @EnvironmentObject private var scores: ScoreStore
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
     var body: some View {
@@ -60,12 +59,6 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 22) {
                 header
                 DailyChallengeCard()
-                // Only when there is something to practise. An always-visible
-                // card reading "0 questions to clear" is a dead control on the
-                // home screen of a player who has never missed anything.
-                if scores.missedCount > 0 {
-                    PracticeCard()
-                }
                 Text("Or choose a category to play")
                     .font(.title2.bold())
                     .accessibilityAddTraits(.isHeader)
@@ -90,7 +83,6 @@ struct HomeView: View {
         .navigationDestination(for: TriviaCategory.self) { DifficultyView(category: $0) }
         .navigationDestination(for: GameRoute.self) { GameView(category: $0.category, difficulty: $0.difficulty) }
         .navigationDestination(for: DailyRoute.self) { _ in DailyChallengeView() }
-        .navigationDestination(for: PracticeRoute.self) { _ in PracticeView() }
         .navigationTitle("EZ Trivia")
         .navigationBarTitleDisplayMode(.inline)
     }

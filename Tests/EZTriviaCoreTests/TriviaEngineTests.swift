@@ -412,58 +412,6 @@ import Testing
     }
 }
 
-// MARK: - Practice rounds
-
-@Test func questionsAreUniquelyAddressableByID() {
-    #expect(QuestionBank.byID.count == QuestionBank.all.count)
-    for question in QuestionBank.all {
-        #expect(QuestionBank.byID[question.id]?.prompt == question.prompt)
-    }
-}
-
-/// Practice serves the longest-outstanding miss first. Reordering here would
-/// let a growing backlog hide behind whatever the player missed most recently.
-@Test func practiceRoundPreservesTheOrderOfMisses() {
-    let ids = Array(QuestionBank.all.prefix(6).map(\.id))
-    let round = QuestionPicker.practiceRound(ids: ids)
-    #expect(round.map(\.id) == ids)
-}
-
-/// An id that no longer resolves -- a question withdrawn by an app update --
-/// is skipped rather than shortening the round by crashing on it.
-@Test func practiceRoundSkipsUnknownIDs() {
-    let real = QuestionBank.all[0].id
-    let round = QuestionPicker.practiceRound(ids: ["not-a-question", real, "also-gone"])
-    #expect(round.map(\.id) == [real])
-}
-
-@Test func practiceRoundIsCappedAtTheRequestedCount() {
-    let ids = Array(QuestionBank.all.prefix(25).map(\.id))
-    #expect(QuestionPicker.practiceRound(ids: ids).count == 10)
-    #expect(QuestionPicker.practiceRound(ids: ids, count: 4).count == 4)
-    #expect(QuestionPicker.practiceRound(ids: []).isEmpty)
-}
-
-/// Every question handed to the player must still be answerable: presenting a
-/// question redraws its options, and a practice round goes through the same
-/// path as an ordinary one.
-@Test func practiceRoundQuestionsKeepTheirCorrectAnswer() {
-    let ids = Array(QuestionBank.all.prefix(10).map(\.id))
-    for question in QuestionPicker.practiceRound(ids: ids) {
-        #expect(question.answers.count == 4)
-        #expect(Set(question.answers).count == 4)
-        #expect(question.answers.indices.contains(question.correctAnswerIndex))
-        let original = QuestionBank.byID[question.id]
-        #expect(original != nil)
-        if let original {
-            // Flag questions redraw their wrong answers, so only the keyed
-            // answer is guaranteed to survive presentation.
-            #expect(question.answers[question.correctAnswerIndex]
-                    == original.answers[original.correctAnswerIndex])
-        }
-    }
-}
-
 // MARK: - Answer quality
 
 /// The correct answer must not be identifiable from its length alone.
