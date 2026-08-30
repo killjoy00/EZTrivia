@@ -8,12 +8,14 @@ import SwiftUI
 /// action bar, the hidden tab bar — and a second hand-maintained copy would
 /// quietly lose them.
 struct RoundPlayer: View {
+    @EnvironmentObject private var settings: AppSettings
     @Binding var engine: TriviaEngine
     let tint: Color
     /// Label for the final button of the round.
     let finishTitle: String
     let onAnswer: (Bool) -> Void
     let onAdvance: () -> Void
+    @State private var autoAdvanceRemaining: Int?
 
     var body: some View {
         GeometryReader { proxy in
@@ -50,6 +52,9 @@ struct RoundPlayer: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { actionBar }
         .animation(.easeInOut(duration: 0.25), value: engine.selectedAnswerIndex)
+        .task(id: autoAdvanceTaskID) {
+            await runAutoAdvanceIfNeeded()
+        }
     }
 
     private var header: some View {
@@ -87,9 +92,8 @@ struct RoundPlayer: View {
         if engine.selectedAnswerIndex != nil {
             VStack(spacing: 0) {
                 Divider()
-                Button(engine.currentIndex == engine.questions.count - 1 ? finishTitle : "Next question") {
-                    engine.advance()
-                    onAdvance()
+                Button(actionTitle) {
+                    advanceQuestion()
                 }
                 .font(.headline)
                 .foregroundStyle(.white)
@@ -105,6 +109,51 @@ struct RoundPlayer: View {
     }
 
     private var answered: Bool { engine.selectedAnswerIndex != nil }
+
+    private var actionTitle: String {
+        let title = engine.currentIndex == engine.questions.count - 1 ? finishTitle : "Next question"
+        guard let autoAdvanceRemaining, autoAdvanceRemaining > 0 else { return title }
+        return "\(title) · \(autoAdvanceRemaining)s"
+    }
+
+    /// Everything that should cancel and restart a pending timer. Including
+    /// the question index prevents a timer from one question surviving into
+    /// the next when the player happened to choose the same answer position.
+    private var autoAdvanceTaskID: AutoAdvanceTaskID {
+        AutoAdvanceTaskID(
+            questionIndex: engine.currentIndex,
+            selectedAnswerIndex: engine.selectedAnswerIndex,
+            enabled: settings.autoAdvanceEnabled,
+            seconds: settings.autoAdvanceSeconds
+        )
+    }
+
+    private func runAutoAdvanceIfNeeded() async {
+        guard settings.autoAdvanceEnabled, engine.selectedAnswerIndex != nil else {
+            autoAdvanceRemaining = nil
+            return
+        }
+
+        var remaining = settings.autoAdvanceSeconds
+        autoAdvanceRemaining = remaining
+        while remaining > 0 {
+            do {
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, engine.selectedAnswerIndex != nil else { return }
+            remaining -= 1
+            autoAdvanceRemaining = remaining
+        }
+        advanceQuestion()
+    }
+
+    private func advanceQuestion() {
+        guard engine.advance() else { return }
+        autoAdvanceRemaining = nil
+        onAdvance()
+    }
 
     /// Height budget for question artwork.
     ///
@@ -161,6 +210,13 @@ struct RoundPlayer: View {
         if index == engine.selectedAnswerIndex { return .red }
         return .clear
     }
+}
+
+private struct AutoAdvanceTaskID: Hashable {
+    let questionIndex: Int
+    let selectedAnswerIndex: Int?
+    let enabled: Bool
+    let seconds: Int
 }
 
 struct QuestionVisual: View {

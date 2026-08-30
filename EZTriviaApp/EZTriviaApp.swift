@@ -5,6 +5,7 @@ struct EZTriviaApp: App {
     @StateObject private var gameCenter = GameCenterManager()
     @StateObject private var adConsent = AdConsentManager()
     @StateObject private var feedback = Feedback()
+    @StateObject private var settings = AppSettings()
 
     init() {
         Telemetry.configure()
@@ -17,6 +18,7 @@ struct EZTriviaApp: App {
                 .environmentObject(gameCenter)
                 .environmentObject(adConsent)
                 .environmentObject(feedback)
+                .environmentObject(settings)
                 .tint(.indigo)
                 .onAppear {
                     gameCenter.authenticate()

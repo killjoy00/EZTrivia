@@ -77,7 +77,15 @@ struct ShareResultButton: View {
     let message: String
     let headline: String
     let card: ScoreCard
+    let label: String
     @State private var rendered: Image?
+
+    init(message: String, headline: String, card: ScoreCard, label: String = "Share result") {
+        self.message = message
+        self.headline = headline
+        self.card = card
+        self.label = label
+    }
 
     var body: some View {
         Group {
@@ -88,13 +96,13 @@ struct ShareResultButton: View {
                     message: Text(message),
                     preview: SharePreview(headline, image: rendered)
                 ) {
-                    Label("Share result", systemImage: "square.and.arrow.up")
+                    Label(label, systemImage: "square.and.arrow.up")
                 }
             } else {
                 // Text-only fallback, used if rendering ever fails. Sharing
                 // something is much better than a dead button.
                 ShareLink(item: message) {
-                    Label("Share result", systemImage: "square.and.arrow.up")
+                    Label(label, systemImage: "square.and.arrow.up")
                 }
             }
         }

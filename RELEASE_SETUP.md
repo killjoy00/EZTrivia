@@ -130,7 +130,7 @@ placing an API key in the repository or requiring a Mac.
 4. Create thirteen **Classic Leaderboards**—not a leaderboard set or recurring leaderboard.
 5. For every leaderboard, choose:
    - **Sort order:** High to Low
-   - **Score range:** 0 through 100
+   - **Score range:** 0 through 1,000,000 for category boards; 0 through 2,000 for Daily Challenge
    - **Score format:** Integer
    - **Submission type:** Best score
 6. On Apple's first leaderboard form:
@@ -157,6 +157,35 @@ placing an API key in the repository or requiring a Mac.
 8. Save every leaderboard.
 9. Return to the app version page and associate the Game Center leaderboards with the version if App Store Connect presents that option.
 
+### Add the twelve achievements
+
+The app displays local progress immediately, but Game Center ignores an
+achievement report until an achievement with the exact ID exists in App Store
+Connect. These IDs and point values become permanent after release. Create each
+achievement with **Hidden: No** and **Achievable More Than Once: No**, then add
+an English (U.S.) localization and upload the matching 1024×1024 RGB PNG.
+
+| Display name | Achievement ID (exact) | Points | Pre-earned description | Earned description | Artwork |
+| --- | --- | ---: | --- | --- | --- |
+| First Round | `EZTrivia.achievement.first_round` | 25 | Complete any round. | You completed your first round. | `Artwork/Achievements/EZTrivia.achievement.first_round.png` |
+| Easy Does It | `EZTrivia.achievement.perfect_easy` | 50 | Earn a perfect score on an Easy category round. | You earned a perfect Easy score. | `Artwork/Achievements/EZTrivia.achievement.perfect_easy.png` |
+| Perfectly Balanced | `EZTrivia.achievement.perfect_medium` | 75 | Earn a perfect score on a Medium category round. | You earned a perfect Medium score. | `Artwork/Achievements/EZTrivia.achievement.perfect_medium.png` |
+| Hard to Beat | `EZTrivia.achievement.perfect_hard` | 100 | Earn a perfect score on a Hard category round. | You earned a perfect Hard score. | `Artwork/Achievements/EZTrivia.achievement.perfect_hard.png` |
+| A Little of Everything | `EZTrivia.achievement.all_categories` | 100 | Complete questions from all twelve categories. | You played all twelve categories. | `Artwork/Achievements/EZTrivia.achievement.all_categories.png` |
+| One-Week Streak | `EZTrivia.achievement.streak_7` | 75 | Complete the Daily Challenge seven days in a row. | You completed a seven-day Daily Challenge streak. | `Artwork/Achievements/EZTrivia.achievement.streak_7.png` |
+| Monthly Ritual | `EZTrivia.achievement.streak_30` | 100 | Complete the Daily Challenge thirty days in a row. | You completed a thirty-day Daily Challenge streak. | `Artwork/Achievements/EZTrivia.achievement.streak_30.png` |
+| Getting Warmed Up | `EZTrivia.achievement.rounds_10` | 50 | Complete ten rounds. | You completed ten rounds. | `Artwork/Achievements/EZTrivia.achievement.rounds_10.png` |
+| Trivia Regular | `EZTrivia.achievement.rounds_50` | 75 | Complete fifty rounds. | You completed fifty rounds. | `Artwork/Achievements/EZTrivia.achievement.rounds_50.png` |
+| Century Club | `EZTrivia.achievement.rounds_100` | 100 | Complete one hundred rounds. | You completed one hundred rounds. | `Artwork/Achievements/EZTrivia.achievement.rounds_100.png` |
+| Five Figures | `EZTrivia.achievement.points_10000` | 75 | Earn 10,000 lifetime category points. | You earned 10,000 lifetime category points. | `Artwork/Achievements/EZTrivia.achievement.points_10000.png` |
+| Point Collector | `EZTrivia.achievement.points_50000` | 75 | Earn 50,000 lifetime category points. | You earned 50,000 lifetime category points. | `Artwork/Achievements/EZTrivia.achievement.points_50000.png` |
+
+The twelve achievements total 900 Game Center points; Apple permits at most
+100 points for one achievement and 1,000 across the app. When all metadata and
+images are present, include the achievements with the app's Game Center
+components submitted for review. Keep `EZTriviaApp/Achievements.swift` and this
+table synchronized if wording ever changes.
+
 ## 4. Limit storefront availability to the United States and Canada
 
 1. Open **Pricing and Availability** for EZ Trivia in App Store Connect.
@@ -177,7 +206,7 @@ This setting is controlled by App Store Connect and cannot be enforced by applic
 5. Confirm the calculated result is **4+** before saving. If Apple calculates a higher rating, do not override factual answers—review the triggering answer instead.
 6. Revisit the questionnaire whenever content, advertising, or external links change.
 
-## 6. Finish AdMob for non-personalized banner ads
+## 6. Finish AdMob banner setup
 
 The Release build already uses:
 
@@ -190,28 +219,29 @@ Debug builds deliberately use Google's official test IDs so development cannot g
 2. Open the app matching the production App ID above.
 3. Confirm its platform is iOS and its bundle ID is `com.rsm.eztrivia`.
 4. Confirm the banner unit above is active.
-5. Open **Privacy & messaging** from AdMob's left navigation. If the page opens on an overview, select the **Messages** tab.
-6. Find the **US state regulations** card—not the European regulations/GDPR card—and select **Create message**. If a draft already exists, open the draft instead.
-7. Select **EZ Trivia** under **Select apps**, then select **Confirm**. An unpublished app can still be selected if it is already registered in AdMob.
-8. Enter an internal message name such as `EZ Trivia US privacy choices`.
-9. Keep **English** as the only language. No French translation is planned for this release.
-10. In the message editor, keep the required “Do not sell or share my personal information”/privacy-choice controls enabled. Do not add a personalized-ad upsell.
-11. Review the styling and privacy-policy URL, then select **Publish**. If Google asks whether to use its default consent-management setup, choose the Google-certified/default option used by the existing UMP integration.
-12. Canada does not currently use the US-state message. Because the app always sends `npa=1`, Canadian requests are also non-personalized. If AdMob later presents a Canada-specific regulatory message for this account, publish it using the same English-only, non-personalized approach.
-13. Return to **Privacy & messaging** and confirm the US-state message status is **Published**, not Draft.
-14. In **Blocking controls**, select ad categories appropriate for a 4+ general-audience trivia app. Block sensitive categories and review the ad-content rating.
-15. Do not tap live ads during development or testing. Use Debug builds for test ads.
+5. If AdMob offers an App Store association or app-readiness review, associate the existing App Store record and complete that review. Source code cannot bypass an account or app that AdMob has not approved to serve.
+6. Open **Privacy & messaging** from AdMob's left navigation. If the page opens on an overview, select the **Messages** tab.
+7. Configure and publish every privacy message applicable to the United States and Canada for this app. Select **EZ Trivia**, use the public privacy-policy URL, and keep the required privacy-choice controls enabled.
+8. Return to **Privacy & messaging** and confirm each required message is **Published**, not Draft.
+9. In **Blocking controls**, select ad categories appropriate for a 4+ general-audience trivia app. Block sensitive categories and review the ad-content rating.
+10. Run a Debug build first and confirm Google's test banner appears. Never tap a live ad during development or testing.
+11. Install a Release/TestFlight build and confirm a live banner appears above the Play tab bar. A newly activated unit can temporarily return no inventory; retest after AdMob reports the app and unit ready.
 
-The application also adds `npa=1` to every banner request, enforcing non-personalized ad requests in addition to the consent flow.
+`AdConsentManager` runs Google's User Messaging Platform flow and waits for
+`canRequestAds` before starting the Mobile Ads SDK. `AdBannerView` then sends a
+plain SDK request so Google can honor the consent and regional privacy state
+already established by UMP. The app does **not** force `npa=1` on every request.
+If the banner remains absent, inspect the AdMob app/unit status, published
+privacy messages, and a real-device Release build before changing source.
 
 ## 7. App privacy and release metadata
 
 1. Host `PRIVACY.md` at a public HTTPS URL. The GitHub file URL can be used initially, though a stable product website is preferable.
 2. In App Store Connect, enter that URL in **App Privacy → Privacy Policy URL**.
 3. Complete App Privacy answers for Google Mobile Ads and Game Center based on Google's current SDK disclosures. The app ships no analytics or crash-reporting SDK and collects nothing itself.
-4. State that ads are requested as non-personalized. There is no analytics or crash-reporting SDK, so nothing is collected for those purposes.
+4. Describe advertising behavior according to the final UMP and AdMob account configuration; do not claim every request is non-personalized because the code no longer forces that override. There is no analytics or crash-reporting SDK.
 5. Add support and marketing URLs, copyright holder, category (**Games → Trivia**), description, keywords, screenshots, and review notes.
-6. In review notes, explain that Game Center is optional and the home-screen banner uses non-personalized AdMob requests.
+6. In review notes, explain that Game Center is optional and the home-screen banner waits for the Google UMP privacy flow before requesting an ad.
 
 ## 8. Verify on a device, then submit
 
@@ -225,22 +255,32 @@ part CI cannot check.
 3. Play a round in several categories. Confirm answer order varies between
    plays of the same question, and that a second round does not repeat the
    first round's questions.
-4. Open **World Flags** at each difficulty. Confirm flags render right way up
+4. Create a Friend Challenge, send its code to a second device, and confirm
+   both devices receive the same ten prompts, choices, and answer order. Finish
+   it once on the recipient and confirm entering the code again shows the saved
+   result rather than starting another attempt.
+5. Open **World Flags** at each difficulty. Confirm flags render right way up
    and are legible, that Nepal and Switzerland letterbox rather than crop, and
    that no question offers two flags you cannot tell apart.
-5. Confirm the banner is Google's **test** banner in a Debug build and a real
+6. Confirm the banner is Google's **test** banner in a Debug build and a real
    unit only in Release.
-6. Sign in with a Game Center sandbox tester, finish rounds in several
-   categories, and confirm scores reach the leaderboards.
-7. Turn on Airplane Mode and confirm flag rounds still work.
-8. Check VoiceOver, Dynamic Type at large sizes, dark mode, the privacy-options
-   sheet, local score deletion, and leaving a round part-way through.
-9. If the banner reports "Ads unavailable", take a screenshot of the full
-   persistent message. Ad failures are non-blocking and no longer appear as a
-   transient alert on the Scores tab.
-10. Complete export compliance, content rights, age rating, privacy,
+7. Sign in with a Game Center sandbox tester, finish rounds in several
+   categories, and confirm the native Scores screens show leaderboard entries
+   and synchronized achievement progress. Also confirm the optional full Game
+   Center dashboard still opens and dismisses correctly.
+8. Enable auto-advance at 2, 5, and 15 seconds. Confirm the countdown resets on
+   every answer, a manual Next tap cancels it, and the final question completes
+   the round exactly once.
+9. Check the Play grid on the smallest supported iPhone and at accessibility
+   Dynamic Type sizes. Difficulty percentages must remain horizontal, and the
+   grid should switch to one column at accessibility sizes.
+10. Turn on Airplane Mode and confirm category, flag, Daily, and code-based
+   Friend Challenge rounds still work.
+11. Check VoiceOver, dark mode, the privacy-options screen, the ten-row Recent
+   Rounds disclosure, local score deletion, and leaving a round part-way through.
+12. Complete export compliance, content rights, age rating, privacy,
    availability, and review-contact fields in App Store Connect.
-11. Submit the selected build for review.
+13. Submit the selected build and its new Game Center achievements for review.
 
 ## App Store Connect API key security and optional automation
 

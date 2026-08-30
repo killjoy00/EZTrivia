@@ -3,83 +3,88 @@ import SwiftUI
 struct LeaderboardView: View {
     @EnvironmentObject private var scores: ScoreStore
     @EnvironmentObject private var gameCenter: GameCenterManager
-    @EnvironmentObject private var adConsent: AdConsentManager
-    @EnvironmentObject private var feedback: Feedback
     @State private var showClearConfirmation = false
-    @State private var showGameCenter = false
+    @State private var showFullGameCenter = false
+    @State private var showAllRounds = false
+
+    private var visibleEntries: [LeaderboardEntry] {
+        Array(scores.entries.prefix(showAllRounds ? scores.entries.count : 10))
+    }
 
     var body: some View {
-        // A List rather than a bare ContentUnavailableView when empty: the
-        // sound and haptics toggles have to be reachable before a player has
-        // recorded a single score, which the old empty state made impossible.
         List {
             if scores.entries.isEmpty {
                 Section {
                     ContentUnavailableView(
                         "No rounds yet",
                         systemImage: "trophy",
-                        description: Text("Finish a round and it will appear here.")
+                        description: Text("Finish a category round and it will appear here.")
                     )
                 }
             } else {
-                // "Recent rounds", not "Personal leaderboard", and no rank
-                // column: these are ordered by when they were played, so a
-                // position number would imply a ranking the list no longer
-                // carries.
                 Section("Recent rounds") {
-                    ForEach(scores.entries) { entry in
-                        HStack(spacing: 14) {
-                            Image(systemName: entry.category.symbol).foregroundStyle(AppTheme.color(for: entry.category)).frame(width: 30)
-                            VStack(alignment: .leading) {
-                                Text(entry.category.title).font(.headline)
-                                HStack(spacing: 4) {
-                                    if let difficulty = entry.difficulty {
-                                        Label(difficulty.title, systemImage: difficulty.symbol)
-                                    }
-                                    Text(entry.date, style: .date)
-                                }
-                                .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Text("\(entry.score)/\(entry.total)").font(.title3.bold().monospacedDigit())
+                    ForEach(visibleEntries) { entry in
+                        recentRound(entry)
+                    }
+                    if scores.entries.count > 10 {
+                        Button {
+                            withAnimation { showAllRounds.toggle() }
+                        } label: {
+                            Label(
+                                showAllRounds ? "Show less" : "Show more",
+                                systemImage: showAllRounds ? "chevron.up" : "chevron.down"
+                            )
+                            .frame(maxWidth: .infinity, alignment: .center)
                         }
-                        .padding(.vertical, 5)
                     }
                 }
             }
+
             lifetimeSection
-            feedbackSection
+            gameCenterSection
         }
-        .navigationTitle("Leaderboard")
+        .navigationTitle("Scores")
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button { showGameCenter = true } label: {
-                    Label("Game Center", systemImage: "person.3.fill")
-                }
-                .disabled(!gameCenter.isAuthenticated)
-                if adConsent.privacyOptionsRequired {
-                    Button { Task { await adConsent.presentPrivacyOptions() } } label: {
-                        Label("Ad privacy", systemImage: "hand.raised.fill")
-                    }
-                }
-                if !scores.entries.isEmpty { Button("Clear") { showClearConfirmation = true } }
+            if !scores.entries.isEmpty {
+                Button("Clear") { showClearConfirmation = true }
             }
         }
-        .sheet(isPresented: $showGameCenter) { GameCenterDashboard().ignoresSafeArea() }
-        .confirmationDialog("Clear all scores?", isPresented: $showClearConfirmation) {
-            Button("Clear Scores", role: .destructive) { scores.clear() }
+        .sheet(isPresented: $showFullGameCenter) {
+            GameCenterDashboard().ignoresSafeArea()
+        }
+        .confirmationDialog("Clear recent rounds?", isPresented: $showClearConfirmation) {
+            Button("Clear Recent Rounds", role: .destructive) { scores.clear() }
             Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Lifetime points, Daily Challenge history, Friend Challenges, and achievements will be kept.")
         }
     }
 
-    /// Lifetime points, which is what the Game Center category boards now
-    /// rank. Without this the new scoring would be invisible in the app: a
-    /// player would only ever see it by opening the Game Center dashboard.
+    private func recentRound(_ entry: LeaderboardEntry) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: entry.category.symbol)
+                .foregroundStyle(AppTheme.color(for: entry.category))
+                .frame(width: 30)
+            VStack(alignment: .leading) {
+                Text(entry.category.title).font(.headline)
+                HStack(spacing: 4) {
+                    if let difficulty = entry.difficulty {
+                        Label(difficulty.title, systemImage: difficulty.symbol)
+                    }
+                    Text(entry.date, style: .date)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text("\(entry.score)/\(entry.total)")
+                .font(.title3.bold().monospacedDigit())
+        }
+        .padding(.vertical, 5)
+    }
+
     @ViewBuilder
     private var lifetimeSection: some View {
-        // A plain [TriviaCategory] rather than an array of pairs: Swift has no
-        // key paths into tuples, so `ForEach(pairs, id: \.0)` would not compile.
-        // TriviaCategory is already Identifiable, so this needs no id at all.
         let earned = TriviaCategory.allCases
             .filter { scores.lifetimePoints(for: $0) > 0 }
             .sorted { scores.lifetimePoints(for: $0) > scores.lifetimePoints(for: $1) }
@@ -100,15 +105,190 @@ struct LeaderboardView: View {
             } header: {
                 Text("Lifetime points")
             } footer: {
-                Text("Harder questions are worth more. This total is what the Game Center leaderboards rank, and it only ever goes up.")
+                Text("Harder questions are worth more. These totals are what the category leaderboards rank.")
             }
         }
     }
 
-    private var feedbackSection: some View {
-        Section("Feedback") {
-            Toggle("Sound effects", isOn: $feedback.soundEnabled)
-            Toggle("Haptics", isOn: $feedback.hapticsEnabled)
+    private var gameCenterSection: some View {
+        Section("Game Center") {
+            NavigationLink {
+                GameCenterLeaderboardsView()
+            } label: {
+                Label("Leaderboards", systemImage: "list.number")
+            }
+
+            NavigationLink {
+                AchievementsView()
+            } label: {
+                HStack {
+                    Label("Achievements", systemImage: "medal.fill")
+                    Spacer()
+                    Text("\(completedAchievementCount)/\(AchievementCatalog.all.count)")
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+
+            if gameCenter.isAuthenticated {
+                Button { showFullGameCenter = true } label: {
+                    Label("Open full Game Center", systemImage: "person.3.fill")
+                }
+            } else {
+                Label("Game Center is not signed in", systemImage: "person.crop.circle.badge.exclamationmark")
+                    .foregroundStyle(.secondary)
+            }
         }
     }
+
+    private var completedAchievementCount: Int {
+        let local = AchievementCatalog.progress(using: scores)
+        return AchievementCatalog.all.count { achievement in
+            max(
+                local[achievement.id] ?? 0,
+                gameCenter.achievementProgressByID[achievement.id] ?? 0
+            ) >= 100
+        }
+    }
+}
+
+/// A native Game Center reader. It uses the same GameKit leaderboards as the
+/// Apple dashboard but presents them within EZ Trivia's navigation and tabs.
+struct GameCenterLeaderboardsView: View {
+    @EnvironmentObject private var gameCenter: GameCenterManager
+    @State private var selectedBoard = GameCenterBoard.all[0]
+    @State private var selectedScope = GameCenterPlayerScope.global
+    @State private var snapshot: GameCenterLeaderboardSnapshot?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var showFullGameCenter = false
+
+    var body: some View {
+        List {
+            Section {
+                Picker("Leaderboard", selection: $selectedBoard) {
+                    ForEach(GameCenterBoard.all) { board in
+                        Text(board.title).tag(board)
+                    }
+                }
+                Picker("Players", selection: $selectedScope) {
+                    ForEach(GameCenterPlayerScope.allCases) { scope in
+                        Text(scope.title).tag(scope)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            if !gameCenter.isAuthenticated {
+                Section {
+                    ContentUnavailableView(
+                        "Game Center unavailable",
+                        systemImage: "person.crop.circle.badge.exclamationmark",
+                        description: Text("Sign in to Game Center, then return here to see rankings.")
+                    )
+                }
+            } else if isLoading && snapshot == nil {
+                Section {
+                    HStack {
+                        Spacer()
+                        ProgressView("Loading rankings…")
+                        Spacer()
+                    }
+                }
+            } else if let errorMessage {
+                Section {
+                    ContentUnavailableView {
+                        Label("Couldn’t load rankings", systemImage: "wifi.exclamationmark")
+                    } description: {
+                        Text(errorMessage)
+                    } actions: {
+                        Button("Try Again") { Task { await load() } }
+                    }
+                }
+            } else if let snapshot {
+                if let localPlayer = snapshot.localPlayer {
+                    Section("Your rank") {
+                        leaderboardRow(localPlayer)
+                    }
+                }
+
+                Section {
+                    if snapshot.leaders.isEmpty {
+                        ContentUnavailableView(
+                            "No scores yet",
+                            systemImage: "trophy",
+                            description: Text(selectedScope == .friends
+                                ? "No Game Center friends have posted a score here yet."
+                                : "Be the first player to post a score.")
+                        )
+                    } else {
+                        ForEach(snapshot.leaders) { entry in
+                            leaderboardRow(entry)
+                        }
+                    }
+                } header: {
+                    Text(selectedScope == .global ? "Top players" : "Friends")
+                } footer: {
+                    if snapshot.totalPlayerCount > 0 {
+                        Text("\(snapshot.totalPlayerCount.formatted()) ranked players")
+                    }
+                }
+            }
+        }
+        .navigationTitle("Leaderboards")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if gameCenter.isAuthenticated {
+                Button { showFullGameCenter = true } label: {
+                    Label("Open full Game Center", systemImage: "arrow.up.forward.app")
+                }
+            }
+        }
+        .sheet(isPresented: $showFullGameCenter) {
+            GameCenterDashboard().ignoresSafeArea()
+        }
+        .task(id: LoadRequest(boardID: selectedBoard.id, scope: selectedScope)) {
+            await load()
+        }
+        .refreshable { await load() }
+    }
+
+    private func leaderboardRow(_ entry: GameCenterLeaderboardRow) -> some View {
+        HStack(spacing: 12) {
+            Text("#\(entry.rank)")
+                .font(.body.bold().monospacedDigit())
+                .foregroundStyle(entry.isLocalPlayer ? .indigo : .secondary)
+                .frame(width: 44, alignment: .leading)
+            Text(entry.playerName)
+                .fontWeight(entry.isLocalPlayer ? .semibold : .regular)
+                .lineLimit(1)
+            Spacer()
+            Text(entry.formattedScore)
+                .font(.body.bold().monospacedDigit())
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    @MainActor
+    private func load() async {
+        guard gameCenter.isAuthenticated else {
+            snapshot = nil
+            errorMessage = nil
+            return
+        }
+        isLoading = true
+        errorMessage = nil
+        do {
+            snapshot = try await gameCenter.loadLeaderboard(selectedBoard, scope: selectedScope)
+        } catch {
+            snapshot = nil
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+}
+
+private struct LoadRequest: Hashable {
+    let boardID: String
+    let scope: GameCenterPlayerScope
 }

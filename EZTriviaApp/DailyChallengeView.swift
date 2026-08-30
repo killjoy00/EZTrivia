@@ -137,8 +137,13 @@ struct DailyChallengeView: View {
             points: engine.points,
             outcomes: engine.outcomes
         )
-        scores.recordDaily(result)
+        scores.recordDaily(result, categories: Set(engine.questions.map(\.category)))
         gameCenter.submitDaily(points: result.points)
+        Task {
+            await gameCenter.syncAchievements(
+                localProgress: AchievementCatalog.progress(using: scores)
+            )
+        }
         Telemetry.log("daily_complete", parameters: [
             "day": today,
             "score": result.score,
