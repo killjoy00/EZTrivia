@@ -241,7 +241,7 @@ privacy messages, and a real-device Release build before changing source.
 3. Complete App Privacy answers for Google Mobile Ads and Game Center based on Google's current SDK disclosures. The app ships no analytics or crash-reporting SDK and collects nothing itself.
 4. Describe advertising behavior according to the final UMP and AdMob account configuration; do not claim every request is non-personalized because the code no longer forces that override. There is no analytics or crash-reporting SDK.
 5. Add support and marketing URLs, copyright holder, category (**Games → Trivia**), description, keywords, screenshots, and review notes.
-6. In review notes, explain that Game Center is optional and the home-screen banner waits for the Google UMP privacy flow before requesting an ad.
+6. In review notes, explain that Game Center is optional and the home-screen banner waits for the Google UMP privacy flow before requesting an ad. Note also that notification permission is requested only when a player turns on **Settings → Daily Challenge → Streak reminders**, never at launch, and that the app schedules one local notification with no remote push component.
 
 ## 8. Verify on a device, then submit
 

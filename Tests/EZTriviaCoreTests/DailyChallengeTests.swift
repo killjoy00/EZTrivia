@@ -184,6 +184,51 @@ import Testing
     #expect(DailyStreak.current(playedDays: [], today: 9) == 0)
 }
 
+// MARK: - Reminders
+
+@Test func theDayAtRiskIsTodayWhileTodayIsStillUnplayed() {
+    // Played through yesterday. Today is the day the run is actually on the
+    // line, so a reminder belongs this evening rather than tomorrow's.
+    let risk = DailyStreak.dayAtRisk(playedDays: [10, 11, 12], today: 13)
+    #expect(risk?.day == 13)
+    #expect(risk?.streak == 3)
+}
+
+@Test func theDayAtRiskMovesToTomorrowOnceTodayIsPlayed() {
+    let risk = DailyStreak.dayAtRisk(playedDays: [10, 11, 12], today: 12)
+    #expect(risk?.day == 13)
+    #expect(risk?.streak == 3)
+}
+
+@Test func aSingleDayIsNotWorthAReminder() {
+    // One day is not yet a streak, and interrupting someone's evening to
+    // defend it would train them to ignore the notification that matters.
+    #expect(DailyStreak.dayAtRisk(playedDays: [12], today: 12) == nil)
+    #expect(DailyStreak.dayAtRisk(playedDays: [12], today: 13) == nil)
+}
+
+@Test func aBrokenStreakIsNotWorthAReminder() {
+    #expect(DailyStreak.dayAtRisk(playedDays: [10, 11, 12], today: 14) == nil)
+    #expect(DailyStreak.dayAtRisk(playedDays: [], today: 14) == nil)
+}
+
+@Test func theMinimumStreakForAReminderIsAdjustable() {
+    #expect(DailyStreak.dayAtRisk(playedDays: [12], today: 12, minimumStreak: 1)?.day == 13)
+}
+
+@Test func dayNumbersAndTheirStartDatesRoundTrip() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "America/Chicago") ?? .current
+
+    for day in [0, 1, 59, 60, 200, 365, 400] {
+        let start = try #require(DailyChallenge.startOfDay(day, in: calendar))
+        #expect(DailyChallenge.day(for: start, in: calendar) == day)
+        // Still the same day number just before the next local midnight, which
+        // is what the reminder's late-evening fallback depends on.
+        #expect(DailyChallenge.day(for: start.addingTimeInterval(23 * 3600), in: calendar) == day)
+    }
+}
+
 // MARK: - Share text
 
 @Test func theShareGridMatchesTheOutcomes() {

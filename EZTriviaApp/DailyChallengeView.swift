@@ -68,6 +68,7 @@ struct DailyChallengeView: View {
     @EnvironmentObject private var gameCenter: GameCenterManager
     @EnvironmentObject private var feedback: Feedback
     @EnvironmentObject private var router: PlayRouter
+    @EnvironmentObject private var streakReminder: StreakReminder
     @Environment(\.dismiss) private var dismiss
 
     @State private var engine = TriviaEngine(questions: [])
@@ -143,6 +144,11 @@ struct DailyChallengeView: View {
             await gameCenter.syncAchievements(
                 localProgress: AchievementCatalog.progress(using: scores)
             )
+        }
+        // Today is no longer at risk, so tonight's reminder has to go before it
+        // fires at someone who has already played.
+        Task {
+            await streakReminder.refresh(playedDays: Set(scores.dailyResults.keys))
         }
         Telemetry.log("daily_complete", parameters: [
             "day": today,

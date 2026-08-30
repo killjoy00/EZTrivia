@@ -49,6 +49,38 @@ import Testing
     #expect(decoded?.attemptID == original.attemptID)
 }
 
+@Test func theVisibleVersionComesFromTheVersionConstant() {
+    // Encoding and decoding both have to read the version from one place. When
+    // the prefix was spelled out as a literal in each, bumping the constant
+    // would have kept printing the old prefix and rejected genuine older codes
+    // as checksum failures -- which the player is shown as "that's a typo".
+    #expect(FriendChallengeCode.prefix == "EZ\(FriendChallenge.codeVersion)")
+    let code = FriendChallengeCode(seed: 7, targetScore: 3, targetPoints: 400)
+    #expect(code.displayString.hasPrefix(FriendChallengeCode.prefix + "-"))
+    #expect(FriendChallengeCode(code.displayString) == code)
+}
+
+@Test func codeFieldsAreWideEnough() {
+    // The score and points fields are fixed-width, so a retuned difficulty
+    // ramp could outgrow them. This is the check that catches that at test
+    // time rather than by emitting codes that will not parse back.
+    #expect(FriendChallenge.questionCount <= FriendChallengeCode.maximumEncodableScore)
+    #expect(FriendChallenge.maximumPoints <= FriendChallengeCode.maximumEncodablePoints)
+}
+
+@Test func aPerfectChallengeRoundTrips() {
+    // The upper bound of both fields as gameplay can actually produce it.
+    let best = FriendChallengeCode(
+        seed: .max,
+        targetScore: FriendChallenge.questionCount,
+        targetPoints: FriendChallenge.maximumPoints
+    )
+    let decoded = FriendChallengeCode(best.displayString)
+    #expect(decoded == best)
+    #expect(decoded?.targetScore == FriendChallenge.questionCount)
+    #expect(decoded?.targetPoints == FriendChallenge.maximumPoints)
+}
+
 @Test func challengeCodeAcceptsFriendlyFormattingButRejectsTypos() {
     let original = FriendChallengeCode(seed: 42, targetScore: 7, targetPoints: 1_100)
     let looselyFormatted = original.displayString

@@ -171,12 +171,15 @@ struct AchievementsView: View {
         AchievementCatalog.progress(using: scores)
     }
 
-    private var completedCount: Int {
-        AchievementCatalog.all.count { combinedProgress(for: $0) >= 100 }
-    }
-
     var body: some View {
-        List {
+        // Built once per render and passed down. As a computed property read
+        // from every row this rebuilt the whole dictionary a couple of dozen
+        // times per pass, and each rebuild walks the full daily history to
+        // recompute the longest streak.
+        let progress = resolvedProgress
+        let completedCount = progress.values.count { $0 >= 100 }
+
+        return List {
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -187,7 +190,7 @@ struct AchievementsView: View {
                     }
                     ProgressView(value: Double(completedCount), total: Double(AchievementCatalog.all.count))
                         .tint(.indigo)
-                    Text("\(earnedGameCenterPoints) of \(AchievementCatalog.totalGameCenterPoints) Game Center points")
+                    Text("\(earnedGameCenterPoints(from: progress)) of \(AchievementCatalog.totalGameCenterPoints) Game Center points")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -196,7 +199,7 @@ struct AchievementsView: View {
 
             Section {
                 ForEach(AchievementCatalog.all) { achievement in
-                    achievementRow(achievement)
+                    achievementRow(achievement, progress: progress[achievement.id] ?? 0)
                 }
             } footer: {
                 if !gameCenter.isAuthenticated {
@@ -217,8 +220,7 @@ struct AchievementsView: View {
         }
     }
 
-    private func achievementRow(_ achievement: AchievementDefinition) -> some View {
-        let progress = combinedProgress(for: achievement)
+    private func achievementRow(_ achievement: AchievementDefinition, progress: Double) -> some View {
         let complete = progress >= 100
         return HStack(alignment: .top, spacing: 14) {
             Image(systemName: achievement.symbol)
@@ -249,16 +251,25 @@ struct AchievementsView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func combinedProgress(for achievement: AchievementDefinition) -> Double {
-        max(
-            localProgress[achievement.id] ?? 0,
-            gameCenter.achievementProgressByID[achievement.id] ?? 0
-        )
+    /// Local and Game Center progress merged per achievement, taking whichever
+    /// is further along so neither a reinstall nor an offline session can move
+    /// a badge backward.
+    private var resolvedProgress: [String: Double] {
+        let local = localProgress
+        return Dictionary(uniqueKeysWithValues: AchievementCatalog.all.map { achievement in
+            (
+                achievement.id,
+                max(
+                    local[achievement.id] ?? 0,
+                    gameCenter.achievementProgressByID[achievement.id] ?? 0
+                )
+            )
+        })
     }
 
-    private var earnedGameCenterPoints: Int {
+    private func earnedGameCenterPoints(from progress: [String: Double]) -> Int {
         AchievementCatalog.all
-            .filter { combinedProgress(for: $0) >= 100 }
+            .filter { (progress[$0.id] ?? 0) >= 100 }
             .reduce(0) { $0 + $1.points }
     }
 }

@@ -41,6 +41,8 @@ struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var feedback: Feedback
     @EnvironmentObject private var adConsent: AdConsentManager
+    @EnvironmentObject private var streakReminder: StreakReminder
+    @EnvironmentObject private var scores: ScoreStore
 
     var body: some View {
         Form {
@@ -63,6 +65,18 @@ struct SettingsView: View {
                 Text("After an answer is revealed, the app waits for this delay before moving on. The Next button always remains available.")
             }
 
+            Section {
+                Toggle("Streak reminders", isOn: $streakReminder.isEnabled)
+            } header: {
+                Text("Daily Challenge")
+            } footer: {
+                if streakReminder.isEnabled && streakReminder.authorizationDenied {
+                    Text("Notifications are turned off for EZ Trivia. Enable them in the Settings app to receive streak reminders.")
+                } else {
+                    Text("If a streak of \(StreakReminder.minimumStreak) days or more is still unplayed, a reminder arrives that evening. Nothing is sent otherwise.")
+                }
+            }
+
             Section("Feedback") {
                 Toggle("Sound effects", isOn: $feedback.soundEnabled)
                 Toggle("Haptics", isOn: $feedback.hapticsEnabled)
@@ -77,5 +91,12 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .onChange(of: streakReminder.isEnabled) { _, _ in
+            Task {
+                await streakReminder.applyEnabledChange(
+                    playedDays: Set(scores.dailyResults.keys)
+                )
+            }
+        }
     }
 }
