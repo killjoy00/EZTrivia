@@ -1,7 +1,7 @@
 import Foundation
 
 public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendable {
-    case football, basketball, soccer, flags, history, science, movies, tv, geography, music, animals, food
+    case football, basketball, soccer, flags, history, science, movies, tv, geography, music, animals, food, literature, art
 
     public var id: String { rawValue }
 
@@ -19,6 +19,8 @@ public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendabl
         case .music: "Music"
         case .animals: "Animals"
         case .food: "Food & Drink"
+        case .literature: "Books & Literature"
+        case .art: "Art & Architecture"
         }
     }
 
@@ -36,6 +38,8 @@ public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendabl
         case .music: "Artists, songs & sounds"
         case .animals: "Wildlife & nature"
         case .food: "Flavors of the world"
+        case .literature: "Books, authors & stories"
+        case .art: "Masterpieces & monuments"
         }
     }
 
@@ -53,6 +57,8 @@ public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendabl
         case .music: "music.note"
         case .animals: "pawprint.fill"
         case .food: "fork.knife"
+        case .literature: "books.vertical.fill"
+        case .art: "paintpalette.fill"
         }
     }
 }

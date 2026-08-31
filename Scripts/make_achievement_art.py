@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the twelve 1024px Game Center achievement images."""
+"""Generate the thirteen 1024px Game Center achievement images."""
 
 from pathlib import Path
 
@@ -16,6 +16,7 @@ ACHIEVEMENTS = {
     "perfect_medium": ("M", "PERFECTLY BALANCED"),
     "perfect_hard": ("H", "HARD TO BEAT"),
     "all_categories": ("12", "ALL CATEGORIES"),
+    "all_categories_14": ("14", "ALL CATEGORIES"),
     "streak_7": ("7", "DAY STREAK"),
     "streak_30": ("30", "DAY STREAK"),
     "rounds_10": ("10", "ROUNDS"),

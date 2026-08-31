@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Render the eleven Game Center leaderboard images.
+"""Render the fifteen Game Center leaderboard images.
 
 App Store Connect wants a square RGB PNG with no alpha channel for every
 leaderboard. These are drawn as SVG and rasterised with the Chromium that is
-already on the machine, so the output is reproducible: rerunning the script
-gives byte-comparable art rather than something hand-edited that nobody can
-regenerate later.
+already on the machine, so the output is reproducible with a given renderer.
+Inkscape is used as a fallback in development containers without Chromium;
+either route produces the required square RGB assets.
 
 Colours follow AppTheme.color(for:) so a leaderboard reads as the same
 category the player just finished. Basketball is the one deliberate
 departure -- the app paints it the same orange as football, which is fine
 when the two are labelled rows in a list but reads as duplicate art when
-Game Center shows eleven tiles together.
+Game Center shows the category tiles together.
 
 Usage:  python3 Scripts/make_leaderboard_art.py [--size 1024] [--out DIR]
 """
@@ -39,6 +39,8 @@ CHROMIUM_CANDIDATES = [
     "google-chrome",
 ]
 
+INKSCAPE_CANDIDATES = ["inkscape"]
+
 # (vendor id suffix, display name, base colour, gradient partner)
 CATEGORIES = [
     ("football",   "Football",       "#FF9F0A", "#C2410C"),
@@ -53,6 +55,8 @@ CATEGORIES = [
     ("music",      "Music",          "#5E5CE6", "#3730A3"),
     ("animals",    "Animals",        "#30B0C7", "#0F766E"),
     ("food",       "Food & Drink",   "#FF453A", "#B91C1C"),
+    ("literature", "Books & Literature", "#5C3DB8", "#312E81"),
+    ("art",        "Art & Architecture", "#DB5C33", "#9A3412"),
     # Orange-to-pink rather than a category colour: it matches the Daily
     # Challenge card's gradient in the app (RootView), so the leaderboard
     # reads as the same feature rather than a twelfth topic.
@@ -175,6 +179,34 @@ ICONS: dict[str, str] = {
         <path d="M26,66 H78 A26,26 0 0,1 58,98 L58,182 A6,6 0 0,1 46,182 L46,98 A26,26 0 0,1 26,66 Z"/>
         <path d="M150,14 C176,40 176,84 156,102 L156,182 A6,6 0 0,1 144,182 L144,110 C126,104 126,40 150,14 Z"/>
       </g>""",
+    "literature": """
+      <g fill="none" stroke="white" stroke-width="11" stroke-linejoin="round">
+        <path d="M22 42 Q62 30 96 52 V166 Q62 144 22 156 Z"/>
+        <path d="M178 42 Q138 30 104 52 V166 Q138 144 178 156 Z"/>
+        <line x1="100" y1="50" x2="100" y2="170"/>
+      </g>
+      <g stroke="white" stroke-width="7" stroke-linecap="round" opacity=".72">
+        <line x1="42" y1="76" x2="78" y2="80"/>
+        <line x1="42" y1="102" x2="78" y2="106"/>
+        <line x1="122" y1="80" x2="158" y2="76"/>
+        <line x1="122" y1="106" x2="158" y2="102"/>
+      </g>""",
+    "art": """
+      <mask id="palette-cut">
+        <rect width="200" height="200" fill="white"/>
+        <circle cx="62" cy="70" r="13" fill="black"/>
+        <circle cx="98" cy="51" r="13" fill="black"/>
+        <circle cx="139" cy="67" r="13" fill="black"/>
+        <circle cx="55" cy="112" r="13" fill="black"/>
+      </mask>
+      <path d="M104 18
+               C54 18 18 50 18 98
+               C18 142 52 178 98 182
+               C116 184 124 172 118 158
+               C112 144 120 132 138 132
+               H154 C176 132 188 116 184 94
+               C176 48 148 18 104 18 Z"
+            fill="white" mask="url(#palette-cut)"/>""",
     # A flame, matching the streak icon players already see in the app
     # (DailyChallengeCard / DailyResultView both use flame.fill), so the
     # leaderboard is recognisable as "the daily" at a glance rather than
@@ -234,8 +266,31 @@ PAGE = """<!doctype html>
 </div>
 """
 
+SVG_PAGE = """<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 {size} {size}">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="{base}"/>
+      <stop offset="1" stop-color="{dark}"/>
+    </linearGradient>
+    <radialGradient id="highlight" cx="26%" cy="18%" r="58%">
+      <stop offset="0" stop-color="white" stop-opacity=".28"/>
+      <stop offset="1" stop-color="white" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="{size}" height="{size}" fill="url(#background)"/>
+  <rect width="{size}" height="{size}" fill="url(#highlight)"/>
+  <g transform="translate({icon_x} {icon_y}) scale({icon_scale})">
+    {icon_svg}
+  </g>
+  <text x="{word_x}" y="{word_y}" text-anchor="middle"
+        font-family="Liberation Sans, Helvetica, Arial, sans-serif"
+        font-weight="700" font-size="{wordsize}" letter-spacing="{wordspace}"
+        fill="white" fill-opacity=".62">EZ TRIVIA</text>
+</svg>
+"""
 
-def find_chromium() -> str:
+
+def find_chromium() -> str | None:
     for candidate in CHROMIUM_CANDIDATES:
         if candidate.startswith("/"):
             if Path(candidate).is_file():
@@ -244,13 +299,18 @@ def find_chromium() -> str:
             found = shutil.which(candidate)
             if found:
                 return found
-    sys.exit(
-        "No Chromium binary found. Looked at:\n  "
-        + "\n  ".join(CHROMIUM_CANDIDATES)
-    )
+    return None
 
 
-def render(chromium: str, html: str, png: Path, size: int) -> None:
+def find_inkscape() -> str | None:
+    for candidate in INKSCAPE_CANDIDATES:
+        found = shutil.which(candidate)
+        if found:
+            return found
+    return None
+
+
+def render_with_chromium(chromium: str, html: str, png: Path, size: int) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         page = Path(tmp) / "tile.html"
         page.write_text(html, encoding="utf-8")
@@ -266,6 +326,25 @@ def render(chromium: str, html: str, png: Path, size: int) -> None:
                 f"--window-size={size},{size + WINDOW_CHROME}",
                 f"--screenshot={png}",
                 page.as_uri(),
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+
+def render_with_inkscape(inkscape: str, svg: str, png: Path, size: int) -> None:
+    """Fallback for development containers that do not bundle Chromium."""
+    with tempfile.TemporaryDirectory() as tmp:
+        page = Path(tmp) / "tile.svg"
+        page.write_text(svg, encoding="utf-8")
+        subprocess.run(
+            [
+                inkscape,
+                str(page),
+                "--export-type=png",
+                f"--export-filename={png}",
+                f"--export-width={size}",
+                f"--export-height={size}",
             ],
             check=True,
             capture_output=True,
@@ -315,6 +394,9 @@ def main() -> None:
     size = args.size
     args.out.mkdir(parents=True, exist_ok=True)
     chromium = find_chromium()
+    inkscape = find_inkscape()
+    if not chromium and not inkscape:
+        sys.exit("No Chromium or Inkscape renderer found.")
 
     for slug, name, base, dark in CATEGORIES:
         html = PAGE.format(
@@ -328,7 +410,24 @@ def main() -> None:
             wordspace=round(size * 0.011),
         )
         png = args.out / f"EZTrivia.{slug}.png"
-        render(chromium, html, png, size)
+        if chromium:
+            render_with_chromium(chromium, html, png, size)
+        else:
+            icon_size = round(size * 0.46)
+            svg = SVG_PAGE.format(
+                size=size,
+                base=base,
+                dark=dark,
+                icon_svg=ICONS[slug],
+                icon_x=(size - icon_size) / 2,
+                icon_y=(size - icon_size) / 2,
+                icon_scale=icon_size / 200,
+                word_x=size / 2,
+                word_y=size - round(size * 0.088),
+                wordsize=round(size * 0.043),
+                wordspace=round(size * 0.011),
+            )
+            render_with_inkscape(inkscape, svg, png, size)
         flatten(png, size)
         print(f"{png}  {name}  {base}")
 

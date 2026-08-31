@@ -84,7 +84,7 @@ struct FriendChallengeLobbyView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Have a challenge code?").font(.headline)
-                    TextField("EZ1-XXXX-XXXX-XXXX-XXXX-XXX", text: $codeText)
+                    TextField("EZ2-XXXX-XXXX-XXXX-XXXX-XXX", text: $codeText)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .keyboardType(.asciiCapable)

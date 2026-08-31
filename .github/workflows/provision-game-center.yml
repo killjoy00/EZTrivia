@@ -1,6 +1,6 @@
 name: Provision Game Center leaderboards
 
-# Creates the eleven classic leaderboards the app submits scores to, using
+# Creates the fifteen classic leaderboards the app submits scores to, using
 # Scripts/configure_game_center.py. The script is idempotent: leaderboards that
 # already exist are reported and left alone.
 #

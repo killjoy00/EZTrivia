@@ -22,7 +22,7 @@ BUNDLE_ID = "com.rsm.eztrivia"
 # anyone.
 #
 # Category boards report a lifetime total, which only ever grows, so the range
-# has to cover years of play -- a million is roughly 4,000 perfect rounds.
+# has to cover years of play -- a million is 400 perfect Hard rounds.
 # The daily is one round, so a perfect 1,650 fits inside 2,000.
 LEADERBOARDS = {
     "football": ("Football High Scores", 1_000_000),
@@ -37,6 +37,8 @@ LEADERBOARDS = {
     "music": ("Music High Scores", 1_000_000),
     "animals": ("Animals High Scores", 1_000_000),
     "food": ("Food & Drink High Scores", 1_000_000),
+    "literature": ("Books & Literature High Scores", 1_000_000),
+    "art": ("Art & Architecture High Scores", 1_000_000),
     "daily": ("Daily Challenge", 2_000),
 }
 

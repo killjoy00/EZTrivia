@@ -110,7 +110,7 @@ If the record already exists, open **App Information** and confirm the name and 
 ## 3. Enable and configure Game Center
 
 The repository includes `Scripts/configure_game_center.py`, an idempotent App
-Store Connect API client that creates the thirteen classic leaderboards below,
+Store Connect API client that creates the fifteen classic leaderboards below,
 adds their English (U.S.) localizations, and leaves existing records unchanged.
 It expects `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_KEY_PATH` in its environment.
 The key must have App Manager access. It intentionally stops with a readable
@@ -127,7 +127,7 @@ placing an API key in the repository or requiring a Mac.
 1. In App Store Connect, open **EZ Trivia**.
 2. Open the app's **Game Center** section. Depending on the current App Store Connect layout, this can appear under the app's Services or Features area.
 3. Enable Game Center for the app if an enable/setup button is shown.
-4. Create thirteen **Classic Leaderboards**—not a leaderboard set or recurring leaderboard.
+4. Create fifteen **Classic Leaderboards**—not a leaderboard set or recurring leaderboard.
 5. For every leaderboard, choose:
    - **Sort order:** High to Low
    - **Score range:** 0 through 1,000,000 for category boards; 0 through 2,000 for Daily Challenge
@@ -151,13 +151,15 @@ placing an API key in the repository or requiring a Mac.
 | Music High Scores | `EZTrivia.music` | Music High Scores |
 | Animals High Scores | `EZTrivia.animals` | Animals High Scores |
 | Food & Drink High Scores | `EZTrivia.food` | Food & Drink High Scores |
+| Books & Literature High Scores | `EZTrivia.literature` | Books & Literature High Scores |
+| Art & Architecture High Scores | `EZTrivia.art` | Art & Architecture High Scores |
 | Daily Challenge | `EZTrivia.daily` | Daily Challenge |
 
 7. After creating each leaderboard, add its one required **English (U.S.)** localization and enter the third-column display name. “No localization” means no translations; Apple still requires this one default player-facing language.
 8. Save every leaderboard.
 9. Return to the app version page and associate the Game Center leaderboards with the version if App Store Connect presents that option.
 
-### Add the twelve achievements
+### Add the thirteen achievements
 
 The app displays local progress immediately, but Game Center ignores an
 achievement report until an achievement with the exact ID exists in App Store
@@ -171,7 +173,8 @@ an English (U.S.) localization and upload the matching 1024×1024 RGB PNG.
 | Easy Does It | `EZTrivia.achievement.perfect_easy` | 50 | Earn a perfect score on an Easy category round. | You earned a perfect Easy score. | `Artwork/Achievements/EZTrivia.achievement.perfect_easy.png` |
 | Perfectly Balanced | `EZTrivia.achievement.perfect_medium` | 75 | Earn a perfect score on a Medium category round. | You earned a perfect Medium score. | `Artwork/Achievements/EZTrivia.achievement.perfect_medium.png` |
 | Hard to Beat | `EZTrivia.achievement.perfect_hard` | 100 | Earn a perfect score on a Hard category round. | You earned a perfect Hard score. | `Artwork/Achievements/EZTrivia.achievement.perfect_hard.png` |
-| A Little of Everything | `EZTrivia.achievement.all_categories` | 100 | Complete questions from all twelve categories. | You played all twelve categories. | `Artwork/Achievements/EZTrivia.achievement.all_categories.png` |
+| A Little of Everything | `EZTrivia.achievement.all_categories` | 100 | Complete questions from twelve different categories. | You played twelve different categories. | `Artwork/Achievements/EZTrivia.achievement.all_categories.png` |
+| Full Spectrum | `EZTrivia.achievement.all_categories_14` | 100 | Complete questions from all fourteen categories. | You played all fourteen categories. | `Artwork/Achievements/EZTrivia.achievement.all_categories_14.png` |
 | One-Week Streak | `EZTrivia.achievement.streak_7` | 75 | Complete the Daily Challenge seven days in a row. | You completed a seven-day Daily Challenge streak. | `Artwork/Achievements/EZTrivia.achievement.streak_7.png` |
 | Monthly Ritual | `EZTrivia.achievement.streak_30` | 100 | Complete the Daily Challenge thirty days in a row. | You completed a thirty-day Daily Challenge streak. | `Artwork/Achievements/EZTrivia.achievement.streak_30.png` |
 | Getting Warmed Up | `EZTrivia.achievement.rounds_10` | 50 | Complete ten rounds. | You completed ten rounds. | `Artwork/Achievements/EZTrivia.achievement.rounds_10.png` |
@@ -180,7 +183,7 @@ an English (U.S.) localization and upload the matching 1024×1024 RGB PNG.
 | Five Figures | `EZTrivia.achievement.points_10000` | 75 | Earn 10,000 lifetime category points. | You earned 10,000 lifetime category points. | `Artwork/Achievements/EZTrivia.achievement.points_10000.png` |
 | Point Collector | `EZTrivia.achievement.points_50000` | 75 | Earn 50,000 lifetime category points. | You earned 50,000 lifetime category points. | `Artwork/Achievements/EZTrivia.achievement.points_50000.png` |
 
-The twelve achievements total 900 Game Center points; Apple permits at most
+The thirteen achievements total 1,000 Game Center points; Apple permits at most
 100 points for one achievement and 1,000 across the app. When all metadata and
 images are present, include the achievements with the app's Game Center
 components submitted for review. Keep `EZTriviaApp/Achievements.swift` and this

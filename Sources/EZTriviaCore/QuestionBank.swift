@@ -23,12 +23,14 @@ public enum QuestionBank {
         (.geography, GeographyQuestions.seeds),
         (.music, MusicQuestions.seeds),
         (.animals, AnimalsQuestions.seeds),
-        (.food, FoodQuestions.seeds)
+        (.food, FoodQuestions.seeds),
+        (.literature, LiteratureQuestions.seeds),
+        (.art, ArtQuestions.seeds)
     ]
 
     private static func buildAll() -> [TriviaQuestion] {
         var questions: [TriviaQuestion] = []
-        questions.reserveCapacity(1500)
+        questions.reserveCapacity(1800)
 
         for (category, seeds) in seedsByCategory {
             for difficulty in TriviaDifficulty.allCases {

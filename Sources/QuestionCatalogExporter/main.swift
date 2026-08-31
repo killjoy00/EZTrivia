@@ -43,7 +43,8 @@ private func sequence(of id: String) -> Int {
 
 let header = [
     "id", "category", "difficulty", "prompt", "visual", "answer_a", "answer_b",
-    "answer_c", "answer_d", "correct_answer", "explanation", "review_note"
+    "answer_c", "answer_d", "correct_answer", "explanation", "review_note",
+    "source_url", "verified_on", "review_after"
 ]
 print(header.map(csvField).joined(separator: ","))
 
@@ -57,6 +58,7 @@ let sorted = QuestionBank.all.sorted {
 }
 
 for question in sorted {
+    let metadata = QuestionReviewRegistry.byQuestionID[question.id]
     let row = [
         question.id,
         question.category.title,
@@ -69,7 +71,10 @@ for question in sorted {
         question.answers[3],
         question.answers[question.correctAnswerIndex],
         question.explanation,
-        question.visual.flatMap { flagReviewNotes[$0] } ?? ""
+        question.visual.flatMap { flagReviewNotes[$0] } ?? "",
+        metadata?.sourceURL ?? "",
+        metadata?.verifiedOn ?? "",
+        metadata?.reviewAfter ?? ""
     ]
     print(row.map(csvField).joined(separator: ","))
 }

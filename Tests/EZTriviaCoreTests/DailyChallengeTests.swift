@@ -75,6 +75,12 @@ import Testing
     }
 }
 
+@Test func dailyCategoryRosterIsFrozenAcrossCatalogExpansion() {
+    #expect(DailyChallenge.categoryRoster.count == 12)
+    #expect(!DailyChallenge.categoryRoster.contains(.literature))
+    #expect(!DailyChallenge.categoryRoster.contains(.art))
+}
+
 @Test func everyDayFollowsTheSameDifficultyRamp() {
     for day in stride(from: 0, to: 900, by: 53) {
         let difficulties = DailyChallenge.challenge(for: day).questions.map(\.difficulty)

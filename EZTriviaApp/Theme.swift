@@ -19,6 +19,8 @@ enum AppTheme {
         case .music: .indigo
         case .animals: .teal
         case .food: .red
+        case .literature: Color(red: 0.36, green: 0.24, blue: 0.72)
+        case .art: Color(red: 0.86, green: 0.36, blue: 0.20)
         }
     }
 }

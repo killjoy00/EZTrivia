@@ -17,6 +17,19 @@ public struct DailyChallenge: Sendable, Equatable {
     /// Questions in a daily round.
     public static let questionCount = 10
 
+    /// The original Daily Challenge roster, deliberately frozen.
+    ///
+    /// Adding enum cases to `allCases` would otherwise change today's seeded
+    /// round immediately, so players on two app versions could receive
+    /// different questions while competing on one leaderboard. Literature and
+    /// Art remain available as ordinary rounds and version-2 Friend Challenges;
+    /// a future Daily version can add them alongside a coordinated leaderboard
+    /// rollover.
+    static let categoryRoster: [TriviaCategory] = [
+        .football, .basketball, .soccer, .flags, .history, .science, .movies,
+        .tv, .geography, .music, .animals, .food
+    ]
+
     /// Difficulty ramp for the round, in order.
     ///
     /// Fixed rather than random so every daily has the same shape: an
@@ -77,9 +90,9 @@ public struct DailyChallenge: Sendable, Equatable {
         var generator = SeededGenerator(seed: seed(for: day))
 
         // Categories are drawn without replacement, so a single daily never
-        // asks two questions from the same category. There are twelve
-        // categories and ten slots, so two sit out each day.
-        var categories = TriviaCategory.allCases.shuffled(using: &generator)
+        // asks two questions from the same category. The roster is explicit
+        // because `allCases` is application state, not a stable wire format.
+        var categories = categoryRoster.shuffled(using: &generator)
         if categories.count > questionCount {
             categories.removeLast(categories.count - questionCount)
         }
