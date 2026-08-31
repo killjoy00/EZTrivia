@@ -44,9 +44,14 @@ import Testing
     )
     let decoded = FriendChallengeCode(original.displayString)
 
-    #expect(original.displayString == "EZ1-FXQ5-TK1V-58CG-G81A-6JQ")
+    #expect(original.displayString == "EZ2-FXQ5-TK1V-58CG-G81A-6WA")
     #expect(decoded == original)
     #expect(decoded?.attemptID == original.attemptID)
+}
+
+@Test func friendChallengeVersionOwnsAnExplicitCategoryRoster() {
+    #expect(FriendChallenge.categoryRoster == TriviaCategory.allCases)
+    #expect(Set(FriendChallenge.categoryRoster).count == TriviaCategory.allCases.count)
 }
 
 @Test func theVisibleVersionComesFromTheVersionConstant() {
@@ -92,4 +97,13 @@ import Testing
     let finalIndex = damaged.index(before: damaged.endIndex)
     damaged[finalIndex] = damaged[finalIndex] == "0" ? "1" : "0"
     #expect(FriendChallengeCode(String(damaged)) == nil)
+}
+
+@Test func storedVersionOneResultsKeepTheirOriginalDisplayCode() throws {
+    let json = #"{"version":1,"seed":18364758544493064720,"targetScore":8,"targetPoints":1350}"#
+    let legacy = try JSONDecoder().decode(FriendChallengeCode.self, from: Data(json.utf8))
+
+    #expect(legacy.displayString == "EZ1-FXQ5-TK1V-58CG-G81A-6JQ")
+    #expect(FriendChallengeCode(legacy.displayString) == nil)
+    #expect(legacy.attemptID == "v1-18364758544493064720")
 }

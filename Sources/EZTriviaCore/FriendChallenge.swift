@@ -8,7 +8,14 @@ import Foundation
 /// creates a fresh random seed that the result code carries to the other player.
 public struct FriendChallenge: Sendable, Equatable {
     public static let questionCount = 10
-    public static let codeVersion = 1
+    public static let codeVersion = 2
+    /// Frozen for code version 2. Adding or reordering enum cases must not
+    /// silently change a challenge someone has already shared; the next
+    /// catalog change gets a new explicit roster and a version bump.
+    public static let categoryRoster: [TriviaCategory] = [
+        .football, .basketball, .soccer, .flags, .history, .science, .movies,
+        .tv, .geography, .music, .animals, .food, .literature, .art
+    ]
     public static let difficultyRamp: [TriviaDifficulty] = [
         .easy, .easy, .easy, .medium, .medium, .medium, .medium, .hard, .hard, .hard
     ]
@@ -29,7 +36,7 @@ public struct FriendChallenge: Sendable, Equatable {
     ) -> FriendChallenge {
         var generator = SeededGenerator(seed: seed ^ 0x4652_4945_4E44_2121)
         let categories = Array(
-            TriviaCategory.allCases
+            categoryRoster
                 .deterministicallyShuffled(using: &generator)
                 .prefix(questionCount)
         )
@@ -60,12 +67,12 @@ public struct FriendChallenge: Sendable, Equatable {
 
 /// The compact hand-off between the challenger and the recipient.
 ///
-/// Format: `EZ1-XXXX-XXXX-XXXX-XXXX-XXX`
+/// Format: `EZ2-XXXX-XXXX-XXXX-XXXX-XXX`
 ///
 /// The body is Crockford Base32 so it avoids the most easily confused letters
 /// and remains practical to dictate or type. It contains a 64-bit seed, the
 /// challenger's score and weighted points, plus a checksum that catches nearly
-/// all paste and transcription errors. The version in `EZ1` is deliberately
+/// all paste and transcription errors. The version in `EZ2` is deliberately
 /// visible: if question selection changes in a future release, that release can
 /// reject or preserve old codes instead of silently serving different questions.
 public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
@@ -83,7 +90,8 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
     ///
     /// One character, so versions run 1 through 9. A tenth would need a wider
     /// field, and by then the format has earned a rethink anyway.
-    static var prefix: String { "EZ\(FriendChallenge.codeVersion)" }
+    static var prefix: String { prefix(for: FriendChallenge.codeVersion) }
+    private static func prefix(for version: Int) -> String { "EZ\(version)" }
     private static let prefixLength = 3
     private static let bodyLength = 19
 
@@ -144,7 +152,12 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
 
         let score = Int(decodedScore)
         let points = Int(decodedPoints)
-        guard decodedChecksum == Self.checksum(seed: decodedSeed, score: score, points: points) else {
+        guard decodedChecksum == Self.checksum(
+            seed: decodedSeed,
+            score: score,
+            points: points,
+            version: FriendChallenge.codeVersion
+        ) else {
             return nil
         }
 
@@ -159,7 +172,7 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
         let scorePart = Self.encode(UInt64(targetScore), width: 1)
         let pointsPart = Self.encode(UInt64(targetPoints), width: 3)
         let checksumPart = Self.encode(
-            Self.checksum(seed: seed, score: targetScore, points: targetPoints),
+            Self.checksum(seed: seed, score: targetScore, points: targetPoints, version: version),
             width: 2
         )
         let body = seedPart + scorePart + pointsPart + checksumPart
@@ -168,7 +181,7 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
             let end = body.index(start, offsetBy: min(4, body.count - offset))
             return String(body[start..<end])
         }
-        return Self.prefix + "-" + groups.joined(separator: "-")
+        return Self.prefix(for: version) + "-" + groups.joined(separator: "-")
     }
 
     private static func encode(_ value: UInt64, width: Int) -> String {
@@ -194,11 +207,11 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
     /// A compact non-cryptographic integrity check. The code is not a security
     /// boundary; the checksum exists to turn a mistyped code into a clear error
     /// rather than a valid-looking but different challenge.
-    private static func checksum(seed: UInt64, score: Int, points: Int) -> UInt64 {
+    private static func checksum(seed: UInt64, score: Int, points: Int, version: Int) -> UInt64 {
         var value = seed
         value ^= UInt64(score) &* 0x9E37_79B9_7F4A_7C15
         value ^= UInt64(points) &* 0xBF58_476D_1CE4_E5B9
-        value ^= UInt64(FriendChallenge.codeVersion) &* 0x94D0_49BB_1331_11EB
+        value ^= UInt64(version) &* 0x94D0_49BB_1331_11EB
         value ^= value >> 30
         value &*= 0xBF58_476D_1CE4_E5B9
         value ^= value >> 27

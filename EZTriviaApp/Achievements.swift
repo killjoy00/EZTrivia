@@ -60,10 +60,19 @@ enum AchievementCatalog {
         AchievementDefinition(
             id: "EZTrivia.achievement.all_categories",
             title: "A Little of Everything",
-            preEarnedDescription: "Complete questions from all twelve categories.",
-            earnedDescription: "You played all twelve categories.",
+            preEarnedDescription: "Complete questions from twelve different categories.",
+            earnedDescription: "You played twelve different categories.",
             points: 100,
             symbol: "square.grid.3x3.fill",
+            goal: .categories(12)
+        ),
+        AchievementDefinition(
+            id: "EZTrivia.achievement.all_categories_14",
+            title: "Full Spectrum",
+            preEarnedDescription: "Complete questions from all fourteen categories.",
+            earnedDescription: "You played all fourteen categories.",
+            points: 100,
+            symbol: "sparkles",
             goal: .categories(TriviaCategory.allCases.count)
         ),
         AchievementDefinition(
