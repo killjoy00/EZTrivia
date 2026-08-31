@@ -13,6 +13,11 @@ struct LeaderboardView: View {
 
     var body: some View {
         List {
+            // First, ahead of the local history. Leaderboards and achievements
+            // are the reason to open this tab; recent rounds and lifetime
+            // points are the record of how you got there.
+            gameCenterSection
+
             if scores.entries.isEmpty {
                 Section {
                     ContentUnavailableView(
@@ -41,7 +46,6 @@ struct LeaderboardView: View {
             }
 
             lifetimeSection
-            gameCenterSection
         }
         .navigationTitle("Scores")
         .toolbar {
