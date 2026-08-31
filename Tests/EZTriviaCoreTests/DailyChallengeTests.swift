@@ -75,10 +75,8 @@ import Testing
     }
 }
 
-@Test func dailyCategoryRosterIsFrozenAcrossCatalogExpansion() {
-    #expect(DailyChallenge.categoryRoster.count == 12)
-    #expect(!DailyChallenge.categoryRoster.contains(.literature))
-    #expect(!DailyChallenge.categoryRoster.contains(.art))
+@Test func dailyCategoryRosterCoversEveryCategory() {
+    #expect(Set(DailyChallenge.categoryRoster) == Set(TriviaCategory.allCases))
 }
 
 @Test func everyDayFollowsTheSameDifficultyRamp() {

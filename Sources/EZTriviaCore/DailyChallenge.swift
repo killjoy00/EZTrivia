@@ -17,17 +17,22 @@ public struct DailyChallenge: Sendable, Equatable {
     /// Questions in a daily round.
     public static let questionCount = 10
 
-    /// The original Daily Challenge roster, deliberately frozen.
+    /// The current Daily Challenge roster.
     ///
-    /// Adding enum cases to `allCases` would otherwise change today's seeded
-    /// round immediately, so players on two app versions could receive
-    /// different questions while competing on one leaderboard. Literature and
-    /// Art remain available as ordinary rounds and version-2 Friend Challenges;
-    /// a future Daily version can add them alongside a coordinated leaderboard
-    /// rollover.
+    /// Explicit rather than `TriviaCategory.allCases`, on purpose: `allCases`
+    /// is application state, not a stable wire format, so a category added
+    /// for ordinary rounds should not silently reshape today's seeded round
+    /// for players before everyone is running the build that knows about it.
+    /// Adding Literature and Art here does exactly that for anyone still on
+    /// the previous build -- their local build serves the old twelve-category
+    /// round while a friend on the new build gets a Books & Literature or Art
+    /// & Architecture slot, so a same-day daily leaderboard briefly compares
+    /// two different rounds until the old build ages out. Accepted as a
+    /// one-time cost of adding categories to the roster; a same-day rollover
+    /// has no way to avoid it.
     static let categoryRoster: [TriviaCategory] = [
         .football, .basketball, .soccer, .flags, .history, .science, .movies,
-        .tv, .geography, .music, .animals, .food
+        .tv, .geography, .music, .animals, .food, .literature, .art
     ]
 
     /// Difficulty ramp for the round, in order.
