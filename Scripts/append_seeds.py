@@ -246,9 +246,16 @@ def main() -> int:
 
     match = tier_bounds(text, tier, path)
     addition = "".join(render(seed) for seed in seeds)
-    updated = (
-        text[: match.end(1)] + "\n" + addition.rstrip("\n") + match.group(2) + text[match.end(2):]
-    )
+
+    # The last seed in a tier may or may not carry a trailing comma; both are
+    # valid Swift while it is last, and only one stays valid once something
+    # follows it. Splicing without checking produced four files that parsed
+    # here and failed to compile in CI.
+    head = text[: match.end(1)].rstrip()
+    if not head.endswith(","):
+        head += ","
+
+    updated = head + "\n" + addition.rstrip("\n") + match.group(2) + text[match.end(2):]
     path.write_text(updated, encoding="utf-8")
     print(f"{path.name}: +{len(seeds)} to {tier}")
     return 0

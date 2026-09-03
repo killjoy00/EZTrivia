@@ -123,7 +123,7 @@ enum LiteratureQuestions {
                      "A blurb briefly describes or recommends a book for prospective readers."),
         QuestionSeed("Who wrote The Very Hungry Caterpillar?",
                      ["Eric Carle", "Ezra Jack Keats", "Leo Lionni", "Chris Van Allsburg"], 0,
-                     "Eric Carle wrote and illustrated The Very Hungry Caterpillar using his distinctive collage style.")
+                     "Eric Carle wrote and illustrated The Very Hungry Caterpillar using his distinctive collage style."),
         QuestionSeed("What kind of animal is Aslan in The Chronicles of Narnia?",
                      ["A lion", "A bear", "A wolf", "A stag"], 0,
                      "Aslan the lion rules Narnia and gives his life on the Stone Table for Edmund."),
@@ -276,7 +276,7 @@ enum LiteratureQuestions {
                      "The Hugo Awards recognize science fiction and fantasy across written and dramatic forms."),
         QuestionSeed("Which institution selects the Nobel Prize in Literature?",
                      ["The Swedish Academy", "The Royal Society", "The Académie Française", "The Library of Congress"], 0,
-                     "The Swedish Academy selects the recipient of the Nobel Prize in Literature.")
+                     "The Swedish Academy selects the recipient of the Nobel Prize in Literature."),
         QuestionSeed("Who wrote Mrs Dalloway?",
                      ["Virginia Woolf", "Katherine Mansfield", "Elizabeth Bowen", "Edith Wharton"], 0,
                      "Virginia Woolf follows a single London day, moving between minds as Clarissa prepares her party."),

@@ -35,7 +35,7 @@ The app ships 2,341 questions:
 
 Every question appears exactly once. Tests fail the build if a prompt is duplicated, a tier shares questions with another, answers are malformed, or a category/difficulty pool no longer holds its expected depth: fifty questions at Easy and Medium, forty at Hard.
 
-`Scripts/analyze_questions.py` reports on the catalog without a Swift toolchain: length bias, giveaway answers, explanations that never name their answer, and prompts that restate a question already in the category. `Scripts/append_seeds.py` authors new questions against those same rules and refuses a seed that reuses a keyed answer the category already has.
+`Scripts/analyze_questions.py` reports on the catalog without a Swift toolchain: length bias, giveaway answers, explanations that never name their answer, and prompts that restate a question already in the category. `Scripts/append_seeds.py` authors new questions against those same rules and refuses a seed that reuses a keyed answer the category already has. `Scripts/check_seed_syntax.py` parses the seed files as Swift array literals and catches a malformed splice — a missing separator comma, a doubled one, a wrong element count — in under a second rather than minutes into a CI build.
 
 The local catalog contains all 249 ISO 3166-1 flag assets. Five are not asked because their artwork is identical to another valid answer, and three more are excluded because the bundled design is contested or no longer current. The remaining 241 flags are askable. Near-identical flags at phone size are never offered against one another, and flag distractors are redrawn from the same difficulty pool each time.
 

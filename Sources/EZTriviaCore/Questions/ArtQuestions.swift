@@ -123,7 +123,7 @@ enum ArtQuestions {
                      "Painters commonly stretch woven canvas over a wooden support called a stretcher."),
         QuestionSeed("What does an art conservator primarily do?",
                      ["Document and preserve artworks", "Set prices for auction houses", "Plan exhibitions for museums", "Create replicas for gift shops"], 0,
-                     "Conservators examine, document, stabilize, and treat artworks to preserve them.")
+                     "Conservators examine, document, stabilize, and treat artworks to preserve them."),
         QuestionSeed("Which two primary colors are mixed to make green?",
                      ["Blue and yellow", "Red and blue", "Red and yellow", "Black and white"], 0,
                      "Blue and yellow pigments combine to produce green, one of the first mixtures taught in painting classes."),
@@ -276,7 +276,7 @@ enum ArtQuestions {
                      "Traditional lithography uses the repulsion of grease and water on a flat limestone surface."),
         QuestionSeed("What does a kiln provide for ceramics?",
                      ["Controlled high heat", "Continuous flowing water", "Pressurized cold air", "Ultraviolet light"], 0,
-                     "A kiln fires clay and glazes at controlled temperatures to create durable ceramic material.")
+                     "A kiln fires clay and glazes at controlled temperatures to create durable ceramic material."),
         QuestionSeed("Which artist wrapped the Reichstag and the Pont Neuf in fabric?",
                      ["Christo", "Robert Smithson", "Andy Goldsworthy", "Richard Serra"], 0,
                      "Christo and Jeanne-Claude wrapped the Reichstag and Pont Neuf in fabric for temporary public works."),
