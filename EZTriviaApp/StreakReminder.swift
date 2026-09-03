@@ -14,9 +14,15 @@ import UserNotifications
 /// cancels tonight's reminder rather than leaving a stale nag queued behind it.
 @MainActor
 final class StreakReminder: ObservableObject {
-    /// Local hour the reminder fires on the at-risk day. Late enough to read as
-    /// "the day is nearly over", early enough to leave time to actually play.
-    static let reminderHour = 20
+    /// Default local hour for the reminder. Late enough to read as "the day is
+    /// nearly over", early enough to leave time to actually play. Players who
+    /// keep a different schedule can move it; see `reminderHour`.
+    static let defaultReminderHour = 20
+
+    /// Hours a player may choose from. Bounded rather than a free time picker:
+    /// the reminder only makes sense once the day is far enough along to be
+    /// worth a nudge, and a 3am reminder helps nobody.
+    static let selectableHours = Array(12...22)
 
     /// Runs shorter than this are not worth interrupting an evening for.
     static let minimumStreak = 2
@@ -33,12 +39,27 @@ final class StreakReminder: ObservableObject {
         }
     }
 
+    /// The hour the reminder fires, clamped to `selectableHours`. Persisted on
+    /// change; rescheduling is the caller's job, for the same reason the enabled
+    /// toggle does not reschedule itself.
+    @Published var reminderHour: Int {
+        didSet {
+            let clamped = min(max(reminderHour, Self.selectableHours.first!), Self.selectableHours.last!)
+            if reminderHour != clamped {
+                reminderHour = clamped
+            } else if reminderHour != oldValue {
+                defaults.set(reminderHour, forKey: Keys.reminderHour)
+            }
+        }
+    }
+
     /// Set when the system has denied notifications, so Settings can explain why
     /// the toggle did nothing rather than leaving it silently on.
     @Published private(set) var authorizationDenied = false
 
     private enum Keys {
         static let isEnabled = "daily.streakReminder.enabled"
+        static let reminderHour = "daily.streakReminder.hour"
     }
 
     private let defaults: UserDefaults
@@ -56,6 +77,11 @@ final class StreakReminder: ObservableObject {
         self.center = center
         self.calendar = calendar
         isEnabled = defaults.bool(forKey: Keys.isEnabled)
+        let storedHour = defaults.object(forKey: Keys.reminderHour) as? Int ?? Self.defaultReminderHour
+        reminderHour = min(
+            max(storedHour, Self.selectableHours.first!),
+            Self.selectableHours.last!
+        )
     }
 
     /// Recomputes the pending reminder from the current daily history.
@@ -107,7 +133,7 @@ final class StreakReminder: ObservableObject {
     private func fireDate(forDay day: Int, now: Date) -> Date? {
         guard let start = DailyChallenge.startOfDay(day, in: calendar),
               let scheduled = calendar.date(
-                bySettingHour: Self.reminderHour, minute: 0, second: 0, of: start
+                bySettingHour: reminderHour, minute: 0, second: 0, of: start
               ),
               let endOfDay = calendar.date(byAdding: .day, value: 1, to: start)
         else { return nil }

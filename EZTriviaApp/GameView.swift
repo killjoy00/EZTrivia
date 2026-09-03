@@ -99,6 +99,7 @@ struct GameView: View {
 private struct ResultView: View {
     @EnvironmentObject private var scores: ScoreStore
     @EnvironmentObject private var gameCenter: GameCenterManager
+    @EnvironmentObject private var reviewPrompt: ReviewPrompt
     let category: TriviaCategory
     let difficulty: TriviaDifficulty
     let score: Int
@@ -128,6 +129,12 @@ private struct ResultView: View {
             Button("Back to categories") { finish() }.font(.headline).padding(.bottom)
         }
         .padding()
+        .requestReviewIfEarned(
+            reviewPrompt,
+            score: score,
+            total: total,
+            roundsCompleted: scores.totalRoundsCompleted
+        )
         .onAppear {
             guard !saved else { return }
             scores.record(category: category, difficulty: difficulty, score: score, total: total)

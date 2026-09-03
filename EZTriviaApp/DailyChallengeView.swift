@@ -159,6 +159,8 @@ struct DailyChallengeView: View {
 }
 
 private struct DailyResultView: View {
+    @EnvironmentObject private var scores: ScoreStore
+    @EnvironmentObject private var reviewPrompt: ReviewPrompt
     let result: DailyResult
     let streak: Int
     let finish: () -> Void
@@ -206,6 +208,12 @@ private struct DailyResultView: View {
             }
             .padding()
         }
+        .requestReviewIfEarned(
+            reviewPrompt,
+            score: result.score,
+            total: result.total,
+            roundsCompleted: scores.totalRoundsCompleted
+        )
     }
 
     private func stat(_ value: String, _ label: String) -> some View {
