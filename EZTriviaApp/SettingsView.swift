@@ -38,6 +38,19 @@ final class AppSettings: ObservableObject {
 }
 
 struct SettingsView: View {
+    /// Formatted through `DateFormatter` rather than composed by hand so a
+    /// 24-hour locale shows 20:00 instead of an English "8 PM".
+    private static func hourLabel(_ hour: Int) -> String {
+        var components = DateComponents()
+        components.hour = hour
+        components.minute = 0
+        guard let date = Calendar.current.date(from: components) else { return "\(hour):00" }
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter.string(from: date)
+    }
+
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var feedback: Feedback
     @EnvironmentObject private var adConsent: AdConsentManager
@@ -67,13 +80,20 @@ struct SettingsView: View {
 
             Section {
                 Toggle("Streak reminders", isOn: $streakReminder.isEnabled)
+                if streakReminder.isEnabled {
+                    Picker("Remind me at", selection: $streakReminder.reminderHour) {
+                        ForEach(StreakReminder.selectableHours, id: \.self) { hour in
+                            Text(Self.hourLabel(hour)).tag(hour)
+                        }
+                    }
+                }
             } header: {
                 Text("Daily Challenge")
             } footer: {
                 if streakReminder.isEnabled && streakReminder.authorizationDenied {
                     Text("Notifications are turned off for EZ Trivia. Enable them in the Settings app to receive streak reminders.")
                 } else {
-                    Text("If a streak of \(StreakReminder.minimumStreak) days or more is still unplayed, a reminder arrives that evening. Nothing is sent otherwise.")
+                    Text("If a streak of \(StreakReminder.minimumStreak) days or more is still unplayed, a reminder arrives at this time. Nothing is sent otherwise.")
                 }
             }
 
@@ -89,8 +109,20 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            Section {
+                if let url = ReviewPrompt.writeReviewURL {
+                    Link("Rate EZ Trivia", destination: url)
+                }
+            } footer: {
+                Text("Ratings help other players find the app.")
+            }
         }
         .navigationTitle("Settings")
+        // Both the switch and the hour change what is queued, so both reschedule.
+        .onChange(of: streakReminder.reminderHour) { _, _ in
+            Task { await streakReminder.refresh(playedDays: Set(scores.dailyResults.keys)) }
+        }
         .onChange(of: streakReminder.isEnabled) { _, _ in
             Task {
                 await streakReminder.applyEnabledChange(
