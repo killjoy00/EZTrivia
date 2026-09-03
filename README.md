@@ -5,7 +5,7 @@ EZ Trivia is a native SwiftUI trivia game for iPhone. Players can choose a categ
 ## Highlights
 
 - Sixteen categories, including Mythology & Legends and Video Games
-- 2,041 hand-authored questions with Easy, Medium, and Hard tiers
+- 2,341 hand-authored questions with Easy, Medium, and Hard tiers
 - Ten-question category rounds with immediate feedback and short explanations
 - A deterministic Daily Challenge shared by every player, with local streak tracking
 - One-attempt Friend Challenges using short, server-free codes that reproduce the same questions and answer order
@@ -26,14 +26,16 @@ The deployment target is iOS 17.0. Debug builds use Google's official test AdMob
 
 ## Question catalog
 
-The app ships 2,041 questions:
+The app ships 2,341 questions:
 
 | Category | Easy | Medium | Hard |
 | --- | ---: | ---: | ---: |
-| Each of the 15 text categories | 40 | 40 | 40 |
+| Each of the 15 text categories | 50 | 50 | 40 |
 | World Flags | 51 | 91 | 99 |
 
-Every question appears exactly once. Tests fail the build if a prompt is duplicated, a tier shares questions with another, answers are malformed, or a category/difficulty pool no longer contains forty text questions.
+Every question appears exactly once. Tests fail the build if a prompt is duplicated, a tier shares questions with another, answers are malformed, or a category/difficulty pool no longer holds its expected depth: fifty questions at Easy and Medium, forty at Hard.
+
+`Scripts/analyze_questions.py` reports on the catalog without a Swift toolchain: length bias, giveaway answers, explanations that never name their answer, and prompts that restate a question already in the category. `Scripts/append_seeds.py` authors new questions against those same rules and refuses a seed that reuses a keyed answer the category already has.
 
 The local catalog contains all 249 ISO 3166-1 flag assets. Five are not asked because their artwork is identical to another valid answer, and three more are excluded because the bundled design is contested or no longer current. The remaining 241 flags are askable. Near-identical flags at phone size are never offered against one another, and flag distractors are redrawn from the same difficulty pool each time.
 

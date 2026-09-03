@@ -145,10 +145,18 @@ def analyze(rows: list[dict[str, str]], report: Report) -> None:
     sizes = Counter(len(pool) for pool in pools.values())
     for size, count in sorted(sizes.items()):
         print(f"  {count} pools of {size} questions")
-    odd = {key: len(pool) for key, pool in pools.items() if len(pool) != max(sizes, key=sizes.get)}
-    if odd:
-        for key, size in sorted(odd.items()):
-            report.warn(f"{key[0]} / {key[1]} has {size} questions, off the common pool size")
+    # Each difficulty has its own intended depth — easy and medium carry fifty,
+    # hard forty — so an outlier is measured against its own tier, not the bank.
+    by_difficulty = defaultdict(Counter)
+    for key, pool in pools.items():
+        by_difficulty[key[1]][len(pool)] += 1
+    for key, pool in sorted(pools.items()):
+        expected = by_difficulty[key[1]].most_common(1)[0][0]
+        if len(pool) != expected:
+            report.warn(
+                f"{key[0]} / {key[1]} has {len(pool)} questions, "
+                f"off the usual {expected} for that difficulty"
+            )
 
     # --- Malformed -------------------------------------------------------
     report.section("Structural integrity")
@@ -268,6 +276,39 @@ def analyze(rows: list[dict[str, str]], report: Report) -> None:
         print(f"      {row_b['id']}: {row_b['prompt'][:66]}")
     if pairs:
         report.warn(f"{len(pairs)} near-duplicate prompt pairs need review")
+
+    # --- Same answer, reworded prompt -------------------------------------
+    # Token overlap alone misses the duplicate that matters most to a player:
+    # the same fact asked twice in different words. "Which lake holds the most
+    # fresh water by volume?" and "Which lake holds the largest volume of fresh
+    # water?" share only 67% of their tokens and key the same answer. Pairing
+    # an identical keyed answer with a looser prompt threshold catches those.
+    report.section("Same answer asked twice (identical key, >=40% prompt overlap)")
+    restated = []
+    for category, group in by_category.items():
+        by_answer: dict[str, list[dict[str, str]]] = defaultdict(list)
+        for row in group:
+            key = " ".join(sorted(tokens(row["correct_answer"])))
+            if key:
+                by_answer[key].append(row)
+        for key, rows_with_answer in by_answer.items():
+            for i in range(len(rows_with_answer)):
+                for j in range(i + 1, len(rows_with_answer)):
+                    row_a, row_b = rows_with_answer[i], rows_with_answer[j]
+                    tokens_a, tokens_b = tokens(row_a["prompt"]), tokens(row_b["prompt"])
+                    if not tokens_a or not tokens_b:
+                        continue
+                    overlap = len(tokens_a & tokens_b) / len(tokens_a | tokens_b)
+                    if overlap >= 0.40:
+                        restated.append((overlap, category, row_a, row_b))
+    restated.sort(reverse=True, key=lambda item: item[0])
+    print(f"{len(restated)} restated pairs")
+    for overlap, category, row_a, row_b in restated[: report.top]:
+        print(f"  {overlap:.0%} {category} -> {row_a['correct_answer'][:40]}")
+        print(f"      {row_a['id']}: {row_a['prompt'][:66]}")
+        print(f"      {row_b['id']}: {row_b['prompt'][:66]}")
+    if restated:
+        report.warn(f"{len(restated)} questions restate another question's answer")
 
     # --- Copy length ------------------------------------------------------
     report.section("Copy length (house style: prompt <=20 words, explanation 8-24)")
