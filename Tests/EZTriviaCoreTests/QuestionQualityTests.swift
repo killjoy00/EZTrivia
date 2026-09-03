@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import EZTriviaCore
 
-private let newCategories: Set<TriviaCategory> = [.literature, .art]
+private let newCategories: Set<TriviaCategory> = [.literature, .art, .mythology, .videoGames]
 
 private func normalizedTokens(_ value: String) -> Set<String> {
     let stopWords: Set<String> = [

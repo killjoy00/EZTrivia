@@ -44,7 +44,7 @@ import Testing
     )
     let decoded = FriendChallengeCode(original.displayString)
 
-    #expect(original.displayString == "EZ2-FXQ5-TK1V-58CG-G81A-6WA")
+    #expect(original.displayString == "EZ3-FXQ5-TK1V-58CG-G81A-6G4")
     #expect(decoded == original)
     #expect(decoded?.attemptID == original.attemptID)
 }
@@ -97,6 +97,30 @@ import Testing
     let finalIndex = damaged.index(before: damaged.endIndex)
     damaged[finalIndex] = damaged[finalIndex] == "0" ? "1" : "0"
     #expect(FriendChallengeCode(String(damaged)) == nil)
+}
+
+@Test func anOlderCodeIsNamedAsOldRatherThanMistyped() {
+    // A v2 code is copied perfectly; it is the roster behind it this build can
+    // no longer reproduce. Reporting a typo would send its holder hunting for
+    // a mistake that is not there.
+    let previousVersion = "EZ2-FXQ5-TK1V-58CG-G81A-6WA"
+    #expect(FriendChallengeCode(previousVersion) == nil)
+    #expect(FriendChallengeCode.rejectionReason(for: previousVersion) == .unsupportedVersion(2))
+    #expect(FriendChallengeCode.rejectionReason(for: "EZ1-FXQ5-TK1V-58CG-G81A-6JQ") == .unsupportedVersion(1))
+}
+
+@Test func genuineTyposAreStillReportedAsTypos() {
+    let valid = FriendChallengeCode(seed: 42, targetScore: 7, targetPoints: 1_100).displayString
+    #expect(FriendChallengeCode.rejectionReason(for: valid) == nil)
+
+    // Right shape and right version, wrong checksum.
+    var damaged = Array(valid)
+    let last = damaged.index(before: damaged.endIndex)
+    damaged[last] = damaged[last] == "0" ? "1" : "0"
+    #expect(FriendChallengeCode.rejectionReason(for: String(damaged)) == .unreadable)
+
+    #expect(FriendChallengeCode.rejectionReason(for: "not a code at all") == .unreadable)
+    #expect(FriendChallengeCode.rejectionReason(for: "") == .unreadable)
 }
 
 @Test func storedVersionOneResultsKeepTheirOriginalDisplayCode() throws {

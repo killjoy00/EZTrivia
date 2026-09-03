@@ -53,6 +53,18 @@ struct FriendChallengeLobbyView: View {
 
     private var parsedCode: FriendChallengeCode? { FriendChallengeCode(codeText) }
 
+    /// Names the actual problem. A code from an older release is copied
+    /// correctly, so telling its holder to check for a typo sends them looking
+    /// for a mistake that is not there.
+    private var invalidCodeMessage: String {
+        switch FriendChallengeCode.rejectionReason(for: codeText) {
+        case .unsupportedVersion:
+            "That code came from an older version of EZ Trivia. Ask your friend for a new one."
+        default:
+            "That code is incomplete or has a typo."
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -84,7 +96,7 @@ struct FriendChallengeLobbyView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Have a challenge code?").font(.headline)
-                    TextField("EZ2-XXXX-XXXX-XXXX-XXXX-XXX", text: $codeText)
+                    TextField("EZ3-XXXX-XXXX-XXXX-XXXX-XXX", text: $codeText)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .keyboardType(.asciiCapable)
@@ -104,7 +116,7 @@ struct FriendChallengeLobbyView: View {
                         .font(.subheadline.bold())
                         .foregroundStyle(.green)
                     } else if triedInvalidCode {
-                        Label("That code is incomplete or has a typo.", systemImage: "exclamationmark.triangle.fill")
+                        Label(invalidCodeMessage, systemImage: "exclamationmark.triangle.fill")
                             .font(.subheadline)
                             .foregroundStyle(.orange)
                     }

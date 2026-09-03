@@ -32,7 +32,8 @@ public struct DailyChallenge: Sendable, Equatable {
     /// has no way to avoid it.
     static let categoryRoster: [TriviaCategory] = [
         .football, .basketball, .soccer, .flags, .history, .science, .movies,
-        .tv, .geography, .music, .animals, .food, .literature, .art
+        .tv, .geography, .music, .animals, .food, .literature, .art,
+        .mythology, .videoGames
     ]
 
     /// Difficulty ramp for the round, in order.

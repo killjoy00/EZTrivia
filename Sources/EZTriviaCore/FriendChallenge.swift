@@ -8,13 +8,14 @@ import Foundation
 /// creates a fresh random seed that the result code carries to the other player.
 public struct FriendChallenge: Sendable, Equatable {
     public static let questionCount = 10
-    public static let codeVersion = 2
-    /// Frozen for code version 2. Adding or reordering enum cases must not
-    /// silently change a challenge someone has already shared; the next
-    /// catalog change gets a new explicit roster and a version bump.
+    public static let codeVersion = 3
+    /// Frozen for code version 3. Adding or reordering enum cases must not
+    /// silently change a challenge someone has already shared, so a catalog
+    /// change comes with a new explicit roster and a version bump together.
     public static let categoryRoster: [TriviaCategory] = [
         .football, .basketball, .soccer, .flags, .history, .science, .movies,
-        .tv, .geography, .music, .animals, .food, .literature, .art
+        .tv, .geography, .music, .animals, .food, .literature, .art,
+        .mythology, .videoGames
     ]
     public static let difficultyRamp: [TriviaDifficulty] = [
         .easy, .easy, .easy, .medium, .medium, .medium, .medium, .hard, .hard, .hard
@@ -67,12 +68,12 @@ public struct FriendChallenge: Sendable, Equatable {
 
 /// The compact hand-off between the challenger and the recipient.
 ///
-/// Format: `EZ2-XXXX-XXXX-XXXX-XXXX-XXX`
+/// Format: `EZ3-XXXX-XXXX-XXXX-XXXX-XXX`
 ///
 /// The body is Crockford Base32 so it avoids the most easily confused letters
 /// and remains practical to dictate or type. It contains a 64-bit seed, the
 /// challenger's score and weighted points, plus a checksum that catches nearly
-/// all paste and transcription errors. The version in `EZ2` is deliberately
+/// all paste and transcription errors. The version in `EZ3` is deliberately
 /// visible: if question selection changes in a future release, that release can
 /// reject or preserve old codes instead of silently serving different questions.
 public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
@@ -125,10 +126,10 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
         self.targetPoints = min(max(targetPoints, 0), FriendChallenge.maximumPoints)
     }
 
-    /// Parses a code while tolerating spaces, hyphens, lowercase, and the
-    /// common O/0 and I/L/1 transcription mistakes.
-    public init?(_ rawValue: String) {
-        let compact = rawValue
+    /// Strips formatting and repairs the transcription mistakes this alphabet
+    /// is designed around, so parsing and diagnosis start from the same text.
+    private static func normalized(_ rawValue: String) -> [Character] {
+        rawValue
             .uppercased()
             .filter { $0.isLetter || $0.isNumber }
             .map { character -> Character in
@@ -138,6 +139,37 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
                 default: character
                 }
             }
+    }
+
+    /// Why this build will not accept a typed code.
+    public enum RejectionReason: Equatable, Sendable {
+        /// Wrong length, wrong alphabet, or a failed checksum.
+        case unreadable
+        /// Well-formed, but built by a release whose question roster this one
+        /// can no longer reproduce.
+        case unsupportedVersion(Int)
+    }
+
+    /// Classifies a code this build rejects, or nil when it parses.
+    ///
+    /// Without this, an older code fails the prefix check and is reported as a
+    /// typo -- telling someone to re-read a code they copied perfectly. The
+    /// visible version exists precisely so that case can be named.
+    public static func rejectionReason(for rawValue: String) -> RejectionReason? {
+        if FriendChallengeCode(rawValue) != nil { return nil }
+
+        let compact = normalized(rawValue)
+        guard compact.count == prefixLength + bodyLength,
+              compact.starts(with: "EZ"),
+              let version = compact[2].wholeNumberValue,
+              version != FriendChallenge.codeVersion else { return .unreadable }
+        return .unsupportedVersion(version)
+    }
+
+    /// Parses a code while tolerating spaces, hyphens, lowercase, and the
+    /// common O/0 and I/L/1 transcription mistakes.
+    public init?(_ rawValue: String) {
+        let compact = Self.normalized(rawValue)
 
         guard compact.count == Self.prefixLength + Self.bodyLength,
               String(compact.prefix(Self.prefixLength)) == Self.prefix else { return nil }
