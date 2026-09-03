@@ -127,7 +127,9 @@ private func isConspicuousLongestAnswer(_ question: TriviaQuestion) -> Bool {
             let answers = QuestionBank.all
                 .filter { $0.category == category && $0.difficulty == difficulty }
                 .map { normalizedTokens($0.answers[$0.correctAnswerIndex]).sorted().joined(separator: " ") }
-            #expect(Set(answers).count >= 36,
+            // Expressed as a budget of repeats rather than a fixed count, so
+            // growing a pool does not quietly loosen the rule.
+            #expect(Set(answers).count >= answers.count - 4,
                     "\(category.title) / \(difficulty.title) repeats too many keyed answers")
         }
     }

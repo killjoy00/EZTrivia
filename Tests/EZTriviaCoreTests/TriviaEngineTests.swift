@@ -136,8 +136,11 @@ import Testing
     #expect(TriviaCategory.allCases.count == 16)
     for category in TriviaCategory.allCases where category != .flags {
         for difficulty in TriviaDifficulty.allCases {
+            // Easy and medium carry the extra ten each; hard is still forty
+            // because a hard question costs far more to research well.
+            let expected = difficulty == .hard ? 40 : 50
             let count = QuestionPicker.availableCount(category: category, difficulty: difficulty)
-            #expect(count == 40, "\(category) \(difficulty) has \(count) questions")
+            #expect(count == expected, "\(category) \(difficulty) has \(count) questions")
         }
     }
 }
