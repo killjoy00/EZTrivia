@@ -131,7 +131,9 @@ import Testing
 }
 
 @Test func everyCategoryHasEnoughQuestionsAtEveryDifficulty() {
-    #expect(TriviaCategory.allCases.count == 14)
+    // Pinned so adding a category is a deliberate edit here rather than a
+    // silent widening of every loop below.
+    #expect(TriviaCategory.allCases.count == 16)
     for category in TriviaCategory.allCases where category != .flags {
         for difficulty in TriviaDifficulty.allCases {
             let count = QuestionPicker.availableCount(category: category, difficulty: difficulty)
