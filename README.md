@@ -4,8 +4,8 @@ EZ Trivia is a native SwiftUI trivia game for iPhone. Players can choose a categ
 
 ## Highlights
 
-- Fourteen categories, including Books & Literature and Art & Architecture
-- 1,801 hand-authored questions with Easy, Medium, and Hard tiers
+- Sixteen categories, including Mythology & Legends and Video Games
+- 2,041 hand-authored questions with Easy, Medium, and Hard tiers
 - Ten-question category rounds with immediate feedback and short explanations
 - A deterministic Daily Challenge shared by every player, with local streak tracking
 - One-attempt Friend Challenges using short, server-free codes that reproduce the same questions and answer order
@@ -26,18 +26,18 @@ The deployment target is iOS 17.0. Debug builds use Google's official test AdMob
 
 ## Question catalog
 
-The app ships 1,801 questions:
+The app ships 2,041 questions:
 
 | Category | Easy | Medium | Hard |
 | --- | ---: | ---: | ---: |
-| Each of the 13 text categories | 40 | 40 | 40 |
+| Each of the 15 text categories | 40 | 40 | 40 |
 | World Flags | 51 | 91 | 99 |
 
 Every question appears exactly once. Tests fail the build if a prompt is duplicated, a tier shares questions with another, answers are malformed, or a category/difficulty pool no longer contains forty text questions.
 
 The local catalog contains all 249 ISO 3166-1 flag assets. Five are not asked because their artwork is identical to another valid answer, and three more are excluded because the bundled design is contested or no longer current. The remaining 241 flags are askable. Near-identical flags at phone size are never offered against one another, and flag distractors are redrawn from the same difficulty pool each time.
 
-Answer order is shuffled at presentation time. Daily Challenges use seeded selection, while Friend Challenges use a repository-owned seeded algorithm so another device receives the same questions and option order. Version-2 Friend Challenge codes use an explicit fourteen-category roster and carry a checksum, allowing future releases to reject incompatible or mistyped codes instead of silently producing a different round. The Daily roster now spans all fourteen categories. Books & Literature and Art & Architecture can appear in a daily round as soon as a player updates; anyone still on the previous build sees the old twelve-category round in the meantime, so a same-day leaderboard briefly compares two different rounds until the previous build ages out.
+Answer order is shuffled at presentation time. Daily Challenges use seeded selection, while Friend Challenges use a repository-owned seeded algorithm so another device receives the same questions and option order. Version-3 Friend Challenge codes use an explicit sixteen-category roster and carry a checksum, allowing future releases to reject incompatible or mistyped codes instead of silently producing a different round. The Daily roster now spans all sixteen categories. Mythology & Legends and Video Games can appear in a daily round as soon as a player updates; anyone still on the previous build sees the old fourteen-category round in the meantime, so a same-day leaderboard briefly compares two different rounds until the previous build ages out.
 
 The correct answer is not identifiable simply by selecting the longest option. Tests cap the heuristic at 35% in every text pool and separately budget conspicuous per-question length gaps. Additional editorial checks limit repeated keyed answers, measure whether explanations reinforce their answers, enforce concise U.S.-English copy for newly authored categories, and fail when a scheduled rule or record verification becomes overdue.
 
@@ -84,7 +84,7 @@ There is no additional code switch to turn it on. Live display requires the matc
 
 ### Game Center
 
-The bundle identifier is `com.rsm.eztrivia`, and the target contains the Game Center entitlement. Category leaderboards rank monotonic lifetime points; the Daily leaderboard ranks the day's weighted score. `Scripts/configure_game_center.py` idempotently provisions the fifteen leaderboards during an authenticated TestFlight archive.
+The bundle identifier is `com.rsm.eztrivia`, and the target contains the Game Center entitlement. Category leaderboards rank monotonic lifetime points; the Daily leaderboard ranks the day's weighted score. `Scripts/configure_game_center.py` idempotently provisions the seventeen leaderboards during an authenticated TestFlight archive.
 
 The thirteen achievement definitions are mirrored in `EZTriviaApp/Achievements.swift` and `RELEASE_SETUP.md`. Required 1024×1024 artwork is checked into `Artwork/Achievements`. App Store Connect achievements must be created and submitted for review before Game Center will accept progress reports; local progress works regardless.
 

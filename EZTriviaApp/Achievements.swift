@@ -69,11 +69,11 @@ enum AchievementCatalog {
         AchievementDefinition(
             id: "EZTrivia.achievement.all_categories_14",
             title: "Full Spectrum",
-            preEarnedDescription: "Complete questions from all fourteen categories.",
-            earnedDescription: "You played all fourteen categories.",
+            preEarnedDescription: "Complete questions from fourteen different categories.",
+            earnedDescription: "You played fourteen different categories.",
             points: 100,
             symbol: "sparkles",
-            goal: .categories(TriviaCategory.allCases.count)
+            goal: .categories(14)
         ),
         AchievementDefinition(
             id: "EZTrivia.achievement.streak_7",

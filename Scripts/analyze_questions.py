@@ -73,12 +73,28 @@ def correct_index(row: dict[str, str]) -> int | None:
         return None
 
 
-def is_sole_longest(row: dict[str, str]) -> bool:
-    """True when the correct answer is strictly longer than every distractor.
+def longest_answer_credit(row: dict[str, str]) -> float:
+    """How often "pick the longest" wins on this question, as an expected value.
 
-    Ties do not count. If two options share the longest length, length no longer
-    picks out the answer, so it gives nothing away.
+    Deliberately identical to `theLongestAnswerIsNotUsuallyTheCorrectOneInAnyPool`
+    in the Swift suite, including the fractional credit for ties: answers are
+    shuffled before presentation, so a guesser facing two equally long options
+    picks the right one half the time. A stricter sole-longest rule would report
+    a lower number than the build actually enforces, and this tool exists to
+    predict the build.
     """
+    index = correct_index(row)
+    if index is None:
+        return 0.0
+    lengths = [len(answer) for answer in answers_of(row)]
+    longest = max(lengths)
+    if lengths[index] != longest:
+        return 0.0
+    return 1.0 / lengths.count(longest)
+
+
+def is_sole_longest(row: dict[str, str]) -> bool:
+    """True when the correct answer is strictly longer than every distractor."""
     index = correct_index(row)
     if index is None:
         return False
@@ -158,16 +174,17 @@ def analyze(rows: list[dict[str, str]], report: Report) -> None:
     print(f"{problems} structural problems")
 
     # --- Length bias -----------------------------------------------------
-    report.section(f"Longest-answer bias (pool limit {POOL_LONGEST_LIMIT:.0%})")
+    report.section(f"Longest-answer bias (pool limit {POOL_LONGEST_LIMIT:.0%}, matches the Swift gate)")
     rates = []
     for key, pool in pools.items():
-        rate = sum(is_sole_longest(row) for row in pool) / len(pool)
+        rate = sum(longest_answer_credit(row) for row in pool) / len(pool)
         rates.append((rate, key))
         if rate > POOL_LONGEST_LIMIT:
             report.warn(f"{key[0]} / {key[1]} longest-answer rate {rate:.1%} exceeds {POOL_LONGEST_LIMIT:.0%}")
     rates.sort(reverse=True)
-    overall = sum(is_sole_longest(row) for row in text_rows) / len(text_rows)
-    print(f"bank-wide {overall:.1%}   (chance alone is ~25%)")
+    overall = sum(longest_answer_credit(row) for row in text_rows) / len(text_rows)
+    sole = sum(is_sole_longest(row) for row in text_rows) / len(text_rows)
+    print(f"bank-wide {overall:.1%}   (chance alone is ~25%; sole-longest only {sole:.1%})")
     for rate, key in rates[: report.top]:
         print(f"  {rate:5.1%}  {key[0]} / {key[1]}")
 

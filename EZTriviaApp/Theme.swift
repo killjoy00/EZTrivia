@@ -21,6 +21,8 @@ enum AppTheme {
         case .food: .red
         case .literature: Color(red: 0.36, green: 0.24, blue: 0.72)
         case .art: Color(red: 0.86, green: 0.36, blue: 0.20)
+        case .mythology: Color(red: 0.55, green: 0.44, blue: 0.16)
+        case .videoGames: Color(red: 0.18, green: 0.55, blue: 0.55)
         }
     }
 }

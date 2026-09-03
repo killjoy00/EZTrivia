@@ -57,6 +57,8 @@ CATEGORIES = [
     ("food",       "Food & Drink",   "#FF453A", "#B91C1C"),
     ("literature", "Books & Literature", "#5C3DB8", "#312E81"),
     ("art",        "Art & Architecture", "#DB5C33", "#9A3412"),
+    ("mythology",  "Mythology & Legends", "#8C6D1F", "#5B4410"),
+    ("videoGames", "Video Games",    "#2E8B8B", "#155E5E"),
     # Orange-to-pink rather than a category colour: it matches the Daily
     # Challenge card's gradient in the app (RootView), so the leaderboard
     # reads as the same feature rather than a twelfth topic.
@@ -211,6 +213,25 @@ ICONS: dict[str, str] = {
     # (DailyChallengeCard / DailyResultView both use flame.fill), so the
     # leaderboard is recognisable as "the daily" at a glance rather than
     # needing its name read first.
+    "mythology": """
+      <g fill="white">
+        <path d="M118,16 L64,104 L98,104 L74,184 L140,88 L104,88 Z"/>
+      </g>
+    """,
+    "videoGames": """
+      <mask id="cut">
+        <rect width="200" height="200" fill="white"/>
+        <g fill="black">
+          <rect x="46" y="94" width="34" height="10" rx="5"/>
+          <rect x="58" y="82" width="10" height="34" rx="5"/>
+          <circle cx="132" cy="88" r="7"/>
+          <circle cx="152" cy="106" r="7"/>
+        </g>
+      </mask>
+      <g fill="white" mask="url(#cut)">
+        <path d="M62,58 h76 a44,44 0 0 1 42,56 l-12,44 a22,22 0 0 1 -40,6 l-10,-18 h-36 l-10,18 a22,22 0 0 1 -40,-6 l-12,-44 a44,44 0 0 1 42,-56 Z"/>
+      </g>
+    """,
     "daily": """
       <path d="M100,16
                C74,52 58,78 58,112
