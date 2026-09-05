@@ -8,6 +8,8 @@ final class ScoreStore: ObservableObject {
 
     private let key = "leaderboard.v1"
     private let seenDefaultsKey = "seenQuestions.v1"
+    private let completedQuestionDefaultsKey = "questionCompletion.v1"
+    private let correctQuestionDefaultsKey = "questionCorrect.v1"
     private let dailyDefaultsKey = "dailyResults.v1"
     private let lifetimeDefaultsKey = "lifetimePoints.v1"
     private let lifetimeBaseDefaultsKey = "lifetimePoints.base.v2"
@@ -64,6 +66,16 @@ final class ScoreStore: ObservableObject {
     /// being handed the same ten questions every time they open a category.
     @Published private(set) var seenQuestionIDs: [String: Set<String>] = [:]
 
+    /// Permanent question-progress facts. Unlike `seenQuestionIDs`, these are
+    /// recorded only after the player actually submits an answer, never reset
+    /// when a question pool cycles, and survive clearing recent score history.
+    /// The correct-answer set is intentionally not surfaced as a review queue;
+    /// it is a compact future-facing fact that can support completion features
+    /// without changing today's gameplay.
+    @Published private(set) var completedQuestionIDs: Set<String> = []
+    @Published private(set) var correctlyAnsweredQuestionIDs: Set<String> = []
+    private static let currentQuestionIDs = Set(QuestionBank.all.map(\.id))
+
     /// Monotonic local facts used by achievements. They are stored separately
     /// from the 50-entry recent-round list so a player can still earn the 100
     /// round achievement after older rows roll out of that display history.
@@ -99,6 +111,14 @@ final class ScoreStore: ObservableObject {
         if let data = defaults.data(forKey: seenDefaultsKey),
            let decoded = try? JSONDecoder().decode([String: Set<String>].self, from: data) {
             seenQuestionIDs = decoded
+        }
+        if let data = defaults.data(forKey: completedQuestionDefaultsKey),
+           let decoded = try? JSONDecoder().decode(Set<String>.self, from: data) {
+            completedQuestionIDs = decoded
+        }
+        if let data = defaults.data(forKey: correctQuestionDefaultsKey),
+           let decoded = try? JSONDecoder().decode(Set<String>.self, from: data) {
+            correctlyAnsweredQuestionIDs = decoded
         }
         if let data = defaults.data(forKey: dailyDefaultsKey),
            let decoded = try? JSONDecoder().decode([Int: DailyResult].self, from: data) {
@@ -138,6 +158,7 @@ final class ScoreStore: ObservableObject {
 
         migrateAchievementFactsIfNeeded()
         persistLifetimeComponents()
+        persistQuestionProgress()
         startCloudSync()
     }
 
@@ -250,6 +271,47 @@ final class ScoreStore: ObservableObject {
         noteLocalMutation()
     }
 
+    // MARK: - Question completion
+
+    /// Number of currently shipped questions the player has actually answered
+    /// at least once. Removed question IDs may remain in synced history, but do
+    /// not inflate coverage for the current bank.
+    var completedQuestionCount: Int {
+        completedQuestionIDs.intersection(Self.currentQuestionIDs).count
+    }
+
+    var totalQuestionCount: Int { Self.currentQuestionIDs.count }
+
+    var questionCompletionFraction: Double {
+        guard totalQuestionCount > 0 else { return 0 }
+        return Double(completedQuestionCount) / Double(totalQuestionCount)
+    }
+
+    func hasCompletedQuestion(_ id: String) -> Bool {
+        completedQuestionIDs.contains(id)
+    }
+
+    func hasAnsweredQuestionCorrectly(_ id: String) -> Bool {
+        correctlyAnsweredQuestionIDs.contains(id)
+    }
+
+    /// Records only monotonic facts: answered at least once, and ever answered
+    /// correctly. Repeated attempts do not make the iCloud payload grow.
+    func recordQuestionAnswer(_ question: TriviaQuestion, correct: Bool) {
+        var changed = completedQuestionIDs.insert(question.id).inserted
+        if correct {
+            changed = correctlyAnsweredQuestionIDs.insert(question.id).inserted || changed
+        }
+        guard changed else { return }
+        persistQuestionProgress()
+        noteLocalMutation()
+    }
+
+    private func persistQuestionProgress() {
+        defaults.set(try? JSONEncoder().encode(completedQuestionIDs), forKey: completedQuestionDefaultsKey)
+        defaults.set(try? JSONEncoder().encode(correctlyAnsweredQuestionIDs), forKey: correctQuestionDefaultsKey)
+    }
+
     /// Records a finished category round, newest first.
     func record(category: TriviaCategory, difficulty: TriviaDifficulty, score: Int, total: Int) {
         entries.append(LeaderboardEntry(category: category, difficulty: difficulty, score: score, total: total))
@@ -270,10 +332,11 @@ final class ScoreStore: ObservableObject {
     }
 
     /// Clears recent category rounds and starts a fresh seen-question cycle.
-    /// Daily results, Friend Challenges, Quick Play history, achievements, and
-    /// lifetime points are deliberately kept. Reset timestamps make the clear
-    /// operation propagate through iCloud rather than having an older device
-    /// resurrect the rows on the next merge.
+    /// Daily results, Friend Challenges, Quick Play history, achievements,
+    /// permanent question completion, and lifetime points are deliberately
+    /// kept. Reset timestamps make the clear operation propagate through
+    /// iCloud rather than having an older device resurrect the rows on the
+    /// next merge.
     func clear() {
         let now = Date()
         entries = []
@@ -394,13 +457,16 @@ final class ScoreStore: ObservableObject {
     /// iCloud key-value storage is intentionally used instead of a bespoke
     /// backend: this is private player state, not a social database. The merge
     /// rules are conservative: one-attempt records keep the earliest result,
-    /// monotonic achievement facts never move backward, and category lifetime
-    /// points merge per installation so play on two devices adds together.
+    /// monotonic achievement and question-progress facts never move backward,
+    /// and category lifetime points merge per installation so play on two
+    /// devices adds together.
     private struct CloudSnapshot: Codable, Equatable {
         let schemaVersion: Int
         let modifiedAt: Date
         let entries: [LeaderboardEntry]
         let seenQuestionIDs: [String: Set<String>]
+        let completedQuestionIDs: Set<String>?
+        let correctlyAnsweredQuestionIDs: Set<String>?
         let dailyResults: [Int: DailyResult]
         let lifetimeBaseByCategory: [String: Int]
         let lifetimeIncrementsByDevice: [String: [String: Int]]
@@ -478,6 +544,9 @@ final class ScoreStore: ObservableObject {
         }
         seenQuestionsResetAt = mergedSeenReset
 
+        completedQuestionIDs.formUnion(remote.completedQuestionIDs ?? [])
+        correctlyAnsweredQuestionIDs.formUnion(remote.correctlyAnsweredQuestionIDs ?? [])
+
         for (day, remoteResult) in remote.dailyResults {
             if let localResult = dailyResults[day] {
                 dailyResults[day] = localResult.date <= remoteResult.date ? localResult : remoteResult
@@ -538,6 +607,8 @@ final class ScoreStore: ObservableObject {
             modifiedAt: modifiedAt,
             entries: entries,
             seenQuestionIDs: seenQuestionIDs,
+            completedQuestionIDs: completedQuestionIDs,
+            correctlyAnsweredQuestionIDs: correctlyAnsweredQuestionIDs,
             dailyResults: dailyResults,
             lifetimeBaseByCategory: lifetimeBaseByCategory,
             lifetimeIncrementsByDevice: lifetimeIncrementsByDevice,
@@ -555,6 +626,7 @@ final class ScoreStore: ObservableObject {
     private func persistAllLocalState() {
         persist()
         defaults.set(try? JSONEncoder().encode(seenQuestionIDs), forKey: seenDefaultsKey)
+        persistQuestionProgress()
         persistDaily()
         persistLifetimeComponents()
         defaults.set(try? JSONEncoder().encode(friendResultsByAttemptID), forKey: friendDefaultsKey)

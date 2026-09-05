@@ -96,8 +96,8 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 header
-                QuickPlayCard()
                 DailyChallengeCard()
+                QuickPlayCard()
                 FriendChallengeCard()
                 Text("Or choose a category to play")
                     .font(.title2.bold())
