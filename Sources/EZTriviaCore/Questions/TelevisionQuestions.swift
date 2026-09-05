@@ -65,7 +65,7 @@ enum TelevisionQuestions {
                      ["Queen Victoria", "Queen Elizabeth II", "Queen Anne", "Queen Mary I"], 1,
                      "The series begins around Elizabeth II's marriage and accession to the throne."),
         QuestionSeed("What kind of animal is Bluey?",
-                     ["A rabbit", "A cat", "A blue heeler dog", "A koala"], 2,
+                     ["A rabbit", "A cat", "A dog", "A koala"], 2,
                      "Bluey is an Australian blue heeler puppy, also called an Australian cattle dog."),
         QuestionSeed("In Wednesday, what is the name of the school Wednesday attends?",
                      ["Nevermore Academy", "Hogwarts", "Bayside High", "Riverdale High"], 0,
