@@ -96,6 +96,107 @@ struct GameView: View {
     }
 }
 
+/// A no-setup mixed round: ten different categories with the same 3/4/3
+/// Easy-to-Hard ramp used by the Daily and Friend Challenge.
+struct QuickPlayView: View {
+    @EnvironmentObject private var scores: ScoreStore
+    @EnvironmentObject private var feedback: Feedback
+    @EnvironmentObject private var router: PlayRouter
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var engine = TriviaEngine(questions: [])
+    @State private var showExitConfirmation = false
+    @State private var started = false
+    @State private var loadFailed = false
+
+    var body: some View {
+        Group {
+            if engine.isRoundComplete && !engine.questions.isEmpty {
+                QuickPlayResultView(
+                    score: engine.score,
+                    total: engine.questions.count,
+                    points: engine.points,
+                    outcomes: engine.outcomes,
+                    categories: Set(engine.questions.map(\.category)),
+                    playAgain: nextRound,
+                    finish: { router.popToRoot() }
+                )
+            } else if engine.currentQuestion != nil {
+                RoundPlayer(
+                    engine: $engine,
+                    tint: .indigo,
+                    finishTitle: "See results",
+                    onAnswer: { correct in
+                        if correct { feedback.correct() } else { feedback.wrong() }
+                    },
+                    onAdvance: { if engine.isRoundComplete { feedback.roundComplete() } }
+                )
+            } else if loadFailed {
+                ContentUnavailableView {
+                    Label("Quick Play unavailable", systemImage: "shuffle")
+                } description: {
+                    Text("A mixed round could not be prepared. Try again.")
+                } actions: {
+                    Button("Try Again") { nextRound() }
+                        .buttonStyle(.borderedProminent)
+                }
+            } else {
+                ProgressView("Mixing questions…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .background(AppTheme.background.ignoresSafeArea())
+        .toolbar(.hidden, for: .tabBar)
+        .navigationBarBackButtonHidden()
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { showExitConfirmation = true } label: { Image(systemName: "xmark") }
+                    .accessibilityLabel("Exit Quick Play")
+            }
+            ToolbarItem(placement: .principal) {
+                Text("Quick Play").font(.headline)
+            }
+        }
+        .confirmationDialog("Leave Quick Play?", isPresented: $showExitConfirmation, titleVisibility: .visible) {
+            Button("Leave Round", role: .destructive) { dismiss() }
+            Button("Keep Playing", role: .cancel) {}
+        } message: {
+            Text("Your current score won't be saved.")
+        }
+        .onAppear {
+            guard !started else { return }
+            started = true
+            feedback.prepare()
+            nextRound()
+        }
+    }
+
+    private func nextRound() {
+        let next = QuestionPicker.quickPlayRound(excluding: scores.allSeenQuestionIDs)
+        guard !next.isEmpty else {
+            loadFailed = true
+            return
+        }
+        loadFailed = false
+        markSeen(next)
+        engine = TriviaEngine(questions: next)
+    }
+
+    private func markSeen(_ questions: [TriviaQuestion]) {
+        let groups = Dictionary(grouping: questions) { question in
+            "\(question.category.rawValue)-\(question.difficulty.rawValue)"
+        }
+        for group in groups.values {
+            guard let first = group.first else { continue }
+            scores.markSeen(
+                Set(group.map(\.id)),
+                category: first.category,
+                difficulty: first.difficulty
+            )
+        }
+    }
+}
+
 private struct ResultView: View {
     @EnvironmentObject private var scores: ScoreStore
     @EnvironmentObject private var gameCenter: GameCenterManager
@@ -182,5 +283,102 @@ private struct ResultView: View {
         case 0.6..<0.9: "A strong round. Can you beat it next time?"
         default: "Every question is a chance to learn something new."
         }
+    }
+}
+
+private struct QuickPlayResultView: View {
+    @EnvironmentObject private var scores: ScoreStore
+    @EnvironmentObject private var gameCenter: GameCenterManager
+    @EnvironmentObject private var reviewPrompt: ReviewPrompt
+
+    let score: Int
+    let total: Int
+    let points: Int
+    let outcomes: [Bool]
+    let categories: Set<TriviaCategory>
+    let playAgain: () -> Void
+    let finish: () -> Void
+    @State private var saved = false
+
+    var body: some View {
+        VStack(spacing: 22) {
+            Spacer()
+            Image(systemName: ratio >= 0.8 ? "shuffle.circle.fill" : "sparkles")
+                .font(.system(size: 54))
+                .foregroundStyle(.indigo)
+                .frame(width: 108, height: 108)
+                .background(.indigo.opacity(0.14), in: Circle())
+            Text(ratio >= 0.8 ? "Mix mastered!" : ratio >= 0.5 ? "Nice mix!" : "Good run!")
+                .font(.largeTitle.bold())
+                .multilineTextAlignment(.center)
+            Text("\(score) / \(total)")
+                .font(.system(size: 52, weight: .bold, design: .rounded))
+                .foregroundStyle(.indigo)
+            Text(RoundSummary.grid(outcomes))
+                .font(.title3)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+            Text("\(points.formatted()) weighted points across \(categories.count) categories")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Spacer()
+            ShareResultButton(message: shareText, headline: shareHeadline, card: shareCard)
+                .font(.headline)
+                .padding(.bottom, 4)
+            Button("Play another mix") { playAgain() }
+                .font(.headline)
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(AppTheme.gradient, in: RoundedRectangle(cornerRadius: 16))
+            Button("Back to categories") { finish() }
+                .font(.headline)
+                .padding(.bottom)
+        }
+        .padding()
+        .requestReviewIfEarned(
+            reviewPrompt,
+            score: score,
+            total: total,
+            roundsCompleted: scores.totalRoundsCompleted
+        )
+        .onAppear {
+            guard !saved else { return }
+            scores.recordQuickPlay(
+                QuickPlayResult(
+                    score: score,
+                    total: total,
+                    points: points,
+                    outcomes: outcomes
+                ),
+                categories: categories
+            )
+            Task {
+                await gameCenter.syncAchievements(
+                    localProgress: AchievementCatalog.progress(using: scores)
+                )
+            }
+            Telemetry.log("quick_play_complete", parameters: [
+                "score": score,
+                "points": points,
+                "categories": categories.count
+            ])
+            saved = true
+        }
+    }
+
+    private var ratio: Double { total == 0 ? 0 : Double(score) / Double(total) }
+    private var shareText: String { RoundSummary.quickPlay(outcomes: outcomes, points: points) }
+    private var shareHeadline: String { "I scored \(score)/\(total) on EZ Trivia Quick Play" }
+    private var shareCard: ScoreCard {
+        ScoreCard(
+            title: "Quick Play",
+            subtitle: "Mixed categories",
+            headline: "\(score)/\(total)",
+            grid: RoundSummary.grid(outcomes),
+            footnote: "\(points.formatted()) points",
+            tint: .indigo
+        )
     }
 }
