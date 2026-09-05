@@ -151,9 +151,9 @@ enum ScienceQuestions {
         QuestionSeed("What is the study of living things called?",
                      ["Biology", "Geology", "Ecology", "Astronomy"], 0,
                      "Biology is the study of living things, from single cells to whole ecosystems."),
-        QuestionSeed("What is frozen water called?",
-                     ["Ice", "Steam", "Vapor", "Condensate"], 0,
-                     "Ice is water frozen into a solid, forming below zero degrees Celsius."),
+        QuestionSeed("What happens to liquid water's volume when it freezes into ice?",
+                     ["It expands", "It contracts", "It stays exactly the same", "It splits into gases"], 0,
+                     "Water expands as it freezes because its molecules form an open crystal structure, which is why ice floats."),
     ]
 
     static let medium: [QuestionSeed] = [

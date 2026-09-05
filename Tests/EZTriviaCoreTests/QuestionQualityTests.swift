@@ -138,12 +138,22 @@ private func isConspicuousLongestAnswer(_ question: TriviaQuestion) -> Bool {
 /// CI becomes the calendar reminder for rules, rankings, and records. When a
 /// deadline arrives, a maintainer must verify the official source and move the
 /// dates forward—or update the question—before another build can ship.
+@Test func populationRankingQuestionsHaveReviewMetadata() {
+    let volatilePhrases = ["largest population", "most populous"]
+    for question in QuestionBank.all where question.category != .flags {
+        let copy = (question.prompt + " " + question.explanation).lowercased()
+        guard volatilePhrases.contains(where: copy.contains) else { continue }
+        #expect(QuestionReviewRegistry.byQuestionID[question.id] != nil,
+                "\(question.id) is a population-ranking fact without scheduled review metadata")
+    }
+}
+
 @Test func timeSensitiveQuestionReviewsAreCurrent() throws {
     let expectedIDs: Set<String> = [
-        "basketball-medium-7", "basketball-medium-8", "basketball-medium-14", "basketball-hard-19", "basketball-hard-25",
+        "basketball-easy-45", "basketball-medium-7", "basketball-medium-8", "basketball-medium-14", "basketball-hard-19", "basketball-hard-25",
         "football-medium-5", "football-medium-18", "football-hard-11", "football-hard-20", "football-hard-26",
-        "soccer-easy-12", "soccer-easy-20", "soccer-medium-13", "soccer-medium-21", "soccer-hard-15", "soccer-hard-20",
-        "soccer-hard-26", "soccer-hard-28", "geography-easy-9", "geography-hard-3",
+        "soccer-easy-12", "soccer-easy-49", "soccer-easy-20", "soccer-medium-13", "soccer-medium-21", "soccer-hard-15", "soccer-hard-20",
+        "soccer-hard-26", "soccer-hard-28", "geography-easy-9", "geography-medium-42", "geography-hard-3",
         "movies-medium-8", "movies-medium-22"
     ]
     #expect(Set(QuestionReviewRegistry.byQuestionID.keys) == expectedIDs)
