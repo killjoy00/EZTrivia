@@ -31,6 +31,7 @@ public enum QuestionReviewRegistry {
     private static let ifabGoalKick = "https://www.theifab.com/laws/latest/the-goal-kick/"
 
     public static let byQuestionID: [String: QuestionReviewMetadata] = [
+        "basketball-easy-45": .init(sourceURL: nbaRules, verifiedOn: "2026-09-04", reviewAfter: "2027-07-01"),
         "basketball-medium-8": .init(sourceURL: nbaRules, verifiedOn: "2026-08-31", reviewAfter: "2027-07-01"),
         "basketball-medium-7": .init(sourceURL: nbaGoaltending, verifiedOn: "2026-08-31", reviewAfter: "2027-07-01"),
         "basketball-medium-14": .init(sourceURL: nbaPlayers, verifiedOn: "2026-08-31", reviewAfter: "2027-07-01"),
@@ -42,6 +43,7 @@ public enum QuestionReviewRegistry {
         "football-hard-26": .init(sourceURL: nflRules, verifiedOn: "2026-08-31", reviewAfter: "2027-06-01"),
         "football-hard-20": .init(sourceURL: nflRules, verifiedOn: "2026-08-31", reviewAfter: "2027-06-01"),
         "soccer-easy-12": .init(sourceURL: ifabFouls, verifiedOn: "2026-08-31", reviewAfter: "2027-07-01"),
+        "soccer-easy-49": .init(sourceURL: ifabFouls, verifiedOn: "2026-09-04", reviewAfter: "2027-07-01"),
         "soccer-easy-20": .init(sourceURL: ifabPlayers, verifiedOn: "2026-08-31", reviewAfter: "2027-07-01"),
         "soccer-medium-21": .init(sourceURL: ifabDuration, verifiedOn: "2026-08-31", reviewAfter: "2027-07-01"),
         "soccer-medium-13": .init(sourceURL: ifabGoalKick, verifiedOn: "2026-08-31", reviewAfter: "2027-07-01"),
@@ -50,6 +52,7 @@ public enum QuestionReviewRegistry {
         "soccer-hard-26": .init(sourceURL: "https://www.uefa.com/uefachampionsleague/news/0275-1541637ad1db-88aeeefefefd-1000--all-time-honours-board-which-teams-have-won-the-european/", verifiedOn: "2026-08-31", reviewAfter: "2027-06-01"),
         "soccer-hard-28": .init(sourceURL: ifabPlayers, verifiedOn: "2026-08-31", reviewAfter: "2027-07-01"),
         "geography-easy-9": .init(sourceURL: "https://population.un.org/wpp/", verifiedOn: "2026-08-31", reviewAfter: "2027-07-15"),
+        "geography-medium-42": .init(sourceURL: "https://population.un.org/wpp/", verifiedOn: "2026-09-04", reviewAfter: "2027-07-15"),
         "geography-hard-3": .init(sourceURL: "https://www.timeanddate.com/time/zone/france", verifiedOn: "2026-08-31", reviewAfter: "2027-08-31"),
         "movies-medium-8": .init(sourceURL: "https://www.007.com/sir-roger-moore-1927-2017/", verifiedOn: "2026-08-31", reviewAfter: "2028-01-01"),
         "movies-medium-22": .init(sourceURL: "https://awardsdatabase.oscars.org/", verifiedOn: "2026-08-31", reviewAfter: "2027-02-15")

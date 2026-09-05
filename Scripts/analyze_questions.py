@@ -310,6 +310,20 @@ def analyze(rows: list[dict[str, str]], report: Report) -> None:
     if restated:
         report.warn(f"{len(restated)} questions restate another question's answer")
 
+    # --- Time-sensitive population rankings -------------------------------
+    report.section("Population-ranking review coverage")
+    volatile_phrases = ("largest population", "most populous")
+    uncovered = []
+    for row in text_rows:
+        copy = f"{row['prompt']} {row['explanation']}".lower()
+        if any(phrase in copy for phrase in volatile_phrases) and not row["review_after"]:
+            uncovered.append(row)
+    print(f"{len(uncovered)} population-ranking questions without scheduled review metadata")
+    for row in uncovered[: report.top]:
+        print(f"  {row['id']}: {row['prompt']}")
+    if uncovered:
+        report.warn(f"{len(uncovered)} population-ranking questions need scheduled review metadata")
+
     # --- Copy length ------------------------------------------------------
     report.section("Copy length (house style: prompt <=20 words, explanation 8-24)")
     long_prompts = [row for row in text_rows if len(row["prompt"].split()) > 20]
