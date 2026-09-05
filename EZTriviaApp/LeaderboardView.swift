@@ -11,6 +11,10 @@ struct LeaderboardView: View {
         Array(scores.entries.prefix(showAllRounds ? scores.entries.count : 10))
     }
 
+    private var visibleQuickPlayResults: [QuickPlayResult] {
+        Array(scores.quickPlayResults.prefix(10))
+    }
+
     var body: some View {
         List {
             // First, ahead of the local history. Leaderboards and achievements
@@ -18,16 +22,18 @@ struct LeaderboardView: View {
             // points are the record of how you got there.
             gameCenterSection
 
-            if scores.entries.isEmpty {
+            if scores.entries.isEmpty && scores.quickPlayResults.isEmpty {
                 Section {
                     ContentUnavailableView(
                         "No rounds yet",
                         systemImage: "trophy",
-                        description: Text("Finish a category round and it will appear here.")
+                        description: Text("Finish a category round or Quick Play and it will appear here.")
                     )
                 }
-            } else {
-                Section("Recent rounds") {
+            }
+
+            if !scores.entries.isEmpty {
+                Section("Recent category rounds") {
                     ForEach(visibleEntries) { entry in
                         recentRound(entry)
                     }
@@ -41,6 +47,14 @@ struct LeaderboardView: View {
                             )
                             .frame(maxWidth: .infinity, alignment: .center)
                         }
+                    }
+                }
+            }
+
+            if !visibleQuickPlayResults.isEmpty {
+                Section("Recent Quick Play") {
+                    ForEach(visibleQuickPlayResults) { result in
+                        quickPlayRound(result)
                     }
                 }
             }
@@ -60,7 +74,7 @@ struct LeaderboardView: View {
             Button("Clear Recent Rounds", role: .destructive) { scores.clear() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Lifetime points, Daily Challenge history, Friend Challenges, and achievements will be kept.")
+            Text("Lifetime points, Daily Challenge history, Friend Challenges, Quick Play history, and achievements will be kept.")
         }
     }
 
@@ -82,6 +96,28 @@ struct LeaderboardView: View {
             }
             Spacer()
             Text("\(entry.score)/\(entry.total)")
+                .font(.title3.bold().monospacedDigit())
+        }
+        .padding(.vertical, 5)
+    }
+
+    private func quickPlayRound(_ result: QuickPlayResult) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: "shuffle")
+                .foregroundStyle(.indigo)
+                .frame(width: 30)
+            VStack(alignment: .leading) {
+                Text("Quick Play").font(.headline)
+                HStack(spacing: 4) {
+                    Text(result.date, style: .date)
+                    Text("·")
+                    Text("\(result.points.formatted()) pts")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text("\(result.score)/\(result.total)")
                 .font(.title3.bold().monospacedDigit())
         }
         .padding(.vertical, 5)
@@ -148,10 +184,10 @@ struct LeaderboardView: View {
     private var completedAchievementCount: Int {
         let local = AchievementCatalog.progress(using: scores)
         return AchievementCatalog.all.count { achievement in
-            max(
-                local[achievement.id] ?? 0,
-                gameCenter.achievementProgressByID[achievement.id] ?? 0
-            ) >= 100
+            let remote = achievement.isGameCenterAchievement
+                ? gameCenter.achievementProgressByID[achievement.id] ?? 0
+                : 0
+            return max(local[achievement.id] ?? 0, remote) >= 100
         }
     }
 }

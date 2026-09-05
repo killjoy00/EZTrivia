@@ -71,6 +71,14 @@ public struct TriviaEngine: Sendable {
 }
 
 public enum QuestionPicker {
+    /// Quick Play uses the same approachable shape as the Daily and Friend
+    /// Challenge: three Easy, four Medium, then three Hard questions. Unlike
+    /// those deterministic modes, the categories and questions are freshly
+    /// randomized on every play.
+    public static let quickPlayDifficultyRamp: [TriviaDifficulty] = [
+        .easy, .easy, .easy, .medium, .medium, .medium, .medium, .hard, .hard, .hard
+    ]
+
     /// Builds one round.
     ///
     /// Unseen questions are always preferred. When the unseen pool is too small
@@ -100,6 +108,46 @@ public enum QuestionPicker {
 
         var generator = SystemRandomNumberGenerator()
         return pool.prefix(count).map { QuestionBank.presenting($0, using: &generator) }
+    }
+
+    /// Builds a mixed-category Quick Play round.
+    ///
+    /// Categories are sampled without replacement so one ten-question round
+    /// always spans ten different subjects. Within each slot, unseen questions
+    /// are preferred before falling back to the full matching pool.
+    public static func quickPlayRound(
+        count: Int = 10,
+        excluding excludedIDs: Set<String> = [],
+        using bank: [TriviaQuestion] = QuestionBank.all
+    ) -> [TriviaQuestion] {
+        let requestedCount = min(max(count, 0), TriviaCategory.allCases.count)
+        guard requestedCount > 0 else { return [] }
+
+        var categories = TriviaCategory.allCases.shuffled()
+        categories = Array(categories.prefix(requestedCount))
+
+        var chosenQuestions: [TriviaQuestion] = []
+        chosenQuestions.reserveCapacity(requestedCount)
+        var chosenIDs: Set<String> = []
+        var generator = SystemRandomNumberGenerator()
+
+        for slot in 0..<requestedCount {
+            let category = categories[slot]
+            let difficulty = quickPlayDifficultyRamp[slot % quickPlayDifficultyRamp.count]
+            let matching = bank.filter {
+                $0.category == category &&
+                $0.difficulty == difficulty &&
+                !chosenIDs.contains($0.id)
+            }
+            let unseen = matching.filter { !excludedIDs.contains($0.id) }
+            let pool = unseen.isEmpty ? matching : unseen
+            guard let picked = pool.randomElement() else { continue }
+
+            chosenIDs.insert(picked.id)
+            chosenQuestions.append(QuestionBank.presenting(picked, using: &generator))
+        }
+
+        return chosenQuestions
     }
 
     /// The number of distinct questions available for a category and difficulty.

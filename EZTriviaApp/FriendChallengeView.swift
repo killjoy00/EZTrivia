@@ -6,6 +6,31 @@ enum FriendChallengeRoute: Hashable {
     case play(seed: UInt64, invitation: FriendChallengeCode?)
 }
 
+/// The public HTTPS handoff used in shared messages. A normal web URL is much
+/// more reliably tappable in Messages, Mail, Slack, etc. than a custom scheme.
+/// The landing page then offers the `eztrivia://` deep link and the App Store as
+/// separate choices. The short challenge code remains the permanent fallback.
+private enum FriendChallengeWebLink {
+    static let baseURL = URL(string: "https://killjoy00.github.io/EZTrivia/challenge.html")!
+
+    static func url(for code: FriendChallengeCode) -> URL {
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "code", value: code.displayString)]
+        return components.url!
+    }
+
+    static func code(from url: URL) -> FriendChallengeCode? {
+        guard url.scheme?.lowercased() == "https",
+              url.host?.lowercased() == "killjoy00.github.io",
+              url.path.lowercased() == "/eztrivia/challenge.html",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let rawCode = components.queryItems?.first(where: { $0.name == "code" })?.value else {
+            return nil
+        }
+        return FriendChallengeCode(rawCode)
+    }
+}
+
 struct FriendChallengeCard: View {
     var body: some View {
         NavigationLink(value: FriendChallengeRoute.lobby) {
@@ -25,9 +50,7 @@ struct FriendChallengeCard: View {
                 .foregroundStyle(.white)
 
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.body.bold())
-                    .foregroundStyle(.white.opacity(0.8))
+                Image(systemName: "chevron.right").font(.body.bold()).foregroundStyle(.white.opacity(0.8))
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -51,7 +74,14 @@ struct FriendChallengeLobbyView: View {
     @State private var codeText = ""
     @State private var triedInvalidCode = false
 
-    private var parsedCode: FriendChallengeCode? { FriendChallengeCode(codeText) }
+    private var parsedCode: FriendChallengeCode? {
+        let trimmed = codeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: trimmed) {
+            if let linkedCode = FriendChallengeLink.code(from: url) { return linkedCode }
+            if let linkedCode = FriendChallengeWebLink.code(from: url) { return linkedCode }
+        }
+        return FriendChallengeCode(trimmed)
+    }
 
     /// Names the actual problem. A code from an older release is copied
     /// correctly, so telling its holder to check for a typo sends them looking
@@ -61,7 +91,7 @@ struct FriendChallengeLobbyView: View {
         case .unsupportedVersion:
             "That code came from an older version of EZ Trivia. Ask your friend for a new one."
         default:
-            "That code is incomplete or has a typo."
+            "That challenge link or code is incomplete or has a typo."
         }
     }
 
@@ -81,7 +111,7 @@ struct FriendChallengeLobbyView: View {
                             .font(.title2.bold())
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Create a challenge").font(.headline)
-                            Text("Your share code appears after the round.")
+                            Text("A tap-to-open link and fallback code appear after the round.")
                                 .font(.caption)
                                 .opacity(0.85)
                         }
@@ -95,7 +125,7 @@ struct FriendChallengeLobbyView: View {
                 .buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Have a challenge code?").font(.headline)
+                    Text("Have a challenge link or code?").font(.headline)
                     TextField("EZ3-XXXX-XXXX-XXXX-XXXX-XXX", text: $codeText)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
@@ -256,6 +286,7 @@ private struct FriendChallengeResultView: View {
 
     private var beatTarget: Bool { result.points > result.code.targetPoints }
     private var tiedTarget: Bool { result.points == result.code.targetPoints }
+    private var challengeURL: URL { FriendChallengeWebLink.url(for: result.code) }
 
     var body: some View {
         ScrollView {
@@ -287,9 +318,15 @@ private struct FriendChallengeResultView: View {
                 }
 
                 VStack(spacing: 10) {
-                    Text(result.createdChallenge ? "Share this code" : "Challenge code")
+                    Text(result.createdChallenge ? "Share this challenge" : "Challenge code")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if result.createdChallenge {
+                        Text("The shared web link opens this exact challenge in EZ Trivia. The code below is a fallback.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
                     Text(result.code.displayString)
                         .font(.callout.bold().monospaced())
                         .lineLimit(1)
@@ -356,17 +393,16 @@ private struct FriendChallengeResultView: View {
             return [
                 "I challenge you to EZ Trivia!",
                 "Beat \(result.score)/\(result.total) — \(result.points.formatted()) points — on the exact same questions.",
-                "Challenge code: \(result.code.displayString)",
-                "Open EZ Trivia, choose Friend Challenge, and enter the code.",
-                RoundSummary.appStoreURL
+                "Tap to play: \(challengeURL.absoluteString)",
+                "Challenge code: \(result.code.displayString)"
             ].joined(separator: "\n")
         }
         return [
             "EZ Trivia Friend Challenge — \(result.score)/\(result.total)",
             RoundSummary.grid(result.outcomes),
             "\(result.points.formatted()) points · target \(result.code.targetPoints.formatted())",
-            "Challenge code: \(result.code.displayString)",
-            RoundSummary.appStoreURL
+            "Play this challenge: \(challengeURL.absoluteString)",
+            "Challenge code: \(result.code.displayString)"
         ].joined(separator: "\n")
     }
 

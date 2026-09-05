@@ -102,6 +102,17 @@ struct SettingsView: View {
                 Toggle("Haptics", isOn: $feedback.hapticsEnabled)
             }
 
+            Section {
+                Label("Player progress syncs automatically", systemImage: "icloud.fill")
+                Text("Scores, Daily and Friend Challenge history, Quick Play, lifetime points, seen questions, and achievement progress are included.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("iCloud")
+            } footer: {
+                Text("When iCloud is available, EZ Trivia keeps this private gameplay state in sync across devices signed in to the same iCloud account. The game still works locally when iCloud is unavailable.")
+            }
+
             if adConsent.privacyOptionsRequired {
                 Section("Advertising") {
                     Button("Ad privacy choices") {

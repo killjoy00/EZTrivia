@@ -13,27 +13,44 @@ struct GameRoute: Hashable {
     let difficulty: TriviaDifficulty
 }
 
+/// Quick Play is its own route because it is a mixed-category round rather
+/// than a category/difficulty pair.
+struct QuickPlayRoute: Hashable {}
+
+private enum AppTab: Hashable {
+    case play, scores, settings
+}
+
 @MainActor
 final class PlayRouter: ObservableObject {
     @Published var path = NavigationPath()
 
     func popToRoot() { path = NavigationPath() }
+
+    func openFriendChallenge(_ code: FriendChallengeCode) {
+        path = NavigationPath()
+        path.append(FriendChallengeRoute.play(seed: code.seed, invitation: code))
+    }
 }
 
 struct RootView: View {
     @EnvironmentObject private var gameCenter: GameCenterManager
     @EnvironmentObject private var scores: ScoreStore
     @StateObject private var playRouter = PlayRouter()
+    @State private var selectedTab = AppTab.play
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationStack(path: $playRouter.path) { HomeView() }
                 .environmentObject(playRouter)
                 .tabItem { Label("Play", systemImage: "play.fill") }
+                .tag(AppTab.play)
             NavigationStack { LeaderboardView() }
                 .tabItem { Label("Scores", systemImage: "trophy.fill") }
+                .tag(AppTab.scores)
             NavigationStack { SettingsView() }
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+                .tag(AppTab.settings)
         }
         .sheet(isPresented: Binding(
             get: { gameCenter.authenticationViewController != nil },
@@ -50,6 +67,11 @@ struct RootView: View {
             set: { if !$0 { gameCenter.errorMessage = nil } }
         )) { Button("OK") { gameCenter.errorMessage = nil } } message: {
             Text(gameCenter.errorMessage ?? "An unknown error occurred.")
+        }
+        .onOpenURL { url in
+            guard let code = FriendChallengeLink.code(from: url) else { return }
+            selectedTab = .play
+            playRouter.openFriendChallenge(code)
         }
         .task(id: gameCenter.isAuthenticated) {
             guard gameCenter.isAuthenticated else { return }
@@ -74,6 +96,7 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 header
+                QuickPlayCard()
                 DailyChallengeCard()
                 FriendChallengeCard()
                 Text("Or choose a category to play")
@@ -99,6 +122,7 @@ struct HomeView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) { AdBannerView() }
         .navigationDestination(for: TriviaCategory.self) { DifficultyView(category: $0) }
         .navigationDestination(for: GameRoute.self) { GameView(category: $0.category, difficulty: $0.difficulty) }
+        .navigationDestination(for: QuickPlayRoute.self) { _ in QuickPlayView() }
         .navigationDestination(for: DailyRoute.self) { _ in DailyChallengeView() }
         .navigationDestination(for: FriendChallengeRoute.self) { route in
             switch route {
@@ -129,6 +153,45 @@ struct HomeView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct QuickPlayCard: View {
+    var body: some View {
+        NavigationLink(value: QuickPlayRoute()) {
+            HStack(spacing: 16) {
+                Image(systemName: "shuffle")
+                    .font(.system(size: 25, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 62, height: 62)
+                    .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 16))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Quick Play").font(.headline)
+                    Text("Ten categories. Easy to hard.")
+                        .font(.subheadline)
+                        .opacity(0.9)
+                }
+                .foregroundStyle(.white)
+
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.body.bold())
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [.purple, .indigo],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Quick Play. Ten mixed categories from Easy to Hard.")
     }
 }
 
