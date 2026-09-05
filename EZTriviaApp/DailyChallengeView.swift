@@ -160,10 +160,15 @@ struct DailyChallengeView: View {
 
 private struct DailyResultView: View {
     @EnvironmentObject private var scores: ScoreStore
+    @EnvironmentObject private var gameCenter: GameCenterManager
     @EnvironmentObject private var reviewPrompt: ReviewPrompt
     let result: DailyResult
     let streak: Int
     let finish: () -> Void
+
+    @State private var globalStanding: GameCenterLeaderboardSnapshot?
+    @State private var friendsStanding: GameCenterLeaderboardSnapshot?
+    @State private var isLoadingStandings = false
 
     var body: some View {
         ScrollView {
@@ -185,6 +190,10 @@ private struct DailyResultView: View {
                 HStack(spacing: 26) {
                     stat("\(result.points.formatted())", "points")
                     stat("\(streak)", "day streak")
+                }
+
+                if gameCenter.isAuthenticated {
+                    standingCard
                 }
 
                 Text(streak > 1
@@ -214,6 +223,51 @@ private struct DailyResultView: View {
             total: result.total,
             roundsCompleted: scores.totalRoundsCompleted
         )
+        .task(id: DailyStandingLoadID(
+            authenticated: gameCenter.isAuthenticated,
+            submissionRevision: gameCenter.dailySubmissionRevision
+        )) {
+            await loadStandings()
+        }
+    }
+
+    private var standingCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Today's standings", systemImage: "person.3.fill")
+                    .font(.headline)
+                Spacer()
+                if isLoadingStandings {
+                    ProgressView().controlSize(.small)
+                }
+            }
+
+            if let globalRank {
+                HStack(spacing: 20) {
+                    standingStat("#\(globalRank)", "global")
+                    if let topPercent {
+                        standingStat("Top \(topPercent)%", "today")
+                    }
+                    if let friendRank {
+                        standingStat("#\(friendRank)", "friends")
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                if let playerCount = globalStanding?.totalPlayerCount, playerCount > 0 {
+                    Text("\(playerCount.formatted()) players on today's board")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+            } else if !isLoadingStandings {
+                Text("Game Center is updating your rank. It will appear here as soon as today's score is available.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .cardStyle()
+        .accessibilityElement(children: .combine)
     }
 
     private func stat(_ value: String, _ label: String) -> some View {
@@ -223,27 +277,78 @@ private struct DailyResultView: View {
         }
     }
 
+    private func standingStat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.headline.bold().monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var globalRank: Int? { globalStanding?.localPlayer?.rank }
+    private var friendRank: Int? { friendsStanding?.localPlayer?.rank }
+
+    private var topPercent: Int? {
+        guard let rank = globalRank,
+              let total = globalStanding?.totalPlayerCount,
+              total > 0,
+              rank > 0 else { return nil }
+        return max(1, min(100, (rank * 100 + total - 1) / total))
+    }
+
+    private func loadStandings() async {
+        guard gameCenter.isAuthenticated else {
+            globalStanding = nil
+            friendsStanding = nil
+            isLoadingStandings = false
+            return
+        }
+
+        isLoadingStandings = true
+        defer { isLoadingStandings = false }
+        globalStanding = try? await gameCenter.loadLeaderboard(.daily, scope: .global)
+        friendsStanding = try? await gameCenter.loadLeaderboard(.daily, scope: .friends)
+    }
+
     private var shareText: String {
         RoundSummary.daily(
             day: result.day + 1,
             outcomes: result.outcomes,
             points: result.points,
-            streak: streak
+            streak: streak,
+            globalRank: globalRank,
+            topPercent: topPercent
         )
     }
 
     private var shareHeadline: String {
-        RoundSummary.headline(correct: result.score, total: result.total)
+        if let globalRank {
+            return "I'm #\(globalRank) today on EZ Trivia Daily"
+        }
+        return RoundSummary.headline(correct: result.score, total: result.total)
     }
 
     private var shareCard: ScoreCard {
-        ScoreCard(
+        let footnoteParts: [String] = [
+            globalRank.map { "#\($0) today" },
+            streak > 1 ? "\(streak) day streak" : nil
+        ].compactMap { $0 }
+
+        return ScoreCard(
             title: "Daily #\(result.day + 1)",
             subtitle: "\(result.points.formatted()) points",
             headline: "\(result.score)/\(result.total)",
             grid: RoundSummary.grid(result.outcomes),
-            footnote: streak > 1 ? "\(streak) day streak" : nil,
+            footnote: footnoteParts.isEmpty ? nil : footnoteParts.joined(separator: " · "),
             tint: .orange
         )
     }
+}
+
+private struct DailyStandingLoadID: Hashable {
+    let authenticated: Bool
+    let submissionRevision: Int
 }
