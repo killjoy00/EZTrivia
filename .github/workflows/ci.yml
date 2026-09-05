@@ -27,6 +27,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Install Python
+        run: apt-get update && apt-get install -y python3
       - name: Apply editorial fixes
         run: python3 Scripts/chatgpt_editorial_cleanup.py
       - name: Check authored seed syntax
