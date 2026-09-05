@@ -33,17 +33,29 @@ public enum RoundSummary {
     /// Deliberately does not name the questions or the answers. Someone who has
     /// not played today should be able to read this without it spoiling their
     /// round, which is the whole reason the grid is squares rather than words.
+    /// A live Game Center standing is optional because offline players and a
+    /// just-finished score that is still posting should still get useful share
+    /// text immediately.
     public static func daily(
         day: Int,
         outcomes: [Bool],
         points: Int,
-        streak: Int
+        streak: Int,
+        globalRank: Int? = nil,
+        topPercent: Int? = nil
     ) -> String {
         var lines = [
             "EZ Trivia Daily #\(day) — \(outcomes.filter { $0 }.count)/\(outcomes.count)",
             grid(outcomes),
             "\(points.formatted()) points"
         ]
+        if let globalRank {
+            var standing = "#\(globalRank) today"
+            if let topPercent {
+                standing += " · Top \(topPercent)%"
+            }
+            lines.append(standing)
+        }
         if streak > 1 {
             lines.append("\(streak) day streak 🔥")
         }

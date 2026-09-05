@@ -18,7 +18,11 @@ final class ScoreStore: ObservableObject {
     private let friendDefaultsKey = "friendChallengeResults.v1"
     private let quickPlayDefaultsKey = "quickPlayResults.v1"
     private let quickPlayRoundsDefaultsKey = "achievement.quickPlayRounds.v1"
+    private let quickPlayRoundsBaseDefaultsKey = "achievement.quickPlayRounds.base.v2"
+    private let quickPlayRoundsDeviceDefaultsKey = "achievement.quickPlayRounds.byDevice.v2"
     private let totalRoundsDefaultsKey = "achievement.totalRounds.v1"
+    private let totalRoundsBaseDefaultsKey = "achievement.totalRounds.base.v2"
+    private let totalRoundsDeviceDefaultsKey = "achievement.totalRounds.byDevice.v2"
     private let playedCategoriesDefaultsKey = "achievement.playedCategories.v1"
     private let perfectDifficultiesDefaultsKey = "achievement.perfectDifficulties.v1"
     private let recentResetDefaultsKey = "leaderboard.resetAt.v1"
@@ -79,8 +83,16 @@ final class ScoreStore: ObservableObject {
     /// Monotonic local facts used by achievements. They are stored separately
     /// from the 50-entry recent-round list so a player can still earn the 100
     /// round achievement after older rows roll out of that display history.
+    ///
+    /// Round counts use the same shared-baseline + per-installation model as
+    /// lifetime points. That matters once iCloud is involved: max(local, remote)
+    /// silently loses rounds when two devices both make progress offline.
     @Published private(set) var totalRoundsCompleted = 0
     @Published private(set) var quickPlayRoundsCompleted = 0
+    private var totalRoundsBaseline = 0
+    private var totalRoundIncrementsByDevice: [String: Int] = [:]
+    private var quickPlayRoundsBaseline = 0
+    private var quickPlayRoundIncrementsByDevice: [String: Int] = [:]
     @Published private(set) var playedCategoryRawValues: Set<String> = []
     @Published private(set) var perfectDifficultyRawValues: Set<String> = []
 
@@ -234,8 +246,8 @@ final class ScoreStore: ObservableObject {
         guard !quickPlayResults.contains(where: { $0.id == result.id }) else { return }
         quickPlayResults.append(result)
         quickPlayResults = Array(quickPlayResults.sorted { $0.date > $1.date }.prefix(20))
-        quickPlayRoundsCompleted += 1
-        defaults.set(quickPlayRoundsCompleted, forKey: quickPlayRoundsDefaultsKey)
+        quickPlayRoundIncrementsByDevice[installationID, default: 0] += 1
+        rebuildRoundCounters()
         defaults.set(try? JSONEncoder().encode(quickPlayResults), forKey: quickPlayDefaultsKey)
         recordCompletedRound(categories: categories)
         noteLocalMutation()
@@ -390,7 +402,8 @@ final class ScoreStore: ObservableObject {
         categories: Set<TriviaCategory>,
         perfectDifficulty: TriviaDifficulty? = nil
     ) {
-        totalRoundsCompleted += 1
+        totalRoundIncrementsByDevice[installationID, default: 0] += 1
+        rebuildRoundCounters()
         playedCategoryRawValues.formUnion(categories.map(\.rawValue))
         if let perfectDifficulty {
             perfectDifficultyRawValues.insert(perfectDifficulty.rawValue)
@@ -398,21 +411,40 @@ final class ScoreStore: ObservableObject {
         persistAchievementFacts()
     }
 
-    /// Existing installations predate explicit achievement counters. Recover
-    /// every fact the stored score, daily, lifetime, and friend histories can
-    /// prove; never invent progress that cannot be established from local data.
+    /// Existing installations predate additive per-device achievement
+    /// counters. Treat the best scalar value the old app could prove as one
+    /// shared baseline, then count only post-migration activity per install.
+    /// Two devices that migrate the same historical total therefore do not
+    /// double-count it when their snapshots meet.
     private func migrateAchievementFactsIfNeeded() {
-        if defaults.object(forKey: totalRoundsDefaultsKey) != nil {
-            totalRoundsCompleted = defaults.integer(forKey: totalRoundsDefaultsKey)
+        let inferredTotalRounds = entries.count + dailyResults.count + friendResultsByAttemptID.count + quickPlayResults.count
+        let legacyTotalRounds = defaults.object(forKey: totalRoundsDefaultsKey) != nil
+            ? defaults.integer(forKey: totalRoundsDefaultsKey)
+            : inferredTotalRounds
+        let legacyQuickPlayRounds = defaults.object(forKey: quickPlayRoundsDefaultsKey) != nil
+            ? defaults.integer(forKey: quickPlayRoundsDefaultsKey)
+            : quickPlayResults.count
+
+        if defaults.object(forKey: totalRoundsBaseDefaultsKey) != nil {
+            totalRoundsBaseline = defaults.integer(forKey: totalRoundsBaseDefaultsKey)
         } else {
-            totalRoundsCompleted = entries.count + dailyResults.count + friendResultsByAttemptID.count + quickPlayResults.count
+            totalRoundsBaseline = legacyTotalRounds
+        }
+        if let data = defaults.data(forKey: totalRoundsDeviceDefaultsKey),
+           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+            totalRoundIncrementsByDevice = decoded
         }
 
-        if defaults.object(forKey: quickPlayRoundsDefaultsKey) != nil {
-            quickPlayRoundsCompleted = defaults.integer(forKey: quickPlayRoundsDefaultsKey)
+        if defaults.object(forKey: quickPlayRoundsBaseDefaultsKey) != nil {
+            quickPlayRoundsBaseline = defaults.integer(forKey: quickPlayRoundsBaseDefaultsKey)
         } else {
-            quickPlayRoundsCompleted = quickPlayResults.count
+            quickPlayRoundsBaseline = legacyQuickPlayRounds
         }
+        if let data = defaults.data(forKey: quickPlayRoundsDeviceDefaultsKey),
+           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+            quickPlayRoundIncrementsByDevice = decoded
+        }
+        rebuildRoundCounters()
 
         if let stored = defaults.stringArray(forKey: playedCategoriesDefaultsKey) {
             playedCategoryRawValues = Set(stored)
@@ -446,8 +478,14 @@ final class ScoreStore: ObservableObject {
     }
 
     private func persistAchievementFacts() {
+        // Keep the v1 scalar keys current for rollback/backward compatibility,
+        // while v2 components are the source of truth for multi-device merges.
         defaults.set(totalRoundsCompleted, forKey: totalRoundsDefaultsKey)
         defaults.set(quickPlayRoundsCompleted, forKey: quickPlayRoundsDefaultsKey)
+        defaults.set(totalRoundsBaseline, forKey: totalRoundsBaseDefaultsKey)
+        defaults.set(try? JSONEncoder().encode(totalRoundIncrementsByDevice), forKey: totalRoundsDeviceDefaultsKey)
+        defaults.set(quickPlayRoundsBaseline, forKey: quickPlayRoundsBaseDefaultsKey)
+        defaults.set(try? JSONEncoder().encode(quickPlayRoundIncrementsByDevice), forKey: quickPlayRoundsDeviceDefaultsKey)
         defaults.set(playedCategoryRawValues.sorted(), forKey: playedCategoriesDefaultsKey)
         defaults.set(perfectDifficultyRawValues.sorted(), forKey: perfectDifficultiesDefaultsKey)
     }
@@ -458,8 +496,8 @@ final class ScoreStore: ObservableObject {
     /// backend: this is private player state, not a social database. The merge
     /// rules are conservative: one-attempt records keep the earliest result,
     /// monotonic achievement and question-progress facts never move backward,
-    /// and category lifetime points merge per installation so play on two
-    /// devices adds together.
+    /// and counters/points merge per installation so play on two devices adds
+    /// together rather than one device hiding the other's progress.
     private struct CloudSnapshot: Codable, Equatable {
         let schemaVersion: Int
         let modifiedAt: Date
@@ -472,8 +510,14 @@ final class ScoreStore: ObservableObject {
         let lifetimeIncrementsByDevice: [String: [String: Int]]
         let friendResultsByAttemptID: [String: FriendChallengeResult]
         let quickPlayResults: [QuickPlayResult]
+        /// v1 scalar totals remain required so snapshots written by the prior
+        /// build still decode. New snapshots also carry the optional v2 pieces.
         let totalRoundsCompleted: Int
         let quickPlayRoundsCompleted: Int
+        let totalRoundsBaseline: Int?
+        let totalRoundIncrementsByDevice: [String: Int]?
+        let quickPlayRoundsBaseline: Int?
+        let quickPlayRoundIncrementsByDevice: [String: Int]?
         let playedCategoryRawValues: Set<String>
         let perfectDifficultyRawValues: Set<String>
         let recentHistoryResetAt: Date
@@ -581,8 +625,7 @@ final class ScoreStore: ObservableObject {
         }
         quickPlayResults = Array(quickByID.values.sorted { $0.date > $1.date }.prefix(20))
 
-        totalRoundsCompleted = max(totalRoundsCompleted, remote.totalRoundsCompleted)
-        quickPlayRoundsCompleted = max(quickPlayRoundsCompleted, remote.quickPlayRoundsCompleted)
+        mergeRoundCounters(from: remote)
         playedCategoryRawValues.formUnion(remote.playedCategoryRawValues)
         perfectDifficultyRawValues.formUnion(remote.perfectDifficultyRawValues)
 
@@ -601,6 +644,32 @@ final class ScoreStore: ObservableObject {
         }
     }
 
+    private func mergeRoundCounters(from remote: CloudSnapshot) {
+        if let remoteBaseline = remote.totalRoundsBaseline,
+           let remoteDeviceTotals = remote.totalRoundIncrementsByDevice {
+            totalRoundsBaseline = max(totalRoundsBaseline, remoteBaseline)
+            for (device, count) in remoteDeviceTotals {
+                totalRoundIncrementsByDevice[device] = max(totalRoundIncrementsByDevice[device] ?? 0, count)
+            }
+        } else {
+            // Snapshot from the previous app version: its scalar total becomes
+            // another candidate for the shared migration baseline.
+            totalRoundsBaseline = max(totalRoundsBaseline, remote.totalRoundsCompleted)
+        }
+
+        if let remoteBaseline = remote.quickPlayRoundsBaseline,
+           let remoteDeviceTotals = remote.quickPlayRoundIncrementsByDevice {
+            quickPlayRoundsBaseline = max(quickPlayRoundsBaseline, remoteBaseline)
+            for (device, count) in remoteDeviceTotals {
+                quickPlayRoundIncrementsByDevice[device] = max(quickPlayRoundIncrementsByDevice[device] ?? 0, count)
+            }
+        } else {
+            quickPlayRoundsBaseline = max(quickPlayRoundsBaseline, remote.quickPlayRoundsCompleted)
+        }
+
+        rebuildRoundCounters()
+    }
+
     private func snapshot(modifiedAt: Date) -> CloudSnapshot {
         CloudSnapshot(
             schemaVersion: 1,
@@ -616,6 +685,10 @@ final class ScoreStore: ObservableObject {
             quickPlayResults: quickPlayResults,
             totalRoundsCompleted: totalRoundsCompleted,
             quickPlayRoundsCompleted: quickPlayRoundsCompleted,
+            totalRoundsBaseline: totalRoundsBaseline,
+            totalRoundIncrementsByDevice: totalRoundIncrementsByDevice,
+            quickPlayRoundsBaseline: quickPlayRoundsBaseline,
+            quickPlayRoundIncrementsByDevice: quickPlayRoundIncrementsByDevice,
             playedCategoryRawValues: playedCategoryRawValues,
             perfectDifficultyRawValues: perfectDifficultyRawValues,
             recentHistoryResetAt: recentHistoryResetAt,
@@ -650,6 +723,11 @@ final class ScoreStore: ObservableObject {
         defaults.set(try? JSONEncoder().encode(lifetimeBaseByCategory), forKey: lifetimeBaseDefaultsKey)
         defaults.set(try? JSONEncoder().encode(lifetimeIncrementsByDevice), forKey: lifetimeDeviceDefaultsKey)
         defaults.set(try? JSONEncoder().encode(lifetimePointsByCategory), forKey: lifetimeDefaultsKey)
+    }
+
+    private func rebuildRoundCounters() {
+        totalRoundsCompleted = totalRoundsBaseline + totalRoundIncrementsByDevice.values.reduce(0, +)
+        quickPlayRoundsCompleted = quickPlayRoundsBaseline + quickPlayRoundIncrementsByDevice.values.reduce(0, +)
     }
 }
 

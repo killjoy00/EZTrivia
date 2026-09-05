@@ -11,6 +11,10 @@ final class GameCenterManager: ObservableObject {
     @Published private(set) var achievementProgressByID: [String: Double] = [:]
     @Published private(set) var availableAchievementIDs: Set<String> = []
     @Published private(set) var isSyncingAchievements = false
+    /// Changes only after Game Center accepts a Daily score. Daily result
+    /// screens use this as a refresh token so a rank lookup that raced the
+    /// submission automatically runs again once the score is actually live.
+    @Published private(set) var dailySubmissionRevision = 0
     private var didLoadAchievementMetadata = false
     /// Depth rather than a flag: a round-end sync and an open Achievements
     /// screen can overlap, and a plain Bool let whichever finished first clear
@@ -57,17 +61,24 @@ final class GameCenterManager: ObservableObject {
     ///
     /// Points rather than a percentage, and a leaderboard that resets every
     /// day, so the board keeps ranking people instead of filling up with
-    /// identical perfect scores.
+    /// identical perfect scores. Zero is a valid Daily result too: a player who
+    /// misses every question should still get a real rank and be represented in
+    /// today's participation count.
     func submitDaily(points: Int) {
-        guard isAuthenticated, points > 0 else { return }
+        guard isAuthenticated else { return }
         GKLeaderboard.submitScore(
-            points,
+            max(points, 0),
             context: 0,
             player: GKLocalPlayer.local,
             leaderboardIDs: [Self.dailyLeaderboardID]
         ) { [weak self] error in
-            guard let error else { return }
-            Task { @MainActor in self?.errorMessage = error.localizedDescription }
+            Task { @MainActor in
+                if let error {
+                    self?.errorMessage = error.localizedDescription
+                } else {
+                    self?.dailySubmissionRevision += 1
+                }
+            }
         }
     }
 
@@ -242,9 +253,9 @@ struct GameCenterBoard: Identifiable, Hashable {
 
     var timeScope: GKLeaderboard.TimeScope { isDaily ? .today : .allTime }
 
-    static let all: [GameCenterBoard] = [
-        GameCenterBoard(id: "EZTrivia.daily", title: "Daily Challenge", isDaily: true)
-    ] + TriviaCategory.allCases.map {
+    static let daily = GameCenterBoard(id: "EZTrivia.daily", title: "Daily Challenge", isDaily: true)
+
+    static let all: [GameCenterBoard] = [daily] + TriviaCategory.allCases.map {
         GameCenterBoard(
             id: "EZTrivia.\($0.rawValue)",
             title: $0.title,
