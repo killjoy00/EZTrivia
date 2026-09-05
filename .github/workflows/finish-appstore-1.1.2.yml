@@ -1,0 +1,145 @@
+name: Finish App Store 1.1.2
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/finish-appstore-1.1.2.yml']
+
+jobs:
+  finish:
+    runs-on: macos-15
+    steps:
+      - name: Finish version metadata and attach build
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          VERSION='1.1.2'
+          BUILD_NUMBER='30'
+          SUBTITLE='Daily Quiz & Friend Challenges'
+          KEYWORDS='flags,brain,knowledge,facts,puzzle,geography,history,science,movies,music,mythology,sports'
+          PROMO='Make the Daily Challenge your routine, see how you rank, then keep going with Quick Play, Friend Challenges, and 2,300+ questions across 16 categories.'
+          MARKETING_URL='https://killjoy00.github.io'
+          SUPPORT_URL='https://killjoy00.github.io/EZTrivia/support.html'
+
+          DESCRIPTION=$(cat <<'EOF'
+          EZ Trivia is built for quick rounds, but the Daily Challenge gives you a reason to come back every day.
+
+          DAILY CHALLENGE
+          Play 10 questions, build your streak, and see how your score stacks up. When you’re signed into Game Center, your result can show your global rank, percentile, friends rank, and how many people played today. Share a spoiler-free result when you’re done.
+
+          QUICK PLAY
+          Want another round? Quick Play pulls 10 questions from 10 different categories, with a mix of Easy, Medium, and Hard questions.
+
+          16 CATEGORIES. 2,300+ QUESTIONS.
+          Football, Basketball, Soccer, World Flags, History, Science, Movies, TV, Geography, Music, Animals, Food & Drink, Books & Literature, Art & Architecture, Mythology, and Video Games. Every question is hand-written and includes a short explanation after you answer.
+
+          FRIEND CHALLENGES
+          Send a friend a link or short code and challenge them to the same 10 questions in the same order. Compare scores and share the result.
+
+          PROGRESS THAT FOLLOWS YOU
+          Track Daily streaks, lifetime points, recent rounds, achievements and badges, and how much of the question bank you’ve completed. Player progress syncs with iCloud across your devices.
+
+          PLAY YOUR WAY
+          Choose auto-advance timing, sound, haptics, and streak reminders. Dark mode, Dynamic Type, and VoiceOver are supported throughout.
+
+          No account required to start. Game Center is optional.
+          EOF
+          )
+
+          WHATS_NEW=$(cat <<'EOF'
+          Daily Challenge is now front and center, and the result screen is more competitive and shareable.
+
+          • New Quick Play mixes 10 questions across 10 different categories.
+          • Daily results can now show global rank, Top X%, friends rank, and today’s player count through Game Center.
+          • Friend Challenges now support shareable links as well as short codes.
+          • Player progress now syncs with iCloud across devices.
+          • New achievements and badges, plus question coverage tracking.
+          • Report a question directly from the answer screen.
+          • General polish, reliability improvements, and question-bank cleanup.
+          EOF
+          )
+
+          mkdir -p ~/private_keys
+          key=~/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          if ! grep -q 'BEGIN' "$key" && grep -q '\\n' "$key"; then printf '%b' "$(cat "$key")" > "$key.tmp" && mv "$key.tmp" "$key"; fi
+          if ! grep -q 'BEGIN' "$key" && base64 -d < "$key" > "$key.tmp" 2>/dev/null; then if grep -q 'BEGIN' "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi; fi
+          if ! grep -q 'BEGIN' "$key"; then body=$(tr -d '\n\r ' < "$key"); { echo '-----BEGIN PRIVATE KEY-----'; echo "$body" | fold -w 64; echo '-----END PRIVATE KEY-----'; } > "$key.tmp"; mv "$key.tmp" "$key"; fi
+          chmod 600 "$key"
+
+          TOKEN=$(ruby <<'RUBY'
+          require 'openssl'; require 'json'; require 'base64'
+          def b64url(s); Base64.urlsafe_encode64(s, padding: false); end
+          now = Time.now.to_i
+          header = b64url(JSON.generate({alg:'ES256', kid:ENV.fetch('ASC_KEY_ID'), typ:'JWT'}))
+          payload = b64url(JSON.generate({iss:ENV.fetch('ASC_ISSUER_ID'), iat:now, exp:now+600, aud:'appstoreconnect-v1'}))
+          input = "#{header}.#{payload}"
+          key = OpenSSL::PKey.read(File.read(File.expand_path("~/private_keys/AuthKey_#{ENV.fetch('ASC_KEY_ID')}.p8")))
+          der = key.dsa_sign_asn1(OpenSSL::Digest::SHA256.digest(input))
+          seq = OpenSSL::ASN1.decode(der)
+          r = seq.value[0].value.to_i.to_s(16).rjust(64,'0')
+          s = seq.value[1].value.to_i.to_s(16).rjust(64,'0')
+          puts "#{input}.#{b64url([r+s].pack('H*'))}"
+          RUBY
+          )
+
+          get() { curl -fsS -H "Authorization: Bearer $TOKEN" "$1"; }
+          write() {
+            method="$1"; url="$2"; payload="$3"; tmp=$(mktemp)
+            code=$(curl -sS -o "$tmp" -w '%{http_code}' -X "$method" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data "$payload" "$url")
+            if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then echo "WRITE_FAILED $method HTTP $code $url"; cat "$tmp"; rm -f "$tmp"; return 1; fi
+            cat "$tmp"; rm -f "$tmp"
+          }
+
+          app_id=$(get 'https://api.appstoreconnect.apple.com/v1/apps?filter%5BbundleId%5D=com.rsm.eztrivia&limit=10' | jq -r '.data[0].id')
+          versions=$(get "https://api.appstoreconnect.apple.com/v1/apps/$app_id/appStoreVersions?filter%5Bplatform%5D=IOS&limit=50")
+          version_id=$(printf '%s' "$versions" | jq -r --arg v "$VERSION" '.data[] | select(.attributes.versionString==$v) | .id' | head -1)
+          [ -n "$version_id" ] || { echo 'Version 1.1.2 not found'; exit 1; }
+          echo "Using version $version_id"
+
+          locs=$(get "https://api.appstoreconnect.apple.com/v1/appStoreVersions/$version_id/appStoreVersionLocalizations?limit=50")
+          loc_id=$(printf '%s' "$locs" | jq -r '.data[] | select(.attributes.locale=="en-US") | .id' | head -1)
+          if [ -z "$loc_id" ]; then
+            payload=$(jq -n --arg v "$version_id" --arg d "$DESCRIPTION" --arg k "$KEYWORDS" --arg m "$MARKETING_URL" --arg p "$PROMO" --arg s "$SUPPORT_URL" --arg w "$WHATS_NEW" '{data:{type:"appStoreVersionLocalizations",attributes:{locale:"en-US",description:$d,keywords:$k,marketingUrl:$m,promotionalText:$p,supportUrl:$s,whatsNew:$w},relationships:{appStoreVersion:{data:{type:"appStoreVersions",id:$v}}}}}')
+            resp=$(write POST 'https://api.appstoreconnect.apple.com/v1/appStoreVersionLocalizations' "$payload")
+            loc_id=$(printf '%s' "$resp" | jq -r '.data.id')
+            echo "Created localization $loc_id"
+          else
+            payload=$(jq -n --arg id "$loc_id" --arg d "$DESCRIPTION" --arg k "$KEYWORDS" --arg m "$MARKETING_URL" --arg p "$PROMO" --arg s "$SUPPORT_URL" --arg w "$WHATS_NEW" '{data:{type:"appStoreVersionLocalizations",id:$id,attributes:{description:$d,keywords:$k,marketingUrl:$m,promotionalText:$p,supportUrl:$s,whatsNew:$w}}}')
+            write PATCH "https://api.appstoreconnect.apple.com/v1/appStoreVersionLocalizations/$loc_id" "$payload" >/dev/null
+            echo "Updated localization $loc_id"
+          fi
+
+          builds=$(get "https://api.appstoreconnect.apple.com/v1/builds?filter%5Bapp%5D=$app_id&filter%5Bversion%5D=$BUILD_NUMBER&include=preReleaseVersion&limit=10")
+          echo "$builds" | jq '{builds:[.data[]|{id,version:.attributes.version,processingState:.attributes.processingState}]}'
+          build_id=$(printf '%s' "$builds" | jq -r '.data[] | select(.attributes.processingState=="VALID") | .id' | head -1)
+          if [ -n "$build_id" ]; then
+            payload=$(jq -n --arg id "$build_id" '{data:{type:"builds",id:$id}}')
+            write PATCH "https://api.appstoreconnect.apple.com/v1/appStoreVersions/$version_id/relationships/build" "$payload" >/dev/null
+            echo "Attached build $BUILD_NUMBER ($build_id)"
+          else
+            echo 'No VALID build 30 available to attach.'
+          fi
+
+          infos=$(get "https://api.appstoreconnect.apple.com/v1/apps/$app_id/appInfos?limit=20")
+          echo "$infos" | jq '{appInfos:[.data[]|{id,state:.attributes.state,appStoreState:.attributes.appStoreState}]}'
+          info_id=$(printf '%s' "$infos" | jq -r '.data[] | select(.attributes.state=="PREPARE_FOR_SUBMISSION") | .id' | head -1)
+          if [ -z "$info_id" ]; then info_id=$(printf '%s' "$infos" | jq -r '.data[0].id'); fi
+          info_locs=$(get "https://api.appstoreconnect.apple.com/v1/appInfos/$info_id/appInfoLocalizations?limit=50")
+          info_loc_id=$(printf '%s' "$info_locs" | jq -r '.data[] | select(.attributes.locale=="en-US") | .id' | head -1)
+          subtitle_payload=$(jq -n --arg id "$info_loc_id" --arg subtitle "$SUBTITLE" '{data:{type:"appInfoLocalizations",id:$id,attributes:{subtitle:$subtitle}}}')
+          if write PATCH "https://api.appstoreconnect.apple.com/v1/appInfoLocalizations/$info_loc_id" "$subtitle_payload" >/tmp/subtitle.json; then
+            echo "Updated subtitle via App Info $info_id"
+          else
+            echo 'Subtitle update failed after version metadata succeeded.'
+            exit 2
+          fi
+
+          echo '=== VERIFY ==='
+          get "https://api.appstoreconnect.apple.com/v1/appStoreVersions/$version_id" | jq '{version:.data.attributes.versionString,state:.data.attributes.appVersionState,releaseType:.data.attributes.releaseType}'
+          get "https://api.appstoreconnect.apple.com/v1/appStoreVersionLocalizations/$loc_id" | jq '{description:.data.attributes.description,keywords:.data.attributes.keywords,promotionalText:.data.attributes.promotionalText,whatsNew:.data.attributes.whatsNew}'
+          get "https://api.appstoreconnect.apple.com/v1/appInfoLocalizations/$info_loc_id" | jq '{name:.data.attributes.name,subtitle:.data.attributes.subtitle}'
+          if [ -n "${build_id:-}" ]; then get "https://api.appstoreconnect.apple.com/v1/appStoreVersions/$version_id/build" | jq '{build:.data.attributes.version,processingState:.data.attributes.processingState}'; fi
