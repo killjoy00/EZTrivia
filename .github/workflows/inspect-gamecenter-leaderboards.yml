@@ -1,0 +1,47 @@
+name: Inspect Game Center Leaderboards
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/inspect-gamecenter-leaderboards.yml']
+
+jobs:
+  inspect:
+    runs-on: macos-15
+    steps:
+      - name: Inspect leaderboard configuration
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/private_keys
+          key=~/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          if ! grep -q 'BEGIN' "$key" && grep -q '\\n' "$key"; then printf '%b' "$(cat "$key")" > "$key.tmp" && mv "$key.tmp" "$key"; fi
+          if ! grep -q 'BEGIN' "$key" && base64 -d < "$key" > "$key.tmp" 2>/dev/null; then if grep -q 'BEGIN' "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi; fi
+          if ! grep -q 'BEGIN' "$key"; then body=$(tr -d '\n\r ' < "$key"); { echo '-----BEGIN PRIVATE KEY-----'; echo "$body" | fold -w 64; echo '-----END PRIVATE KEY-----'; } > "$key.tmp"; mv "$key.tmp" "$key"; fi
+          chmod 600 "$key"
+          TOKEN=$(ruby <<'RUBY'
+          require 'openssl'; require 'json'; require 'base64'
+          def b64url(s); Base64.urlsafe_encode64(s, padding: false); end
+          now=Time.now.to_i
+          h=b64url(JSON.generate({alg:'ES256',kid:ENV.fetch('ASC_KEY_ID'),typ:'JWT'}))
+          p=b64url(JSON.generate({iss:ENV.fetch('ASC_ISSUER_ID'),iat:now,exp:now+600,aud:'appstoreconnect-v1'}))
+          input="#{h}.#{p}"
+          key=OpenSSL::PKey.read(File.read(File.expand_path("~/private_keys/AuthKey_#{ENV.fetch('ASC_KEY_ID')}.p8")))
+          der=key.dsa_sign_asn1(OpenSSL::Digest::SHA256.digest(input)); seq=OpenSSL::ASN1.decode(der)
+          r=seq.value[0].value.to_i.to_s(16).rjust(64,'0'); s=seq.value[1].value.to_i.to_s(16).rjust(64,'0')
+          puts "#{input}.#{b64url([r+s].pack('H*'))}"
+          RUBY
+          )
+          get() { curl -fsS -H "Authorization: Bearer $TOKEN" "$1"; }
+          app_id=$(get 'https://api.appstoreconnect.apple.com/v1/apps?filter%5BbundleId%5D=com.rsm.eztrivia&limit=10' | jq -r '.data[0].id')
+          detail=$(get "https://api.appstoreconnect.apple.com/v1/apps/$app_id/gameCenterDetail?include=gameCenterLeaderboards,gameCenterLeaderboardSets,leaderboardReleases&limit%5BgameCenterLeaderboards%5D=50&limit%5BgameCenterLeaderboardSets%5D=50")
+          echo '=== DETAIL ==='
+          printf '%s' "$detail" | jq '{detailId:.data.id, included:[.included[]? | select(.type=="gameCenterLeaderboards") | {id,type,attributes}], sets:[.included[]? | select(.type=="gameCenterLeaderboardSets") | {id,attributes}], releases:[.included[]? | select(.type=="gameCenterLeaderboardReleases") | {id,attributes,relationships}]}'
+          echo '=== LOCALIZATIONS ==='
+          printf '%s' "$detail" | jq -r '.included[]? | select(.type=="gameCenterLeaderboards") | .id' | while read -r lb; do
+            get "https://api.appstoreconnect.apple.com/v1/gameCenterLeaderboards/$lb/localizations?limit=50" | jq --arg lb "$lb" '{leaderboardId:$lb,localizations:[.data[]|{id,attributes}]}'
+          done
