@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, chatgpt/question-bank-editorial-cleanup]
   pull_request:
 
 concurrency:
@@ -16,6 +16,32 @@ env:
     -destination generic/platform=iOS
 
 jobs:
+  bluey:
+    name: Apply Bluey answer cleanup
+    if: github.ref == 'refs/heads/chatgpt/question-bank-editorial-cleanup' && github.event.head_commit.message == 'Trigger Bluey answer cleanup'
+    runs-on: ubuntu-latest
+    container: swift:6.0-noble
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Update Bluey answer and review catalog
+        run: |
+          FILE="Sources/EZTriviaCore/Questions/TelevisionQuestions.swift"
+          grep -q '"A blue heeler dog"' "$FILE"
+          sed -i 's/"A blue heeler dog"/"A dog"/' "$FILE"
+          swift run QuestionCatalogExporter > QuestionReview.csv
+      - name: Commit wording change
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Sources/EZTriviaCore/Questions/TelevisionQuestions.swift QuestionReview.csv
+          git commit -m "Simplify Bluey answer wording"
+          git push origin HEAD:chatgpt/question-bank-editorial-cleanup
+
   engine:
     name: Core package
     runs-on: ubuntu-latest
