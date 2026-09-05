@@ -21,6 +21,7 @@ struct LeaderboardView: View {
             // are the reason to open this tab; recent rounds and lifetime
             // points are the record of how you got there.
             gameCenterSection
+            questionCoverageSection
 
             if scores.entries.isEmpty && scores.quickPlayResults.isEmpty {
                 Section {
@@ -74,7 +75,31 @@ struct LeaderboardView: View {
             Button("Clear Recent Rounds", role: .destructive) { scores.clear() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Lifetime points, Daily Challenge history, Friend Challenges, Quick Play history, and achievements will be kept.")
+            Text("Lifetime points, question coverage, Daily Challenge history, Friend Challenges, Quick Play history, and achievements will be kept.")
+        }
+    }
+
+    private var questionCoverageSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Label("Questions answered", systemImage: "checkmark.circle")
+                        .font(.headline)
+                    Spacer()
+                    Text("\(scores.completedQuestionCount.formatted()) / \(scores.totalQuestionCount.formatted())")
+                        .font(.subheadline.bold().monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                ProgressView(value: scores.questionCompletionFraction)
+                    .tint(.indigo)
+                    .accessibilityLabel("Question coverage")
+                    .accessibilityValue("\(scores.completedQuestionCount) of \(scores.totalQuestionCount) questions answered")
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("Question coverage")
+        } footer: {
+            Text("Counts each question once after you submit an answer. Coverage syncs with iCloud.")
         }
     }
 
