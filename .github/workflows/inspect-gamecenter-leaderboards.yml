@@ -9,7 +9,7 @@ jobs:
   inspect:
     runs-on: macos-15
     steps:
-      - name: Inspect leaderboard configuration
+      - name: Inspect Video Games leaderboard review state
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -38,10 +38,21 @@ jobs:
           )
           get() { curl -fsS -H "Authorization: Bearer $TOKEN" "$1"; }
           app_id=$(get 'https://api.appstoreconnect.apple.com/v1/apps?filter%5BbundleId%5D=com.rsm.eztrivia&limit=10' | jq -r '.data[0].id')
-          detail=$(get "https://api.appstoreconnect.apple.com/v1/apps/$app_id/gameCenterDetail?include=gameCenterLeaderboards,gameCenterLeaderboardSets,leaderboardReleases&limit%5BgameCenterLeaderboards%5D=50&limit%5BgameCenterLeaderboardSets%5D=50")
-          echo '=== DETAIL ==='
-          printf '%s' "$detail" | jq '{detailId:.data.id, included:[.included[]? | select(.type=="gameCenterLeaderboards") | {id,type,attributes}], sets:[.included[]? | select(.type=="gameCenterLeaderboardSets") | {id,attributes}], releases:[.included[]? | select(.type=="gameCenterLeaderboardReleases") | {id,attributes,relationships}]}'
-          echo '=== LOCALIZATIONS ==='
-          printf '%s' "$detail" | jq -r '.included[]? | select(.type=="gameCenterLeaderboards") | .id' | while read -r lb; do
-            get "https://api.appstoreconnect.apple.com/v1/gameCenterLeaderboards/$lb/localizations?limit=50" | jq --arg lb "$lb" '{leaderboardId:$lb,localizations:[.data[]|{id,attributes}]}'
+          detail=$(get "https://api.appstoreconnect.apple.com/v1/apps/$app_id/gameCenterDetail?include=gameCenterLeaderboards&limit%5BgameCenterLeaderboards%5D=50")
+          detail_id=$(printf '%s' "$detail" | jq -r '.data.id')
+          video_id=$(printf '%s' "$detail" | jq -r '.included[] | select(.type=="gameCenterLeaderboards" and .attributes.vendorIdentifier=="EZTrivia.videoGames") | .id')
+          myth_id=$(printf '%s' "$detail" | jq -r '.included[] | select(.type=="gameCenterLeaderboards" and .attributes.vendorIdentifier=="EZTrivia.mythology") | .id')
+          echo "detail=$detail_id video=$video_id mythology=$myth_id"
+          echo '=== VIDEO VERSIONS ==='
+          get "https://api.appstoreconnect.apple.com/v1/gameCenterLeaderboards/$video_id/versions?limit=50" | jq '{data:[.data[]|{id,attributes,relationships}]}'
+          echo '=== MYTHOLOGY VERSIONS ==='
+          get "https://api.appstoreconnect.apple.com/v1/gameCenterLeaderboards/$myth_id/versions?limit=50" | jq '{data:[.data[]|{id,attributes,relationships}]}'
+          echo '=== LEADERBOARD RELEASES ==='
+          get "https://api.appstoreconnect.apple.com/v1/gameCenterDetails/$detail_id/leaderboardReleases?include=gameCenterLeaderboard&limit=200" | jq '{data:[.data[]|{id,attributes,relationships}],included:[.included[]?|{id,attributes}]}'
+          echo '=== REVIEW SUBMISSIONS ==='
+          subs=$(get "https://api.appstoreconnect.apple.com/v1/apps/$app_id/reviewSubmissions?limit=20")
+          printf '%s' "$subs" | jq '{data:[.data[]|{id,attributes}]}'
+          printf '%s' "$subs" | jq -r '.data[] | select(.attributes.state=="READY_FOR_REVIEW" or .attributes.state=="UNRESOLVED_ISSUES" or .attributes.state=="WAITING_FOR_REVIEW" or .attributes.state=="IN_PROGRESS") | .id' | while read -r sub; do
+            echo "--- ITEMS $sub ---"
+            get "https://api.appstoreconnect.apple.com/v1/reviewSubmissions/$sub/items?limit=200" | jq '{data:[.data[]|{id,attributes,relationships}]}'
           done
