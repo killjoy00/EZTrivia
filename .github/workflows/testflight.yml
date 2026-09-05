@@ -18,7 +18,6 @@ name: TestFlight
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
     tags: ["v*"]
 
 jobs:
@@ -158,7 +157,6 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            MARKETING_VERSION=1.1.1 \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             2>&1 | tee /tmp/archive.log | xcbeautify
 
