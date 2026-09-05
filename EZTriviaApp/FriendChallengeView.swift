@@ -6,6 +6,31 @@ enum FriendChallengeRoute: Hashable {
     case play(seed: UInt64, invitation: FriendChallengeCode?)
 }
 
+/// The public HTTPS handoff used in shared messages. A normal web URL is much
+/// more reliably tappable in Messages, Mail, Slack, etc. than a custom scheme.
+/// The landing page then offers the `eztrivia://` deep link and the App Store as
+/// separate choices. The short challenge code remains the permanent fallback.
+private enum FriendChallengeWebLink {
+    static let baseURL = URL(string: "https://killjoy00.github.io/EZTrivia/challenge.html")!
+
+    static func url(for code: FriendChallengeCode) -> URL {
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "code", value: code.displayString)]
+        return components.url!
+    }
+
+    static func code(from url: URL) -> FriendChallengeCode? {
+        guard url.scheme?.lowercased() == "https",
+              url.host?.lowercased() == "killjoy00.github.io",
+              url.path.lowercased() == "/eztrivia/challenge.html",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let rawCode = components.queryItems?.first(where: { $0.name == "code" })?.value else {
+            return nil
+        }
+        return FriendChallengeCode(rawCode)
+    }
+}
+
 struct FriendChallengeCard: View {
     var body: some View {
         NavigationLink(value: FriendChallengeRoute.lobby) {
@@ -51,8 +76,9 @@ struct FriendChallengeLobbyView: View {
 
     private var parsedCode: FriendChallengeCode? {
         let trimmed = codeText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let url = URL(string: trimmed), let linkedCode = FriendChallengeLink.code(from: url) {
-            return linkedCode
+        if let url = URL(string: trimmed) {
+            if let linkedCode = FriendChallengeLink.code(from: url) { return linkedCode }
+            if let linkedCode = FriendChallengeWebLink.code(from: url) { return linkedCode }
         }
         return FriendChallengeCode(trimmed)
     }
@@ -260,7 +286,7 @@ private struct FriendChallengeResultView: View {
 
     private var beatTarget: Bool { result.points > result.code.targetPoints }
     private var tiedTarget: Bool { result.points == result.code.targetPoints }
-    private var challengeURL: URL { FriendChallengeLink.url(for: result.code) }
+    private var challengeURL: URL { FriendChallengeWebLink.url(for: result.code) }
 
     var body: some View {
         ScrollView {
@@ -296,7 +322,7 @@ private struct FriendChallengeResultView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if result.createdChallenge {
-                        Text("Friends with EZ Trivia installed can tap the shared link and jump straight into this challenge.")
+                        Text("The shared web link opens this exact challenge in EZ Trivia. The code below is a fallback.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -368,8 +394,7 @@ private struct FriendChallengeResultView: View {
                 "I challenge you to EZ Trivia!",
                 "Beat \(result.score)/\(result.total) — \(result.points.formatted()) points — on the exact same questions.",
                 "Tap to play: \(challengeURL.absoluteString)",
-                "Challenge code: \(result.code.displayString)",
-                "If you need the app: \(RoundSummary.appStoreURL)"
+                "Challenge code: \(result.code.displayString)"
             ].joined(separator: "\n")
         }
         return [
@@ -377,8 +402,7 @@ private struct FriendChallengeResultView: View {
             RoundSummary.grid(result.outcomes),
             "\(result.points.formatted()) points · target \(result.code.targetPoints.formatted())",
             "Play this challenge: \(challengeURL.absoluteString)",
-            "Challenge code: \(result.code.displayString)",
-            RoundSummary.appStoreURL
+            "Challenge code: \(result.code.displayString)"
         ].joined(separator: "\n")
     }
 
