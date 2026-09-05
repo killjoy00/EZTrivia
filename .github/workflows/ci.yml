@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, chatgpt/question-bank-editorial-cleanup]
+    branches: [main]
   pull_request:
 
 concurrency:
@@ -16,50 +16,6 @@ env:
     -destination generic/platform=iOS
 
 jobs:
-  editorial:
-    name: Apply one-shot editorial cleanup
-    if: github.ref == 'refs/heads/chatgpt/question-bank-editorial-cleanup' && github.event.head_commit.message == 'Trigger editorial cleanup through CI'
-    runs-on: ubuntu-latest
-    container: swift:6.0-noble
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Install Python
-        run: apt-get update && apt-get install -y python3
-      - name: Fix one-shot script anchor
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path("Scripts/chatgpt_editorial_cleanup.py")
-          text = path.read_text(encoding="utf-8")
-          old = '(\'        "geography-easy-9",\', \'        "geography-easy-9", "geography-medium-42",\'),'
-          new = '(\'"geography-easy-9", "geography-hard-3",\', \'"geography-easy-9", "geography-medium-42", "geography-hard-3",\'),'
-          if old not in text:
-              raise SystemExit("anchor patch target missing")
-          path.write_text(text.replace(old, new), encoding="utf-8")
-          PY
-      - name: Apply editorial fixes
-        run: python3 Scripts/chatgpt_editorial_cleanup.py
-      - name: Check authored seed syntax
-        run: python3 Scripts/check_seed_syntax.py
-      - name: Regenerate review catalog
-        run: swift run QuestionCatalogExporter > QuestionReview.csv
-      - name: Run editorial report
-        run: python3 Scripts/analyze_questions.py --top 10
-      - name: Run core tests
-        run: swift test
-      - name: Commit generated cleanup
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git -C "$GITHUB_WORKSPACE" config user.name "github-actions[bot]"
-          git -C "$GITHUB_WORKSPACE" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C "$GITHUB_WORKSPACE" add QuestionReview.csv Scripts/analyze_questions.py Sources/EZTriviaCore/QuestionReviewMetadata.swift Sources/EZTriviaCore/Questions Tests/EZTriviaCoreTests/QuestionQualityTests.swift
-          git -C "$GITHUB_WORKSPACE" commit -m "Polish question bank after editorial review"
-          git -C "$GITHUB_WORKSPACE" push origin HEAD:chatgpt/question-bank-editorial-cleanup
-
   engine:
     name: Core package
     runs-on: ubuntu-latest
