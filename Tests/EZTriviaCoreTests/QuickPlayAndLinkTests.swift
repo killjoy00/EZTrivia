@@ -13,15 +13,23 @@ import Testing
 }
 
 @Test func quickPlayPrefersUnseenQuestionsWithinEachChosenSlot() {
-    let excluded = Set(QuestionBank.all.prefix(250).map(\.id))
-    let round = QuestionPicker.quickPlayRound(excluding: excluded)
+    var excluded: Set<String> = []
+    for category in TriviaCategory.allCases {
+        for difficulty in TriviaDifficulty.allCases {
+            if let first = QuestionBank.all.first(where: {
+                $0.category == category && $0.difficulty == difficulty
+            }) {
+                excluded.insert(first.id)
+            }
+        }
+    }
 
-    #expect(round.count == 10)
-    #expect(Set(round.map(\.id)).count == 10)
-    // An excluded question is allowed only when its category/difficulty slot
-    // has no unseen alternative. Every shipped pool is much deeper than one,
-    // so the current catalog should need no such fallback.
-    #expect(round.allSatisfy { !excluded.contains($0.id) })
+    for _ in 0..<25 {
+        let round = QuestionPicker.quickPlayRound(excluding: excluded)
+        #expect(round.count == 10)
+        #expect(Set(round.map(\.id)).count == 10)
+        #expect(round.allSatisfy { !excluded.contains($0.id) })
+    }
 }
 
 @Test func quickPlayShareTextIncludesScoreGridPointsAndStoreLink() {
