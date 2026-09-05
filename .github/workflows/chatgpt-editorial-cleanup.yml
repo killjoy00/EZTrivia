@@ -1,0 +1,46 @@
+name: One-shot question bank editorial cleanup
+
+on:
+  push:
+    branches: [chatgpt/question-bank-editorial-cleanup]
+    paths:
+      - '.github/workflows/chatgpt-editorial-cleanup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    container: swift:6.0-noble
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply editorial fixes
+        run: python3 Scripts/chatgpt_editorial_cleanup.py
+
+      - name: Check authored seed syntax
+        run: python3 Scripts/check_seed_syntax.py
+
+      - name: Regenerate review catalog
+        run: swift run QuestionCatalogExporter > QuestionReview.csv
+
+      - name: Run editorial report
+        run: python3 Scripts/analyze_questions.py --top 10
+
+      - name: Run core tests
+        run: swift test
+
+      - name: Commit generated cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add QuestionReview.csv Scripts/analyze_questions.py Sources/EZTriviaCore/QuestionReviewMetadata.swift Sources/EZTriviaCore/Questions Tests/EZTriviaCoreTests/QuestionQualityTests.swift
+          if git diff --cached --quiet; then
+            echo "No editorial changes to commit."
+            exit 0
+          fi
+          git commit -m "Polish question bank after editorial review"
+          git push origin HEAD:chatgpt/question-bank-editorial-cleanup
