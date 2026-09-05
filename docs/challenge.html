@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#4c3fd6">
+<title>Friend Challenge — EZ Trivia</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <a class="brand" href="index.html">
+    <span class="mark"></span>
+    <strong>EZ Trivia</strong>
+  </a>
+
+  <h1>You've been challenged</h1>
+  <p class="dek">Ten identical questions. One attempt. See if you can beat your friend's score.</p>
+
+  <div class="card" id="challenge-card">
+    <h3>Friend Challenge</h3>
+    <p id="challenge-code">Checking challenge…</p>
+  </div>
+
+  <p><a class="button" id="open-app" href="#">Open challenge in EZ Trivia</a></p>
+  <p><a id="app-store" href="https://apps.apple.com/app/id6804526553">Don't have EZ Trivia? Get it on the App Store</a></p>
+
+  <p class="muted">If the app does not open automatically, install or update EZ Trivia, then return to this page. You can also copy the challenge code and enter it from Friend Challenge inside the app.</p>
+
+  <footer>
+    <p><a href="index.html">EZ Trivia</a> · <a href="support.html">Support</a> · <a href="privacy.html">Privacy Policy</a></p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const raw = (params.get('code') || '').toUpperCase().trim();
+  const looksLikeCode = /^EZ[0-9]-[0-9A-Z-]{19,30}$/.test(raw);
+  const codeNode = document.getElementById('challenge-code');
+  const openButton = document.getElementById('open-app');
+
+  if (!looksLikeCode) {
+    codeNode.textContent = 'This challenge link is incomplete or malformed.';
+    openButton.removeAttribute('href');
+    openButton.setAttribute('aria-disabled', 'true');
+    openButton.style.opacity = '0.5';
+    openButton.style.pointerEvents = 'none';
+    return;
+  }
+
+  codeNode.textContent = raw;
+  const deepLink = 'eztrivia://challenge/' + encodeURIComponent(raw);
+  openButton.href = deepLink;
+
+  // Try the app once after the HTTPS page has loaded. Browsers that suppress
+  // automatic custom-scheme navigation still leave the explicit button above
+  // available, while people without the app remain on this page with a clear
+  // App Store path instead of being redirected away unexpectedly.
+  window.setTimeout(function () {
+    window.location.href = deepLink;
+  }, 250);
+})();
+</script>
+</body>
+</html>
