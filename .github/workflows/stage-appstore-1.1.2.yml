@@ -63,10 +63,10 @@ jobs:
           EOF
           )
 
-          if [ ${#SUBTITLE} -gt 30 ]; then echo 'Subtitle too long'; exit 1; fi
-          if [ ${#PROMO} -gt 170 ]; then echo 'Promotional text too long'; exit 1; fi
-          if [ ${#KEYWORDS} -gt 100 ]; then echo 'Keywords too long'; exit 1; fi
-          if [ ${#DESCRIPTION} -gt 4000 ]; then echo 'Description too long'; exit 1; fi
+          [ ${#SUBTITLE} -le 30 ] || { echo 'Subtitle too long'; exit 1; }
+          [ ${#PROMO} -le 170 ] || { echo 'Promotional text too long'; exit 1; }
+          [ ${#KEYWORDS} -le 100 ] || { echo 'Keywords too long'; exit 1; }
+          [ ${#DESCRIPTION} -le 4000 ] || { echo 'Description too long'; exit 1; }
 
           mkdir -p ~/private_keys
           key=~/private_keys/AuthKey_${ASC_KEY_ID}.p8
@@ -133,20 +133,8 @@ jobs:
           app_id=$(printf '%s' "$apps" | jq -r '.data[0].id // empty')
           [ -n "$app_id" ] || { echo 'EZ Trivia app not found'; exit 1; }
 
-          infos=$(api_get "https://api.appstoreconnect.apple.com/v1/apps/$app_id/appInfos?limit=20")
-          info_id=$(printf '%s' "$infos" | jq -r '.data[0].id // empty')
-          info_locs=$(api_get "https://api.appstoreconnect.apple.com/v1/appInfos/$info_id/appInfoLocalizations?limit=50")
-          info_loc_id=$(printf '%s' "$info_locs" | jq -r '.data[] | select(.attributes.locale == "en-US") | .id' | head -1)
-          [ -n "$info_loc_id" ] || { echo 'en-US app info localization not found'; exit 1; }
-
-          subtitle_payload=$(jq -n --arg id "$info_loc_id" --arg subtitle "$SUBTITLE" \
-            '{data:{type:"appInfoLocalizations",id:$id,attributes:{subtitle:$subtitle}}}')
-          api_write PATCH "https://api.appstoreconnect.apple.com/v1/appInfoLocalizations/$info_loc_id" "$subtitle_payload" >/dev/null
-          echo "Updated subtitle: $SUBTITLE"
-
           versions=$(api_get "https://api.appstoreconnect.apple.com/v1/apps/$app_id/appStoreVersions?filter%5Bplatform%5D=IOS&limit=50")
           version_id=$(printf '%s' "$versions" | jq -r --arg v "$VERSION" '.data[] | select(.attributes.versionString == $v) | .id' | head -1)
-
           if [ -z "$version_id" ]; then
             version_payload=$(jq -n --arg app "$app_id" --arg version "$VERSION" \
               '{data:{type:"appStoreVersions",attributes:{platform:"IOS",versionString:$version,copyright:"2026 Ryan Mindell",releaseType:"MANUAL"},relationships:{app:{data:{type:"apps",id:$app}}}}}')
@@ -157,33 +145,28 @@ jobs:
             echo "App Store version $VERSION already exists ($version_id)"
           fi
 
+          infos=$(api_get "https://api.appstoreconnect.apple.com/v1/apps/$app_id/appInfos?limit=20")
+          info_id=$(printf '%s' "$infos" | jq -r '.data[0].id // empty')
+          info_locs=$(api_get "https://api.appstoreconnect.apple.com/v1/appInfos/$info_id/appInfoLocalizations?limit=50")
+          info_loc_id=$(printf '%s' "$info_locs" | jq -r '.data[] | select(.attributes.locale == "en-US") | .id' | head -1)
+          [ -n "$info_loc_id" ] || { echo 'en-US app info localization not found'; exit 1; }
+          subtitle_payload=$(jq -n --arg id "$info_loc_id" --arg subtitle "$SUBTITLE" \
+            '{data:{type:"appInfoLocalizations",id:$id,attributes:{subtitle:$subtitle}}}')
+          api_write PATCH "https://api.appstoreconnect.apple.com/v1/appInfoLocalizations/$info_loc_id" "$subtitle_payload" >/tmp/subtitle-response.json
+          echo "Updated subtitle: $SUBTITLE"
+
           version_locs=$(api_get "https://api.appstoreconnect.apple.com/v1/appStoreVersions/$version_id/appStoreVersionLocalizations?limit=50")
           version_loc_id=$(printf '%s' "$version_locs" | jq -r '.data[] | select(.attributes.locale == "en-US") | .id' | head -1)
-
           if [ -z "$version_loc_id" ]; then
-            loc_payload=$(jq -n \
-              --arg version "$version_id" \
-              --arg desc "$DESCRIPTION" \
-              --arg keywords "$KEYWORDS" \
-              --arg marketing "$MARKETING_URL" \
-              --arg promo "$PROMO" \
-              --arg support "$SUPPORT_URL" \
-              --arg whats "$WHATS_NEW" \
+            loc_payload=$(jq -n --arg version "$version_id" --arg desc "$DESCRIPTION" --arg keywords "$KEYWORDS" --arg marketing "$MARKETING_URL" --arg promo "$PROMO" --arg support "$SUPPORT_URL" --arg whats "$WHATS_NEW" \
               '{data:{type:"appStoreVersionLocalizations",attributes:{locale:"en-US",description:$desc,keywords:$keywords,marketingUrl:$marketing,promotionalText:$promo,supportUrl:$support,whatsNew:$whats},relationships:{appStoreVersion:{data:{type:"appStoreVersions",id:$version}}}}}')
             created_loc=$(api_write POST 'https://api.appstoreconnect.apple.com/v1/appStoreVersionLocalizations' "$loc_payload")
             version_loc_id=$(printf '%s' "$created_loc" | jq -r '.data.id')
             echo "Created en-US localization ($version_loc_id)"
           else
-            loc_payload=$(jq -n \
-              --arg id "$version_loc_id" \
-              --arg desc "$DESCRIPTION" \
-              --arg keywords "$KEYWORDS" \
-              --arg marketing "$MARKETING_URL" \
-              --arg promo "$PROMO" \
-              --arg support "$SUPPORT_URL" \
-              --arg whats "$WHATS_NEW" \
+            loc_payload=$(jq -n --arg id "$version_loc_id" --arg desc "$DESCRIPTION" --arg keywords "$KEYWORDS" --arg marketing "$MARKETING_URL" --arg promo "$PROMO" --arg support "$SUPPORT_URL" --arg whats "$WHATS_NEW" \
               '{data:{type:"appStoreVersionLocalizations",id:$id,attributes:{description:$desc,keywords:$keywords,marketingUrl:$marketing,promotionalText:$promo,supportUrl:$support,whatsNew:$whats}}}')
-            api_write PATCH "https://api.appstoreconnect.apple.com/v1/appStoreVersionLocalizations/$version_loc_id" "$loc_payload" >/dev/null
+            api_write PATCH "https://api.appstoreconnect.apple.com/v1/appStoreVersionLocalizations/$version_loc_id" "$loc_payload" >/tmp/localization-response.json
             echo "Updated en-US localization ($version_loc_id)"
           fi
 
@@ -191,7 +174,7 @@ jobs:
           build_id=$(printf '%s' "$builds" | jq -r '.data[] | select(.attributes.processingState == "VALID") | .id' | head -1)
           if [ -n "$build_id" ]; then
             build_link=$(jq -n --arg id "$build_id" '{data:{type:"builds",id:$id}}')
-            api_write PATCH "https://api.appstoreconnect.apple.com/v1/appStoreVersions/$version_id/relationships/build" "$build_link" >/dev/null
+            api_write PATCH "https://api.appstoreconnect.apple.com/v1/appStoreVersions/$version_id/relationships/build" "$build_link" >/tmp/build-response.json
             echo "Attached processed build $BUILD_NUMBER ($build_id)"
           else
             echo "Build $BUILD_NUMBER is not yet VALID or was not returned; metadata is staged without attaching a build."
