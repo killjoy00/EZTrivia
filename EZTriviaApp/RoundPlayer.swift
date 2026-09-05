@@ -9,6 +9,7 @@ import SwiftUI
 /// quietly lose them.
 struct RoundPlayer: View {
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var scores: ScoreStore
     @Binding var engine: TriviaEngine
     let tint: Color
     /// Label for the final button of the round.
@@ -182,6 +183,7 @@ struct RoundPlayer: View {
     private func answerButton(_ question: TriviaQuestion, index: Int) -> some View {
         Button {
             let wasCorrect = engine.answer(index)
+            scores.recordQuestionAnswer(question, correct: wasCorrect)
             onAnswer(wasCorrect)
         } label: {
             HStack(spacing: 14) {
