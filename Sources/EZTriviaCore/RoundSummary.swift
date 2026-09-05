@@ -64,4 +64,14 @@ public enum RoundSummary {
             appStoreURL
         ].joined(separator: "\n")
     }
+
+    /// Share text for a Quick Play mixed-category round.
+    public static func quickPlay(outcomes: [Bool], points: Int) -> String {
+        [
+            "EZ Trivia Quick Play — \(outcomes.filter { $0 }.count)/\(outcomes.count)",
+            grid(outcomes),
+            "\(points.formatted()) points",
+            appStoreURL
+        ].joined(separator: "\n")
+    }
 }
