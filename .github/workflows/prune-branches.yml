@@ -1,0 +1,109 @@
+name: Prune merged and superseded branches
+
+# One-shot cleanup. Session credentials elsewhere can create and update refs but
+# not delete them, so the deletion runs here, where GITHUB_TOKEN can.
+#
+# The branch names are an explicit allowlist, never a pattern: a glob that
+# matched one branch too many would be unrecoverable in a way this is not.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List what would be deleted without deleting it"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prune
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          # Fully merged into main — ancestors, so deleting loses nothing.
+          MERGED="
+          chatgpt/question-bank-editorial-cleanup
+          chatgpt/question-completion-and-daily-priority
+          chatgpt/release-sync-daily-social
+          claude/add-tv-category
+          claude/app-store-release-1-01-8xr3yi
+          claude/code-review-deployment-5tziy0
+          claude/fix-share-link-preview
+          claude/remove-practice-mode
+          codex/create-trivia-iphone-app
+          codex/fix-blank-game
+          feature/books-art-question-bank
+          feature/friend-challenges-achievements-settings
+          fix/distractor-bias-and-mayotte
+          fix/flag-fun-facts
+          review/distractor-length-rewrite
+          "
+
+          # Not ancestors of main, but each one's work was verified present in
+          # main under a different commit (squash merges, reworked follow-ups,
+          # and abandoned diagnostic spikes).
+          SUPERSEDED="
+          chatgpt/quickplay-friends-icloud-achievements-reporting
+          claude/diagnose-app-icon
+          claude/fix-leaderboard-score-range
+          claude/game-center-diagnostics
+          claude/round-layout-scaling
+          claude/testflight-diagnostics
+          claude/testflight-signing-fix
+          codex/resolve-ios-app-crash-and-ci-setup
+          feature/randomized-flag-distractors
+          tmp/dump-description
+          "
+
+          deleted=0; skipped=0
+
+          prune_one() {
+            branch="$1"; group="$2"
+            if [ "$branch" = "main" ]; then
+              echo "REFUSING to delete main"; exit 1
+            fi
+            if ! git rev-parse --verify "origin/$branch" >/dev/null 2>&1; then
+              echo "  gone already   $branch"; skipped=$((skipped+1)); return
+            fi
+            sha=$(git rev-parse "origin/$branch")
+
+            # The merged list must still be an ancestor of main at run time. If
+            # someone pushed to one of these since the list was written, that is
+            # new work and this job must not throw it away.
+            if [ "$group" = "merged" ] && ! git merge-base --is-ancestor "origin/$branch" origin/main; then
+              echo "  NOT ANCESTOR   $branch ($sha) -- skipping, no longer merged"
+              skipped=$((skipped+1)); return
+            fi
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "  would delete   $branch  $sha"
+            else
+              git push origin --delete "$branch" >/dev/null 2>&1
+              echo "  deleted        $branch  $sha"
+            fi
+            deleted=$((deleted+1))
+          }
+
+          echo "=== Merged into main ==="
+          for b in $MERGED; do prune_one "$b" merged; done
+          echo "=== Superseded ==="
+          for b in $SUPERSEDED; do prune_one "$b" superseded; done
+
+          echo
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "DRY RUN: $deleted branches would be deleted, $skipped skipped."
+          else
+            echo "$deleted branches deleted, $skipped skipped."
+          fi
+          echo "Restore any with: git push origin <sha>:refs/heads/<branch>"
