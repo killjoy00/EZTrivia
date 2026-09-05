@@ -2,7 +2,8 @@ name: TestFlight
 
 # Uploads a signed build to TestFlight.
 #
-# Temporary main-branch trigger for the 1.1.2 release; restored after the run starts.
+# Runs only on manual dispatch or a v* tag — never on ordinary pushes. Every
+# upload consumes a build number and notifies testers.
 #
 # Signing is entirely cloud-based: -allowProvisioningUpdates with an App Store
 # Connect API key creates the certificate and provisioning profile on demand.
@@ -17,7 +18,6 @@ name: TestFlight
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
     tags: ["v*"]
 
 jobs:
@@ -157,7 +157,6 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            MARKETING_VERSION=1.1.2 \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             2>&1 | tee /tmp/archive.log | xcbeautify
 
