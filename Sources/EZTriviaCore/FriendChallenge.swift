@@ -252,3 +252,26 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
         return value & 0x3FF
     }
 }
+
+/// Deep-link handoff for Friend Challenges.
+///
+/// The custom scheme works without a server or owned web domain. Share text
+/// always includes the human-readable code and App Store URL as fallbacks, so
+/// recipients are never stranded if their messaging app does not make custom
+/// schemes tappable or EZ Trivia is not installed yet.
+public enum FriendChallengeLink {
+    public static let scheme = "eztrivia"
+    public static let host = "challenge"
+
+    public static func url(for code: FriendChallengeCode) -> URL {
+        URL(string: "\(scheme)://\(host)/\(code.displayString)")!
+    }
+
+    public static func code(from url: URL) -> FriendChallengeCode? {
+        guard url.scheme?.lowercased() == scheme,
+              url.host?.lowercased() == host else { return nil }
+        let rawCode = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !rawCode.isEmpty else { return nil }
+        return FriendChallengeCode(rawCode.removingPercentEncoding ?? rawCode)
+    }
+}
