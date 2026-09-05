@@ -29,6 +29,18 @@ jobs:
           fetch-depth: 0
       - name: Install Python
         run: apt-get update && apt-get install -y python3
+      - name: Fix one-shot script anchor
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("Scripts/chatgpt_editorial_cleanup.py")
+          text = path.read_text(encoding="utf-8")
+          old = '(\'        "geography-easy-9",\', \'        "geography-easy-9", "geography-medium-42",\'),'
+          new = '(\'"geography-easy-9", "geography-hard-3",\', \'"geography-easy-9", "geography-medium-42", "geography-hard-3",\'),'
+          if old not in text:
+              raise SystemExit("anchor patch target missing")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
       - name: Apply editorial fixes
         run: python3 Scripts/chatgpt_editorial_cleanup.py
       - name: Check authored seed syntax
