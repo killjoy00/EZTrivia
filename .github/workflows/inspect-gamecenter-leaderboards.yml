@@ -44,11 +44,11 @@ jobs:
           myth_id=$(printf '%s' "$detail" | jq -r '.included[] | select(.type=="gameCenterLeaderboards" and .attributes.vendorIdentifier=="EZTrivia.mythology") | .id')
           echo "detail=$detail_id video=$video_id mythology=$myth_id"
           echo '=== VIDEO VERSIONS ==='
-          get "https://api.appstoreconnect.apple.com/v1/gameCenterLeaderboards/$video_id/versions?limit=50" | jq '{data:[.data[]|{id,attributes,relationships}]}'
+          get "https://api.appstoreconnect.apple.com/v2/gameCenterLeaderboards/$video_id/versions?include=localizations&limit=50" | jq '{data:[.data[]|{id,attributes}],included:[.included[]?|{id,type,attributes}]}'
           echo '=== MYTHOLOGY VERSIONS ==='
-          get "https://api.appstoreconnect.apple.com/v1/gameCenterLeaderboards/$myth_id/versions?limit=50" | jq '{data:[.data[]|{id,attributes,relationships}]}'
+          get "https://api.appstoreconnect.apple.com/v2/gameCenterLeaderboards/$myth_id/versions?include=localizations&limit=50" | jq '{data:[.data[]|{id,attributes}],included:[.included[]?|{id,type,attributes}]}'
           echo '=== LEADERBOARD RELEASES ==='
-          get "https://api.appstoreconnect.apple.com/v1/gameCenterDetails/$detail_id/leaderboardReleases?include=gameCenterLeaderboard&limit=200" | jq '{data:[.data[]|{id,attributes,relationships}],included:[.included[]?|{id,attributes}]}'
+          get "https://api.appstoreconnect.apple.com/v1/gameCenterDetails/$detail_id/leaderboardReleases?include=gameCenterLeaderboard&limit=200" | jq '{data:[.data[]|{id,attributes}],included:[.included[]?|{id,attributes}]}'
           echo '=== REVIEW SUBMISSIONS ==='
           subs=$(get "https://api.appstoreconnect.apple.com/v1/apps/$app_id/reviewSubmissions?limit=20")
           printf '%s' "$subs" | jq '{data:[.data[]|{id,attributes}]}'
