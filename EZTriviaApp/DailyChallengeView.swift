@@ -216,6 +216,7 @@ private struct DailyResultView: View {
                     .padding(.top, 4)
             }
             .padding()
+            .readableWidth()
         }
         .requestReviewIfEarned(
             reviewPrompt,

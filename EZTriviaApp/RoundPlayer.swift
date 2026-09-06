@@ -47,6 +47,7 @@ struct RoundPlayer: View {
                     }
                 }
                 .padding()
+                .readableWidth()
                 .animation(.easeInOut(duration: 0.25), value: engine.selectedAnswerIndex)
             }
             .scrollBounceBehavior(.basedOnSize)
@@ -112,6 +113,7 @@ struct RoundPlayer: View {
                 .frame(maxWidth: .infinity, minHeight: 30)
                 .padding(.vertical, 14)
                 .background(AppTheme.gradient, in: RoundedRectangle(cornerRadius: 16))
+                .readableWidth()
                 .padding(.horizontal)
                 .padding(.vertical, 10)
             }

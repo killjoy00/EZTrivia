@@ -359,6 +359,7 @@ private struct FriendChallengeResultView: View {
                     .background(AppTheme.gradient, in: RoundedRectangle(cornerRadius: 16))
             }
             .padding()
+            .readableWidth()
         }
     }
 

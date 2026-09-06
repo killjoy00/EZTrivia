@@ -56,6 +56,7 @@ struct SettingsView: View {
     @EnvironmentObject private var adConsent: AdConsentManager
     @EnvironmentObject private var streakReminder: StreakReminder
     @EnvironmentObject private var scores: ScoreStore
+    @EnvironmentObject private var purchases: PurchaseStore
 
     var body: some View {
         Form {
@@ -113,7 +114,38 @@ struct SettingsView: View {
                 Text("When iCloud is available, EZ Trivia keeps this private gameplay state in sync across devices signed in to the same iCloud account. The game still works locally when iCloud is unavailable.")
             }
 
-            if adConsent.privacyOptionsRequired {
+            Section {
+                if purchases.hasRemovedAds {
+                    Label("Ads removed. Thank you!", systemImage: "checkmark.seal.fill")
+                        .foregroundStyle(.green)
+                } else {
+                    if let product = purchases.removeAdsProduct {
+                        Button {
+                            Task { await purchases.purchase() }
+                        } label: {
+                            LabeledContent("Remove Ads", value: product.displayPrice)
+                        }
+                        .disabled(purchases.isPurchasing)
+                    } else {
+                        // The product can be missing for reasons that are not
+                        // the player's problem -- no network, or App Store
+                        // Connect not finished propagating a new listing --
+                        // so Restore stays available either way.
+                        Text("Remove Ads is unavailable right now.")
+                            .foregroundStyle(.secondary)
+                    }
+                    Button("Restore purchases") {
+                        Task { await purchases.restore() }
+                    }
+                    .disabled(purchases.isPurchasing)
+                }
+            } header: {
+                Text("Remove Ads")
+            } footer: {
+                Text("A one-time purchase that removes the banner everywhere in EZ Trivia. It applies to every device signed in to the same Apple Account, and nothing else about the game changes.")
+            }
+
+            if adConsent.privacyOptionsRequired && !purchases.hasRemovedAds {
                 Section("Advertising") {
                     Button("Ad privacy choices") {
                         Task { await adConsent.presentPrivacyOptions() }
@@ -130,6 +162,12 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .alert("Purchase", isPresented: Binding(
+            get: { purchases.errorMessage != nil },
+            set: { if !$0 { purchases.errorMessage = nil } }
+        )) { Button("OK") { purchases.errorMessage = nil } } message: {
+            Text(purchases.errorMessage ?? "")
+        }
         // Both the switch and the hour change what is queued, so both reschedule.
         .onChange(of: streakReminder.reminderHour) { _, _ in
             Task { await streakReminder.refresh(playedDays: Set(scores.dailyResults.keys)) }
