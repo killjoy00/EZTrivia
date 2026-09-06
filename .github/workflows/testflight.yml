@@ -208,16 +208,12 @@ jobs:
             2>&1 | tee /tmp/export.log | xcbeautify
           echo "Uploaded build ${{ github.run_number }}. Processing takes 5-15 minutes."
 
-      # xcodebuild still leaves the exported .ipa on disk even when it also
-      # uploads it, so this is worth keeping for inspection regardless of
-      # whether the upload succeeded.
-      - name: Upload the IPA
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: EZTrivia-ipa-${{ github.run_number }}
-          path: ${{ runner.temp }}/export/*.ipa
-          if-no-files-found: ignore
+      # There is deliberately no .ipa artifact step here. With
+      # destination=upload, xcodebuild hands the binary to App Store Connect
+      # and leaves no .ipa in -exportPath, so the step that used to sit here
+      # matched nothing on every run and published an empty artifact -- its
+      # comment claimed the opposite. The archive uploaded above is the
+      # artifact to inspect; it contains the same app bundle.
 
       - name: Surface errors
         if: failure()
