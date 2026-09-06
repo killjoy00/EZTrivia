@@ -69,6 +69,8 @@ for version in versions["data"]:
     print(f"  {attrs.get('versionString'):<10} {attrs.get('appStoreState')}  "
           f"platform={attrs.get('platform')}  id={version['id']}")
 
+target = versions["data"][0] if versions["data"] else None
+
 heading("Relationships this API key can actually reach")
 # The endpoint names for age rating and the privacy label have moved between
 # API versions, so rather than guessing paths, ask the resource what it has.
@@ -83,13 +85,15 @@ if target:
         print(f"  appStoreVersion: {', '.join(vrels)}")
 
 heading("Age rating declaration")
-target = versions["data"][0] if versions["data"] else None
 declaration = None
-if target:
-    declaration = get(f"/appStoreVersions/{target['id']}/ageRatingDeclaration")
-if not declaration or not declaration.get("data"):
-    # Newer API versions hang the declaration off the app rather than a version.
-    declaration = get(f"/apps/{app_id}/ageRatingDeclaration")
+infos = get(f"/apps/{app_id}/appInfos", **{"limit": 5}) or {"data": []}
+for info in infos["data"]:
+    state = info["attributes"].get("appStoreState") or info["attributes"].get("state")
+    print(f"  appInfo {info['id']}  state={state}")
+    found = get(f"/appInfos/{info['id']}/ageRatingDeclaration")
+    if found and found.get("data"):
+        declaration = found
+        break
 if declaration and declaration.get("data"):
     attrs = declaration["data"]["attributes"]
     nonzero = {k: v for k, v in sorted(attrs.items())
