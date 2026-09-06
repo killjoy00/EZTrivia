@@ -64,6 +64,7 @@ jobs:
         env:
           DRY_RUN: ${{ inputs.dry_run }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -72,6 +73,17 @@ jobs:
           # the loop iterates over nothing and reports a clean sweep having
           # looked at no branches, which is the worst possible way to be wrong.
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+
+          # A squash merge rewrites the branch's commits into one new commit on
+          # the default branch, so a squash-merged branch is never an ancestor
+          # of it. Ancestry alone therefore reports every squash-merged branch
+          # as unmerged -- which is how the first version of this decided the
+          # branch it was written to clean up should be kept. GitHub knows the
+          # truth, so ask it, and keep ancestry as the fallback for branches
+          # that were merged without a pull request.
+          merged_heads=$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/pulls?state=closed&per_page=100" \
+            --jq '.[] | select(.merged_at != null) | .head.ref' | sort -u)
 
           mapfile -t refs < <(git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin)
           echo "Examining ${#refs[@]} remote branches against $DEFAULT_BRANCH"
@@ -82,15 +94,19 @@ jobs:
             if [ "$ref" = "HEAD" ] || [ "$ref" = "$DEFAULT_BRANCH" ]; then
               continue
             fi
-            # Ancestry is the whole safety story: if every commit on the branch
-            # is already reachable from the default branch, deleting the ref
-            # discards nothing.
-            if ! git merge-base --is-ancestor "origin/$ref" "origin/$DEFAULT_BRANCH"; then
-              echo "  keeping        $ref (not merged)"
+            reason=""
+            if grep -qxF "$ref" <<<"$merged_heads"; then
+              reason="merged pull request"
+            elif git merge-base --is-ancestor "origin/$ref" "origin/$DEFAULT_BRANCH"; then
+              reason="ancestor of $DEFAULT_BRANCH"
+            fi
+            if [ -z "$reason" ]; then
+              echo "  keeping        $ref (no merged PR, not an ancestor)"
               kept=$((kept+1))
               continue
             fi
             sha=$(git rev-parse "origin/$ref")
+            echo "  ($reason)"
             if [ "$DRY_RUN" = "true" ]; then
               echo "  would delete   $ref  $sha"
             else
