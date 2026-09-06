@@ -38,6 +38,7 @@ struct RootView: View {
     @EnvironmentObject private var scores: ScoreStore
     @StateObject private var playRouter = PlayRouter()
     @State private var selectedTab = AppTab.play
+    @State private var didApplyScreenshotRoute = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -72,6 +73,24 @@ struct RootView: View {
             guard let code = FriendChallengeLink.code(from: url) else { return }
             selectedTab = .play
             playRouter.openFriendChallenge(code)
+        }
+        // Capture runs reach a screen by pushing its route, which works
+        // because navigation here is value-based: there is nothing to tap and
+        // no coordinates to go stale when the layout moves. The flag guards
+        // against onAppear running twice and pushing a route twice.
+        .onAppear {
+            guard !didApplyScreenshotRoute, let screen = ScreenshotMode.screen else { return }
+            didApplyScreenshotRoute = true
+            switch screen {
+            case .home:
+                break
+            case .difficulty:
+                playRouter.path.append(TriviaCategory.movies)
+            case .question, .answered:
+                playRouter.path.append(GameRoute(category: .science, difficulty: .medium))
+            case .daily:
+                playRouter.path.append(DailyRoute())
+            }
         }
         .task(id: gameCenter.isAuthenticated) {
             guard gameCenter.isAuthenticated else { return }

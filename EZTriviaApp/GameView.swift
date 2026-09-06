@@ -57,6 +57,13 @@ struct GameView: View {
             started = true
             feedback.prepare()
             nextRound()
+            // The explanation only exists once a question is answered, so a
+            // capture of that state has to answer one. The correct index keeps
+            // the shot on the teaching copy rather than a wrong-answer state.
+            // `nextRound()` is synchronous, so the engine is already loaded.
+            if ScreenshotMode.screen == .answered, let question = engine.currentQuestion {
+                _ = engine.answer(question.correctAnswerIndex)
+            }
         }
         .navigationBarBackButtonHidden()
         .toolbar {
