@@ -121,6 +121,43 @@ private func isConspicuousLongestAnswer(_ question: TriviaQuestion) -> Bool {
     }
 }
 
+/// The listing ships to an English (U.S.) storefront, so a British spelling in
+/// player-facing copy is a bug. `newCategoryCopyFollowsTheHouseStyle` guards a
+/// short list for the four newest categories only, which is why 216 of these
+/// survived in the older bank until a screenshot put "98 metres per second
+/// squared" on a marketing image.
+///
+/// The two exemptions are proper nouns -- a show title and an Australian place
+/// name -- and are keyed by question id rather than removed from the word list,
+/// so "grey" and "harbour" stay caught everywhere else in the bank.
+@Test func bankCopyUsesAmericanSpellings() {
+    let britishSpellings: Set<String> = [
+        "centre", "centres", "centred", "colour", "colours", "coloured",
+        "defence", "defences", "offence", "offences", "metre", "metres",
+        "kilometre", "kilometres", "centimetre", "centimetres",
+        "millimetre", "millimetres", "litre", "litres",
+        "flavour", "flavours", "flavoured", "flavouring",
+        "favourite", "honour", "humour", "labour", "neighbour",
+        "neighbouring", "neighbourhood", "behaviour", "harbour", "odour",
+        "vapour", "armour", "rumour", "fibre", "fibres", "theatre",
+        "theatres", "amphitheatre", "mould", "moulded", "grey",
+        "travelling", "travelled", "traveller", "cancelled", "signalling",
+        "modelled", "labelled", "organise", "organised", "recognise",
+        "realise", "analyse", "aluminium", "sulphur", "programme",
+        "licence", "aeroplane", "palaeontology", "artefact", "artefacts",
+        "storey", "kerb", "moustache", "jewellery", "manoeuvre"
+    ]
+    // Grey's Anatomy and Sydney Harbour: official names, not house style.
+    let properNouns: Set<String> = ["tv-easy-25", "art-easy-21"]
+
+    for question in QuestionBank.all where !properNouns.contains(question.id) {
+        let copy = ([question.prompt, question.explanation] + question.answers)
+            .joined(separator: " ")
+        let disallowed = normalizedTokens(copy).intersection(britishSpellings)
+        #expect(disallowed.isEmpty, "\(question.id) uses non-house spellings: \(disallowed)")
+    }
+}
+
 @Test func newCategoryPoolsRemainVaried() {
     for category in newCategories {
         for difficulty in TriviaDifficulty.allCases {

@@ -83,7 +83,7 @@ public enum QuestionPicker {
     ///
     /// Unseen questions are always preferred. When the unseen pool is too small
     /// to fill a round, it is topped up with already-seen questions rather than
-    /// discarded — the previous behaviour threw away every unseen question the
+    /// discarded — the previous behavior threw away every unseen question the
     /// moment the pool ran low, so a player near the end of a category kept
     /// being served questions they had just answered.
     ///
