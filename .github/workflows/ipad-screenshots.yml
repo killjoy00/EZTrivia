@@ -66,6 +66,10 @@ jobs:
       - name: Boot, install, and capture
         env:
           UDID: ${{ steps.sim.outputs.udid }}
+          # Debug-only flag: suppresses the Game Center sign-in failure alert
+          # and the AdMob test-ad placeholder, neither of which may appear in
+          # a screenshot submitted to App Review.
+          SCREENSHOT_FLAG: "-EZTriviaScreenshotMode"
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/shots"
@@ -89,19 +93,33 @@ jobs:
             echo "captured $1"
           }
 
-          xcrun simctl ui "$UDID" appearance light || true
-          xcrun simctl launch "$UDID" com.rsm.eztrivia
-          capture "01-home-light" 12
+          # Appearance is set before each launch and the app is restarted
+          # between them. Flipping it under a running app looked like it
+          # worked -- simctl exits 0 -- but produced two byte-identical PNGs.
+          shoot() {
+            xcrun simctl terminate "$UDID" com.rsm.eztrivia 2>/dev/null || true
+            xcrun simctl ui "$UDID" appearance "$2"
+            xcrun simctl launch "$UDID" com.rsm.eztrivia "$SCREENSHOT_FLAG"
+            capture "$1" 12
+          }
 
-          xcrun simctl ui "$UDID" appearance dark || true
-          capture "02-home-dark" 5
+          shoot "01-home-light" light
+          shoot "02-home-dark" dark
 
           python3 - "$RUNNER_TEMP/shots" <<'PY'
-          import pathlib, struct, sys
+          import hashlib, pathlib, struct, sys
 
+          seen, failed = {}, False
           for path in sorted(pathlib.Path(sys.argv[1]).glob("*.png")):
-              width, height = struct.unpack(">II", path.read_bytes()[16:24])
-              print(f"{path.name}: {width} x {height}")
+              raw = path.read_bytes()
+              width, height = struct.unpack(">II", raw[16:24])
+              digest = hashlib.sha256(raw).hexdigest()
+              print(f"{path.name}: {width} x {height}  {digest[:12]}")
+              if digest in seen:
+                  print(f"  !! identical to {seen[digest]} -- the capture did not change")
+                  failed = True
+              seen[digest] = path.name
+          sys.exit(1 if failed else 0)
           PY
 
       - uses: actions/upload-artifact@v4
