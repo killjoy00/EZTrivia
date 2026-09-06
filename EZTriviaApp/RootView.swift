@@ -89,7 +89,9 @@ struct HomeView: View {
         if dynamicTypeSize.isAccessibilitySize {
             return [GridItem(.flexible())]
         }
-        return [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+        // Adaptive rather than a fixed pair so an iPad lays out four columns
+        // instead of two enormous ones. A phone still resolves to two.
+        return [GridItem(.adaptive(minimum: 165, maximum: 260), spacing: 12)]
     }
 
     var body: some View {
@@ -110,6 +112,7 @@ struct HomeView: View {
                 }
             }
             .padding()
+            .readableWidth(900)
         }
         .background(AppTheme.background)
         // Pinned above the tab bar rather than left at the end of the
@@ -227,7 +230,7 @@ private struct DifficultyView: View {
             }
             Spacer()
         }
-        .padding().background(AppTheme.background.ignoresSafeArea()).navigationTitle(category.title).navigationBarTitleDisplayMode(.inline)
+        .padding().readableWidth().background(AppTheme.background.ignoresSafeArea()).navigationTitle(category.title).navigationBarTitleDisplayMode(.inline)
     }
 }
 

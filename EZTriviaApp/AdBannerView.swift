@@ -13,6 +13,7 @@ import GoogleMobileAds
 /// Nothing is a much better empty state than a bug report shown to users.
 struct AdBannerView: View {
     @EnvironmentObject private var adConsent: AdConsentManager
+    @EnvironmentObject private var purchases: PurchaseStore
     private var adUnitID: String? {
         guard let value = Bundle.main.object(forInfoDictionaryKey: "EZTriviaAdMobBannerID") as? String,
               value.hasPrefix("ca-app-pub-") else { return nil }
@@ -21,7 +22,9 @@ struct AdBannerView: View {
 
     var body: some View {
         #if canImport(GoogleMobileAds)
-        if let adUnitID, adConsent.canRequestAds {
+        // Someone who paid to remove ads gets no banner and no reserved space
+        // for one, on every surface that insets this view.
+        if let adUnitID, adConsent.canRequestAds, !purchases.hasRemovedAds {
             AdMobBannerRepresentable(adUnitID: adUnitID)
                 .frame(height: 50)
                 .frame(maxWidth: .infinity)

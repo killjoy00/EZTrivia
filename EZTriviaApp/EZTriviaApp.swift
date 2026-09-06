@@ -9,6 +9,7 @@ struct EZTriviaApp: App {
     @StateObject private var settings = AppSettings()
     @StateObject private var streakReminder = StreakReminder()
     @StateObject private var reviewPrompt = ReviewPrompt()
+    @StateObject private var purchases = PurchaseStore()
 
     init() {
         Telemetry.configure()
@@ -24,6 +25,8 @@ struct EZTriviaApp: App {
                 .environmentObject(settings)
                 .environmentObject(streakReminder)
                 .environmentObject(reviewPrompt)
+                .environmentObject(purchases)
+                .task { await purchases.start() }
                 .tint(.indigo)
                 .onAppear {
                     gameCenter.authenticate()

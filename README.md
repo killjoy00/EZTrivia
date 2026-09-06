@@ -14,6 +14,8 @@ EZ Trivia is a native SwiftUI trivia game for iPhone. Players can jump straight 
 - Native global and friends leaderboards inside the Scores tab, plus optional access to Apple's full Game Center dashboard
 - Local recent-round and Quick Play history, category best scores, and difficulty-weighted lifetime points
 - Automatic private player-state synchronization through iCloud key-value storage when iCloud is available
+- **Remove Ads:** a one-time non-consumable purchase that hides the banner everywhere, restorable on any device signed in to the same Apple Account
+- Universal: iPhone and iPad, with an adaptive category grid and content held to a readable measure on large screens
 - In-game **Report this question** links that prefill the stable question ID and answer context in a support email
 - Optional 2–15 second auto-advance, sound effects, and haptics in the Settings tab
 - Shareable square result cards for category, Quick Play, Daily, and Friend Challenge rounds

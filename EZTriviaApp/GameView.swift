@@ -230,6 +230,7 @@ private struct ResultView: View {
             Button("Back to categories") { finish() }.font(.headline).padding(.bottom)
         }
         .padding()
+        .readableWidth()
         .requestReviewIfEarned(
             reviewPrompt,
             score: score,
@@ -337,6 +338,7 @@ private struct QuickPlayResultView: View {
                 .padding(.bottom)
         }
         .padding()
+        .readableWidth()
         .requestReviewIfEarned(
             reviewPrompt,
             score: score,

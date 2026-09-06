@@ -28,6 +28,20 @@ enum AppTheme {
 }
 
 extension View {
+    /// Caps content at a comfortable measure and centers it.
+    ///
+    /// iPad is not a large iPhone: a two-column category grid stretched across
+    /// ten inches, or a question whose lines run the full width of the screen,
+    /// reads as an app that was never opened on the device. Everything stays
+    /// full-width on phones, where these caps are wider than the screen.
+    ///
+    /// The default suits prose and answer buttons. Grids pass a wider value,
+    /// since they gain a column rather than growing each card.
+    func readableWidth(_ maxWidth: CGFloat = 640) -> some View {
+        frame(maxWidth: maxWidth)
+            .frame(maxWidth: .infinity)
+    }
+
     func cardStyle() -> some View {
         padding(18)
             .background(AppTheme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
