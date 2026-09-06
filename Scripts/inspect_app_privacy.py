@@ -106,6 +106,26 @@ if declaration and declaration.get("data"):
 else:
     print("  (no age rating declaration returned)")
 
+heading("In-app purchases")
+# StoreKit only returns a product once App Store Connect considers it complete.
+# A product sitting in MISSING_METADATA is invisible to Product.products(for:),
+# which is indistinguishable in the app from "no such product".
+iaps = get(f"/apps/{app_id}/inAppPurchasesV2", **{"limit": 50})
+if iaps is None:
+    print("  (endpoint unavailable to this key)")
+elif not iaps.get("data"):
+    print("  none defined for this app")
+else:
+    for iap in iaps["data"]:
+        attrs = iap["attributes"]
+        print(f"  {attrs.get('productId')}")
+        print(f"      name:  {attrs.get('name')}")
+        print(f"      type:  {attrs.get('inAppPurchaseType')}")
+        print(f"      state: {attrs.get('state')}")
+        ready = attrs.get("state") in {"READY_TO_SUBMIT", "APPROVED", "WAITING_FOR_REVIEW",
+                                       "IN_REVIEW", "PENDING_BINARY_APPROVAL"}
+        print(f"      -> {'visible to StoreKit' if ready else 'NOT returned by StoreKit in this state'}")
+
 heading("App Privacy — declared data usages")
 usages = get(f"/apps/{app_id}/appDataUsages",
              include="category,grouping,purpose,dataProtection",
