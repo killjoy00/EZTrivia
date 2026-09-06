@@ -1,0 +1,88 @@
+name: Delete merged branches
+
+# Branch cleanup, handled by the repo rather than remembered by a person.
+#
+# Two ways in:
+#   * a merged pull request deletes its own head branch
+#   * a manual sweep clears anything already merged that got left behind
+#
+# Both paths refuse to delete a branch that is not an ancestor of the default
+# branch, so unmerged work is never at risk here, and main is refused outright.
+#
+# GitHub can do the first half of this natively -- Settings > General >
+# "Automatically delete head branches". If that gets switched on, the
+# pull_request trigger below becomes redundant and can be dropped; the manual
+# sweep is still worth keeping for strays.
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List what would be deleted without deleting it"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  on-merge:
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete the head branch
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "$SAME_REPO" != "true" ]; then
+            echo "Head is on a fork; nothing to delete."; exit 0
+          fi
+          if [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
+            echo "Refusing to delete the default branch."; exit 0
+          fi
+          if gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${BRANCH}" 2>/dev/null; then
+            echo "Deleted $BRANCH"
+          else
+            echo "$BRANCH was already gone."
+          fi
+
+  sweep:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Delete every branch already merged into the default branch
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          deleted=0
+          for ref in $(git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin); do
+            [ "$ref" = "HEAD" ] && continue
+            [ "$ref" = "$DEFAULT_BRANCH" ] && continue
+            # Ancestry is the whole safety story: if every commit on the branch
+            # is already reachable from the default branch, deleting the ref
+            # discards nothing.
+            git merge-base --is-ancestor "origin/$ref" "origin/$DEFAULT_BRANCH" || continue
+            sha=$(git rev-parse "origin/$ref")
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "  would delete   $ref  $sha"
+            else
+              git push origin --delete "$ref" >/dev/null 2>&1
+              echo "  deleted        $ref  $sha"
+            fi
+            deleted=$((deleted+1))
+          done
+          echo
+          echo "${deleted} merged branches ${DRY_RUN:+processed}"
+          echo "Restore any with: git push origin <sha>:refs/heads/<branch>"
