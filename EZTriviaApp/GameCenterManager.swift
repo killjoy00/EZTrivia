@@ -25,6 +25,10 @@ final class GameCenterManager: ObservableObject {
     private var didLoadAchievementProgress = false
 
     func authenticate() {
+        // Installing the handler at all is what produces the alert, so the
+        // guard goes here rather than around the error assignment: a screenshot
+        // run should not even attempt an authentication it is certain to fail.
+        guard !ScreenshotMode.isActive else { return }
         GKLocalPlayer.local.authenticateHandler = { [weak self] viewController, error in
             Task { @MainActor in
                 self?.authenticationViewController = viewController

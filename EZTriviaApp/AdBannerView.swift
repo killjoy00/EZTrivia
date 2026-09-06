@@ -24,7 +24,10 @@ struct AdBannerView: View {
         #if canImport(GoogleMobileAds)
         // Someone who paid to remove ads gets no banner and no reserved space
         // for one, on every surface that insets this view.
-        if let adUnitID, adConsent.canRequestAds, !purchases.hasRemovedAds {
+        // Screenshot mode is grouped with the purchase check because it wants
+        // the same result: the ad-free layout, which is a state the shipped app
+        // really produces, rather than a test-ad placeholder that is not.
+        if let adUnitID, adConsent.canRequestAds, !purchases.hasRemovedAds, !ScreenshotMode.isActive {
             AdMobBannerRepresentable(adUnitID: adUnitID)
                 .frame(height: 50)
                 .frame(maxWidth: .infinity)
