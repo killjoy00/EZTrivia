@@ -44,8 +44,34 @@ final class PurchaseStore: ObservableObject {
         await refreshEntitlements()
     }
 
+    /// Why the product is not on screen, when it is not.
+    ///
+    /// `try?` collapsed two very different situations into the same nil: the
+    /// request failed, and the request succeeded but App Store Connect returned
+    /// nothing for this identifier. Settings said "unavailable right now" for
+    /// both, which is exactly the information a person debugging it does not
+    /// have. StoreKit returns no product at all while one sits in Missing
+    /// Metadata, so "not in the catalogue" is the common case and worth naming.
+    enum LoadFailure: Equatable {
+        case notInCatalog
+        case requestFailed(String)
+    }
+
+    @Published private(set) var loadFailure: LoadFailure?
+
     func loadProduct() async {
-        removeAdsProduct = try? await Product.products(for: [Self.removeAdsProductID]).first
+        do {
+            let products = try await Product.products(for: [Self.removeAdsProductID])
+            removeAdsProduct = products.first
+            loadFailure = products.isEmpty ? .notInCatalog : nil
+            if products.isEmpty {
+                Telemetry.log("iap.product_missing", parameters: ["id": Self.removeAdsProductID])
+            }
+        } catch {
+            removeAdsProduct = nil
+            loadFailure = .requestFailed(error.localizedDescription)
+            Telemetry.record(error)
+        }
     }
 
     func refreshEntitlements() async {

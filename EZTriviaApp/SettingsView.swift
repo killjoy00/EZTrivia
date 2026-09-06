@@ -131,8 +131,13 @@ struct SettingsView: View {
                         // the player's problem -- no network, or App Store
                         // Connect not finished propagating a new listing --
                         // so Restore stays available either way.
-                        Text("Remove Ads is unavailable right now.")
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Remove Ads is unavailable right now.")
+                            if case let .requestFailed(message) = purchases.loadFailure {
+                                Text(message).font(.caption)
+                            }
+                        }
+                        .foregroundStyle(.secondary)
                     }
                     Button("Restore purchases") {
                         Task { await purchases.restore() }
