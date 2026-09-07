@@ -190,6 +190,36 @@ if iaps and iaps.get("data"):
             print("      review screenshot: NONE (required before an IAP can be reviewed)")
 
 
+heading("Review submissions and what was in them")
+# The decisive question for a first in-app purchase: was the product actually
+# an item in the submission alongside the binary? A rejection detaches it and
+# reverts it to READY_TO_SUBMIT, so the product's own state cannot answer this
+# after the fact -- but the submission's item list still can.
+submissions = get("/reviewSubmissions", **{"filter[app]": app_id, "limit": 10})
+if submissions is None:
+    print("  (endpoint unavailable to this key)")
+elif not submissions.get("data"):
+    print("  no review submissions on record")
+else:
+    for sub in submissions["data"]:
+        attrs = sub["attributes"]
+        print(f"  submission {sub['id']}")
+        print(f"      state={attrs.get('state')} platform={attrs.get('platform')} "
+              f"submitted={attrs.get('submittedDate')}")
+        items = get(f"/reviewSubmissions/{sub['id']}/items")
+        if not items or not items.get("data"):
+            print("      items: (none returned)")
+            continue
+        for item in items["data"]:
+            rels = item.get("relationships", {})
+            kinds = [name for name, rel in rels.items() if (rel or {}).get("data")]
+            detail = ", ".join(
+                f"{name}={rel['data'].get('id')}" for name, rel in rels.items()
+                if (rel or {}).get("data")
+            )
+            print(f"      item: {detail or kinds}")
+
+
 heading("App availability, for comparison")
 app_av = get(f"/apps/{app_id}/appAvailabilityV2",
              include="territoryAvailabilities", **{"limit[territoryAvailabilities]": 50})
