@@ -126,6 +126,68 @@ else:
                                        "IN_REVIEW", "PENDING_BINARY_APPROVAL"}
         print(f"      -> {'visible to StoreKit' if ready else 'NOT returned by StoreKit in this state'}")
 
+def get_v2(path: str, **params):
+    """The in-app purchase resources live under /v2, unlike everything else here."""
+    response = session.get(
+        f"https://api.appstoreconnect.apple.com/v2{path}", params=params, timeout=30
+    )
+    if response.status_code >= 300:
+        print(f"  ! GET /v2{path} -> HTTP {response.status_code}: {response.text[:200]}")
+        return None
+    return response.json()
+
+
+heading("In-app purchase readiness detail")
+# READY_TO_SUBMIT only says the metadata form is complete. A product can still
+# be unfetchable by Product.products(for:) because it has no price schedule or
+# no available territories, and neither shows up in `state`.
+if iaps and iaps.get("data"):
+    for iap in iaps["data"]:
+        iap_id = iap["id"]
+        print(f"  {iap['attributes'].get('productId')}  (id={iap_id})")
+
+        schedule = get_v2(f"/inAppPurchases/{iap_id}/iapPriceSchedule",
+                          include="manualPrices", **{"limit[manualPrices]": 20})
+        if schedule is None:
+            print("      price schedule: (unreadable)")
+        elif not schedule.get("data"):
+            print("      price schedule: NONE -> StoreKit cannot return this product")
+        else:
+            prices = [i for i in schedule.get("included", []) if i["type"] == "inAppPurchasePrices"]
+            print(f"      price schedule: present, {len(prices)} manual price rows")
+            for price in prices[:3]:
+                attrs = price.get("attributes", {})
+                print(f"          startDate={attrs.get('startDate')} endDate={attrs.get('endDate')}")
+
+        availability = get_v2(f"/inAppPurchases/{iap_id}/inAppPurchaseAvailability",
+                              include="availableTerritories",
+                              **{"limit[availableTerritories]": 200})
+        if availability is None:
+            print("      availability: (unreadable)")
+        elif not availability.get("data"):
+            print("      availability: NONE -> not for sale in any territory")
+        else:
+            territories = [i for i in availability.get("included", []) if i["type"] == "territories"]
+            attrs = availability["data"].get("attributes", {})
+            print(f"      availability: availableInNewTerritories={attrs.get('availableInNewTerritories')}, "
+                  f"{len(territories)} territories")
+
+        localizations = get_v2(f"/inAppPurchases/{iap_id}/inAppPurchaseLocalizations", **{"limit": 20})
+        if localizations and localizations.get("data"):
+            for loc in localizations["data"]:
+                a = loc["attributes"]
+                print(f"      localization: {a.get('locale')} name={a.get('name')!r} state={a.get('state')}")
+        else:
+            print("      localizations: NONE -> incomplete listing")
+
+        shot = get_v2(f"/inAppPurchases/{iap_id}/appStoreReviewScreenshot")
+        if shot and shot.get("data"):
+            a = shot["data"].get("attributes", {})
+            print(f"      review screenshot: {a.get('fileName')} state={(a.get('assetDeliveryState') or {}).get('state')}")
+        else:
+            print("      review screenshot: NONE (required before an IAP can be reviewed)")
+
+
 heading("App Privacy — declared data usages")
 usages = get(f"/apps/{app_id}/appDataUsages",
              include="category,grouping,purpose,dataProtection",
