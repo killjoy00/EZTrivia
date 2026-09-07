@@ -44,6 +44,20 @@ final class PurchaseStore: ObservableObject {
         await refreshEntitlements()
     }
 
+    /// Re-fetch only when there is nothing to show.
+    ///
+    /// The product is loaded once at launch, and a single failure there used to
+    /// strand Settings on "unavailable right now" for the whole session with
+    /// nothing the player could do about it -- a transient network error at the
+    /// wrong moment was indistinguishable from a product that does not exist.
+    /// Settings calls this on appear, so simply revisiting the screen retries.
+    /// It no-ops once a product is in hand, so it costs nothing in the normal
+    /// case.
+    func reloadProductIfMissing() async {
+        guard removeAdsProduct == nil else { return }
+        await loadProduct()
+    }
+
     /// Why the product is not on screen, when it is not.
     ///
     /// `try?` collapsed two very different situations into the same nil: the

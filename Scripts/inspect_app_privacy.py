@@ -126,6 +126,119 @@ else:
                                        "IN_REVIEW", "PENDING_BINARY_APPROVAL"}
         print(f"      -> {'visible to StoreKit' if ready else 'NOT returned by StoreKit in this state'}")
 
+def get_v2(path: str, **params):
+    """The in-app purchase resources live under /v2, unlike everything else here."""
+    response = session.get(
+        f"https://api.appstoreconnect.apple.com/v2{path}", params=params, timeout=30
+    )
+    if response.status_code >= 300:
+        print(f"  ! GET /v2{path} -> HTTP {response.status_code}: {response.text[:600]}")
+        return None
+    return response.json()
+
+
+heading("In-app purchase readiness detail")
+# READY_TO_SUBMIT only says the metadata form is complete. A product can still
+# be unfetchable by Product.products(for:) because it has no price schedule or
+# no available territories, and neither shows up in `state`.
+if iaps and iaps.get("data"):
+    for iap in iaps["data"]:
+        iap_id = iap["id"]
+        print(f"  {iap['attributes'].get('productId')}  (id={iap_id})")
+
+        schedule = get_v2(f"/inAppPurchases/{iap_id}/iapPriceSchedule",
+                          include="manualPrices", **{"limit[manualPrices]": 20})
+        if schedule is None:
+            print("      price schedule: (unreadable)")
+        elif not schedule.get("data"):
+            print("      price schedule: NONE -> StoreKit cannot return this product")
+        else:
+            prices = [i for i in schedule.get("included", []) if i["type"] == "inAppPurchasePrices"]
+            print(f"      price schedule: present, {len(prices)} manual price rows")
+            for price in prices[:3]:
+                attrs = price.get("attributes", {})
+                print(f"          startDate={attrs.get('startDate')} endDate={attrs.get('endDate')}")
+
+        availability = get_v2(f"/inAppPurchases/{iap_id}/inAppPurchaseAvailability",
+                              include="availableTerritories",
+                              **{"limit[availableTerritories]": 50})
+        if availability is None:
+            print("      availability: (unreadable)")
+        elif not availability.get("data"):
+            print("      availability: NONE -> not for sale in any territory")
+        else:
+            territories = [i for i in availability.get("included", []) if i["type"] == "territories"]
+            attrs = availability["data"].get("attributes", {})
+            codes = sorted(t["id"] for t in territories)
+            print(f"      availability: availableInNewTerritories={attrs.get('availableInNewTerritories')}, "
+                  f"{len(codes)} territories")
+            print(f"          {', '.join(codes)}")
+
+        localizations = get_v2(f"/inAppPurchases/{iap_id}/inAppPurchaseLocalizations", **{"limit": 20})
+        if localizations and localizations.get("data"):
+            for loc in localizations["data"]:
+                a = loc["attributes"]
+                print(f"      localization: {a.get('locale')} name={a.get('name')!r} state={a.get('state')}")
+        else:
+            print("      localizations: NONE -> incomplete listing")
+
+        shot = get_v2(f"/inAppPurchases/{iap_id}/appStoreReviewScreenshot")
+        if shot and shot.get("data"):
+            a = shot["data"].get("attributes", {})
+            print(f"      review screenshot: {a.get('fileName')} state={(a.get('assetDeliveryState') or {}).get('state')}")
+        else:
+            print("      review screenshot: NONE (required before an IAP can be reviewed)")
+
+
+heading("Review submissions and what was in them")
+# The decisive question for a first in-app purchase: was the product actually
+# an item in the submission alongside the binary? A rejection detaches it and
+# reverts it to READY_TO_SUBMIT, so the product's own state cannot answer this
+# after the fact -- but the submission's item list still can.
+submissions = get("/reviewSubmissions", **{"filter[app]": app_id, "limit": 10})
+if submissions is None:
+    print("  (endpoint unavailable to this key)")
+elif not submissions.get("data"):
+    print("  no review submissions on record")
+else:
+    for sub in submissions["data"]:
+        attrs = sub["attributes"]
+        print(f"  submission {sub['id']}")
+        print(f"      state={attrs.get('state')} platform={attrs.get('platform')} "
+              f"submitted={attrs.get('submittedDate')}")
+        items = get(f"/reviewSubmissions/{sub['id']}/items")
+        if not items or not items.get("data"):
+            print("      items: (none returned)")
+            continue
+        for item in items["data"]:
+            # Relationship data is not populated on the collection response, so
+            # each item is re-fetched on its own where the links are resolved.
+            full = get(f"/reviewSubmissionItems/{item['id']}") or {}
+            rels = (full.get("data") or item).get("relationships", {}) or {}
+            named = {
+                name: rel["data"].get("id")
+                for name, rel in rels.items() if (rel or {}).get("data")
+            }
+            state = ((full.get("data") or item).get("attributes") or {}).get("state")
+            print(f"      item {item['id']}: state={state} -> {named or 'no linked resource'}")
+            if not named:
+                print(f"          relationship keys present: {sorted(rels)}")
+
+
+heading("App availability, for comparison")
+app_av = get(f"/apps/{app_id}/appAvailabilityV2",
+             include="territoryAvailabilities", **{"limit[territoryAvailabilities]": 50})
+if app_av is None:
+    print("  (endpoint unavailable to this key)")
+else:
+    included = app_av.get("included", [])
+    total = (app_av.get("meta", {}).get("paging", {}) or {}).get("total")
+    available = [i for i in included
+                 if (i.get("attributes") or {}).get("available") is True]
+    print(f"  territoryAvailabilities returned: {len(included)} (total reported: {total})")
+    print(f"  of those marked available: {len(available)}")
+
+
 heading("App Privacy — declared data usages")
 usages = get(f"/apps/{app_id}/appDataUsages",
              include="category,grouping,purpose,dataProtection",

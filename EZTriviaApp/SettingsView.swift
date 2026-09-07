@@ -138,6 +138,12 @@ struct SettingsView: View {
                             }
                         }
                         .foregroundStyle(.secondary)
+                        // Without this the only way to retry was to relaunch,
+                        // which is not something a player would think to do.
+                        Button("Try again") {
+                            Task { await purchases.loadProduct() }
+                        }
+                        .disabled(purchases.isPurchasing)
                     }
                     Button("Restore purchases") {
                         Task { await purchases.restore() }
@@ -167,6 +173,10 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        // Opening Settings is the moment the player is looking for the
+        // purchase, so it is the right moment to retry a fetch that failed at
+        // launch. No-ops once the product is loaded.
+        .task { await purchases.reloadProductIfMissing() }
         .alert("Purchase", isPresented: Binding(
             get: { purchases.errorMessage != nil },
             set: { if !$0 { purchases.errorMessage = nil } }
