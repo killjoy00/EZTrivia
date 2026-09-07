@@ -169,8 +169,10 @@ if iaps and iaps.get("data"):
         else:
             territories = [i for i in availability.get("included", []) if i["type"] == "territories"]
             attrs = availability["data"].get("attributes", {})
+            codes = sorted(t["id"] for t in territories)
             print(f"      availability: availableInNewTerritories={attrs.get('availableInNewTerritories')}, "
-                  f"{len(territories)} territories")
+                  f"{len(codes)} territories")
+            print(f"          {', '.join(codes)}")
 
         localizations = get_v2(f"/inAppPurchases/{iap_id}/inAppPurchaseLocalizations", **{"limit": 20})
         if localizations and localizations.get("data"):
@@ -186,6 +188,20 @@ if iaps and iaps.get("data"):
             print(f"      review screenshot: {a.get('fileName')} state={(a.get('assetDeliveryState') or {}).get('state')}")
         else:
             print("      review screenshot: NONE (required before an IAP can be reviewed)")
+
+
+heading("App availability, for comparison")
+app_av = get(f"/apps/{app_id}/appAvailabilityV2",
+             include="territoryAvailabilities", **{"limit[territoryAvailabilities]": 50})
+if app_av is None:
+    print("  (endpoint unavailable to this key)")
+else:
+    included = app_av.get("included", [])
+    total = (app_av.get("meta", {}).get("paging", {}) or {}).get("total")
+    available = [i for i in included
+                 if (i.get("attributes") or {}).get("available") is True]
+    print(f"  territoryAvailabilities returned: {len(included)} (total reported: {total})")
+    print(f"  of those marked available: {len(available)}")
 
 
 heading("App Privacy — declared data usages")
