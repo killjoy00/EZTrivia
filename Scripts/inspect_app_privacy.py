@@ -211,13 +211,18 @@ else:
             print("      items: (none returned)")
             continue
         for item in items["data"]:
-            rels = item.get("relationships", {})
-            kinds = [name for name, rel in rels.items() if (rel or {}).get("data")]
-            detail = ", ".join(
-                f"{name}={rel['data'].get('id')}" for name, rel in rels.items()
-                if (rel or {}).get("data")
-            )
-            print(f"      item: {detail or kinds}")
+            # Relationship data is not populated on the collection response, so
+            # each item is re-fetched on its own where the links are resolved.
+            full = get(f"/reviewSubmissionItems/{item['id']}") or {}
+            rels = (full.get("data") or item).get("relationships", {}) or {}
+            named = {
+                name: rel["data"].get("id")
+                for name, rel in rels.items() if (rel or {}).get("data")
+            }
+            state = ((full.get("data") or item).get("attributes") or {}).get("state")
+            print(f"      item {item['id']}: state={state} -> {named or 'no linked resource'}")
+            if not named:
+                print(f"          relationship keys present: {sorted(rels)}")
 
 
 heading("App availability, for comparison")
