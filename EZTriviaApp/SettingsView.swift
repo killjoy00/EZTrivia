@@ -138,6 +138,12 @@ struct SettingsView: View {
                             }
                         }
                         .foregroundStyle(.secondary)
+                        // Without this the only way to retry was to relaunch,
+                        // which is not something a player would think to do.
+                        Button("Try again") {
+                            Task { await purchases.loadProduct() }
+                        }
+                        .disabled(purchases.isPurchasing)
                     }
                     Button("Restore purchases") {
                         Task { await purchases.restore() }

@@ -132,7 +132,7 @@ def get_v2(path: str, **params):
         f"https://api.appstoreconnect.apple.com/v2{path}", params=params, timeout=30
     )
     if response.status_code >= 300:
-        print(f"  ! GET /v2{path} -> HTTP {response.status_code}: {response.text[:200]}")
+        print(f"  ! GET /v2{path} -> HTTP {response.status_code}: {response.text[:600]}")
         return None
     return response.json()
 
@@ -161,7 +161,7 @@ if iaps and iaps.get("data"):
 
         availability = get_v2(f"/inAppPurchases/{iap_id}/inAppPurchaseAvailability",
                               include="availableTerritories",
-                              **{"limit[availableTerritories]": 200})
+                              **{"limit[availableTerritories]": 50})
         if availability is None:
             print("      availability: (unreadable)")
         elif not availability.get("data"):
