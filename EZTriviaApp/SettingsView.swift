@@ -173,6 +173,10 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        // Opening Settings is the moment the player is looking for the
+        // purchase, so it is the right moment to retry a fetch that failed at
+        // launch. No-ops once the product is loaded.
+        .task { await purchases.reloadProductIfMissing() }
         .alert("Purchase", isPresented: Binding(
             get: { purchases.errorMessage != nil },
             set: { if !$0 { purchases.errorMessage = nil } }
