@@ -92,4 +92,51 @@ class PlayerStateReducerTest {
         assertTrue("football" in state.playedCategoryRawValues)
         assertTrue("music" in state.playedCategoryRawValues)
     }
+
+    @Test
+    fun clearingRecentHistoryKeepsPermanentProgress() {
+        val original = PlayerState(
+            recentCategoryResults = listOf(
+                CategoryRoundResult(
+                    id = "round-1",
+                    category = "history",
+                    difficulty = "hard",
+                    score = 9,
+                    total = 10,
+                    dateMillis = 100,
+                ),
+            ),
+            quickPlayResults = listOf(
+                QuickPlayResult(
+                    id = "quick-1",
+                    score = 8,
+                    total = 10,
+                    points = 1_200,
+                    outcomes = List(10) { it < 8 },
+                    dateMillis = 200,
+                ),
+            ),
+            seenQuestionIds = mapOf("history-hard" to setOf("q1", "q2")),
+            completedQuestionIds = setOf("q1", "q2"),
+            correctlyAnsweredQuestionIds = setOf("q1"),
+            lifetimePointsByCategory = mapOf("history" to 2_000),
+            totalRoundsCompleted = 7,
+            quickPlayRoundsCompleted = 1,
+            playedCategoryRawValues = setOf("history"),
+            perfectDifficultyRawValues = setOf("easy"),
+        )
+
+        val cleared = PlayerStateReducer.clearRecentCategoryHistory(original)
+
+        assertTrue(cleared.recentCategoryResults.isEmpty())
+        assertTrue(cleared.seenQuestionIds.isEmpty())
+        assertEquals(original.quickPlayResults, cleared.quickPlayResults)
+        assertEquals(original.completedQuestionIds, cleared.completedQuestionIds)
+        assertEquals(original.correctlyAnsweredQuestionIds, cleared.correctlyAnsweredQuestionIds)
+        assertEquals(original.lifetimePointsByCategory, cleared.lifetimePointsByCategory)
+        assertEquals(original.totalRoundsCompleted, cleared.totalRoundsCompleted)
+        assertEquals(original.quickPlayRoundsCompleted, cleared.quickPlayRoundsCompleted)
+        assertEquals(original.playedCategoryRawValues, cleared.playedCategoryRawValues)
+        assertEquals(original.perfectDifficultyRawValues, cleared.perfectDifficultyRawValues)
+    }
 }
