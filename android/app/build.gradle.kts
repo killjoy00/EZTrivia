@@ -29,7 +29,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/questionCatalog"))
+    // AGP 9.4 rejects Provider values in the legacy SourceSet API. This is a
+    // concrete generated directory, with task ordering carried explicitly by
+    // preBuild below.
+    sourceSets["main"].assets.srcDir(file("$buildDir/generated/questionCatalog"))
 }
 
 kotlin {
@@ -41,7 +44,7 @@ kotlin {
 val generatedCatalog = layout.buildDirectory.file("generated/questionCatalog/questions.json")
 val repositoryRoot = rootProject.projectDir.parentFile
 
-val generateQuestionCatalog by tasks.registering(Exec::class) {
+val generateQuestionCatalog = tasks.register<Exec>("generateQuestionCatalog") {
     val source = repositoryRoot.resolve("QuestionReview.csv")
     val exporter = repositoryRoot.resolve("Scripts/export_android_catalog.py")
 
