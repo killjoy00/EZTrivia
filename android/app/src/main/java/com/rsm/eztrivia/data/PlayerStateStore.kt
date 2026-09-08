@@ -17,6 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.serialization.Serializable
@@ -238,6 +239,16 @@ class PlayerStateStore(context: Context) {
 
     val current: PlayerState
         get() = state.value
+
+    /** Reads disk-backed state before deciding whether an external challenge is replayable. */
+    suspend fun persistedFriendChallengeResult(code: FriendChallengeCode): FriendChallengeResult? {
+        val preferences = dataStore.data
+            .catch { error ->
+                if (error is IOException) emit(emptyPreferences()) else throw error
+            }
+            .first()
+        return decode(preferences[stateKey]).friendChallengeResult(code)
+    }
 
     suspend fun markSeen(
         ids: Set<String>,
