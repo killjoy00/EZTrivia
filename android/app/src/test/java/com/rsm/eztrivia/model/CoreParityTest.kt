@@ -12,6 +12,7 @@ class CoreParityTest {
         assertEquals(100, Scoring.points(TriviaDifficulty.EASY))
         assertEquals(150, Scoring.points(TriviaDifficulty.MEDIUM))
         assertEquals(250, Scoring.points(TriviaDifficulty.HARD))
+        assertEquals(1_650, QuestionPicker.quickPlayDifficultyRamp.sumOf(Scoring::points))
     }
 
     @Test
@@ -53,6 +54,16 @@ class CoreParityTest {
             targetPoints = 1_350,
         )
         assertEquals("EZ3-FXQ5-TK1V-58CG-G81A-6G4", code.displayString)
+        assertEquals(code, FriendChallengeCode.parse(code.displayString))
+    }
+
+    @Test
+    fun perfectFriendChallengeFitsTheWireFormat() {
+        val code = FriendChallengeCode(
+            seed = ULong.MAX_VALUE,
+            targetScore = 10,
+            targetPoints = 1_650,
+        )
         assertEquals(code, FriendChallengeCode.parse(code.displayString))
     }
 
