@@ -36,13 +36,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.rsm.eztrivia.DailyChallengeActivity
 import com.rsm.eztrivia.FriendChallengeActivity
 import com.rsm.eztrivia.data.CategoryRoundResult
+import com.rsm.eztrivia.data.DailyResult
 import com.rsm.eztrivia.data.FriendChallengeResult
 import com.rsm.eztrivia.data.PlayerState
 import com.rsm.eztrivia.data.QuickPlayResult
 import com.rsm.eztrivia.model.AchievementCatalog
 import com.rsm.eztrivia.model.AchievementDefinition
+import com.rsm.eztrivia.model.DailyChallenge
 import com.rsm.eztrivia.model.TriviaCategory
 import com.rsm.eztrivia.model.TriviaDifficulty
 import java.text.DateFormat
@@ -63,6 +66,14 @@ fun EZTriviaBottomBar(
             onClick = onPlay,
             icon = { Text("▶") },
             label = { Text("Play") },
+        )
+        NavigationBarItem(
+            selected = false,
+            onClick = {
+                context.startActivity(Intent(context, DailyChallengeActivity::class.java))
+            },
+            icon = { Text("☀") },
+            label = { Text("Daily") },
         )
         NavigationBarItem(
             selected = false,
@@ -101,6 +112,9 @@ fun ScoresScreen(
     } else {
         playerState.recentCategoryResults.take(10)
     }
+    val dailyResults = playerState.dailyResultsByDay.values
+        .sortedByDescending(DailyResult::day)
+        .take(10)
     val friendResults = playerState.friendChallengeResultsByAttemptId.values
         .sortedByDescending(FriendChallengeResult::dateMillis)
         .take(10)
@@ -147,6 +161,7 @@ fun ScoresScreen(
             if (
                 playerState.recentCategoryResults.isEmpty() &&
                 playerState.quickPlayResults.isEmpty() &&
+                dailyResults.isEmpty() &&
                 friendResults.isEmpty()
             ) {
                 item {
@@ -157,11 +172,18 @@ fun ScoresScreen(
                         ) {
                             Text("No rounds yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Text(
-                                "Finish a category round, Quick Play, or Friend Challenge and it will appear here.",
+                                "Finish a category round, Quick Play, Daily, or Friend Challenge and it will appear here.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
+                }
+            }
+
+            if (dailyResults.isNotEmpty()) {
+                item { SectionHeading("Recent Daily Challenges") }
+                items(dailyResults, key = DailyResult::day) { result ->
+                    DailyResultRow(result)
                 }
             }
 
@@ -235,7 +257,7 @@ fun ScoresScreen(
             onDismissRequest = { showClearConfirmation = false },
             title = { Text("Clear recent rounds?") },
             text = {
-                Text("Recent category rounds and the seen-question cycle will be cleared. Lifetime points, question coverage, Quick Play history, Friend Challenge history, and achievements will be kept.")
+                Text("Recent category rounds and the seen-question cycle will be cleared. Lifetime points, question coverage, Daily history, Quick Play history, Friend Challenge history, and achievements will be kept.")
             },
             confirmButton = {
                 TextButton(
@@ -319,6 +341,32 @@ private fun SectionHeading(text: String) {
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(top = 4.dp),
     )
+}
+
+@Composable
+private fun DailyResultRow(result: DailyResult) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Surface(modifier = Modifier.size(38.dp), shape = CircleShape, color = MaterialTheme.colorScheme.tertiaryContainer) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    Text("☀", fontWeight = FontWeight.Bold)
+                }
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Daily #${DailyChallenge.displayNumber(result.day)}", fontWeight = FontWeight.Bold)
+                Text(
+                    "${formatDate(result.dateMillis)} · ${result.points} pts",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text("${result.score}/${result.total}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+    }
 }
 
 @Composable
