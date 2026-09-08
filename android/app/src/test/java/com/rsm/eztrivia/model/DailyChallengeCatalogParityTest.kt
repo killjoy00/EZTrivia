@@ -69,9 +69,14 @@ class DailyChallengeCatalogParityTest {
     @Test
     fun androidMatchesTheSwiftDailyV2GoldenFingerprints() {
         val bank = bank()
+        var goldenSetContainsAFlag = false
         swiftGoldenFingerprints.forEach { (day, expected) ->
-            assertEquals(expected, fingerprint(DailyChallenge.challenge(day, bank)))
+            val challenge = DailyChallenge.challenge(day, bank)
+            assertEquals(expected, fingerprint(challenge))
+            goldenSetContainsAFlag = goldenSetContainsAFlag ||
+                challenge.any { it.category == TriviaCategory.FLAGS }
         }
+        assertTrue(goldenSetContainsAFlag)
     }
 
     private fun fingerprint(questions: List<TriviaQuestion>): ULong {
