@@ -35,6 +35,24 @@ private func dailyV2Fingerprint(_ challenge: DailyChallenge) -> UInt64 {
     #expect(DailyChallenge.crossPlatformAlgorithmVersion == 2)
 }
 
+@Test func dailyV2UsesGregorianDayNumbersEvenWhenTheIPhoneDisplayCalendarDoesNot() throws {
+    let zone = try #require(TimeZone(identifier: "America/Chicago"))
+    var gregorian = Calendar(identifier: .gregorian)
+    gregorian.timeZone = zone
+    var buddhist = Calendar(identifier: .buddhist)
+    buddhist.timeZone = zone
+
+    let septemberNine = try #require(
+        gregorian.date(from: DateComponents(year: 2026, month: 9, day: 9, hour: 12))
+    )
+
+    #expect(DailyChallenge.day(for: septemberNine, in: buddhist) == DailyChallenge.crossPlatformStartDay)
+    #expect(
+        DailyChallenge.startOfDay(DailyChallenge.crossPlatformStartDay, in: buddhist)
+            == DailyChallenge.startOfDay(DailyChallenge.crossPlatformStartDay, in: gregorian)
+    )
+}
+
 @Test func dailyV2UsesOnlyRepositoryOwnedDeterminism() {
     for day in [251, 252, 365, 512, 1_024] {
         let first = DailyChallenge.crossPlatformChallenge(for: day)
