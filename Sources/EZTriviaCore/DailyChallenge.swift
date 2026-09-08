@@ -35,30 +35,25 @@ public struct DailyChallenge: Sendable, Equatable {
 
     private static let epoch = DateComponents(year: 2026, month: 1, day: 1)
 
-    /// Raw day numbering in the supplied calendar. Kept public for historical
-    /// tests and explicit callers; app-facing code should use `currentDay` so
-    /// Daily v2 cannot diverge when an iPhone uses a non-Gregorian display
-    /// calendar while Android uses ISO/Gregorian `LocalDate`.
+    /// Local-day numbering. Before Daily v2 this preserves the supplied
+    /// calendar exactly, matching the already-shipped iOS behavior. At and
+    /// after the v2 boundary, the contract switches to Gregorian in the same
+    /// local time zone as Android's ISO/Gregorian LocalDate. Keeping the switch
+    /// here means every existing iOS caller -- home card, game, streak reminder
+    /// and tests -- sees the same cross-platform day without separate patches.
     public static func day(for date: Date, in calendar: Calendar = .current) -> Int {
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        let crossPlatformDay = rawDay(for: date, in: gregorian)
+        if crossPlatformDay >= crossPlatformStartDay { return crossPlatformDay }
+        return rawDay(for: date, in: calendar)
+    }
+
+    private static func rawDay(for date: Date, in calendar: Calendar) -> Int {
         guard let epochDate = calendar.date(from: epoch) else { return 0 }
         let from = calendar.startOfDay(for: epochDate)
         let to = calendar.startOfDay(for: date)
         return calendar.dateComponents([.day], from: from, to: to).day ?? 0
-    }
-
-    /// The app-facing local day. Before v2 this intentionally preserves the
-    /// user's existing Calendar.current behavior. At and after the v2 cutover,
-    /// the contract is explicitly Gregorian in the same local time zone as
-    /// Android's LocalDate.
-    public static func currentDay(
-        for date: Date = Date(),
-        in legacyCalendar: Calendar = .current
-    ) -> Int {
-        var gregorian = Calendar(identifier: .gregorian)
-        gregorian.timeZone = legacyCalendar.timeZone
-        let v2Day = day(for: date, in: gregorian)
-        if v2Day >= crossPlatformStartDay { return v2Day }
-        return day(for: date, in: legacyCalendar)
     }
 
     public static func startOfDay(_ day: Int, in calendar: Calendar = .current) -> Date? {
@@ -85,7 +80,7 @@ public struct DailyChallenge: Sendable, Equatable {
         in calendar: Calendar = .current,
         using bank: [TriviaQuestion] = QuestionBank.all
     ) -> DailyChallenge {
-        challenge(for: currentDay(for: Date(), in: calendar), using: bank)
+        challenge(for: day(for: Date(), in: calendar), using: bank)
     }
 
     /// Builds a Daily while preserving the exact legacy behavior before the
