@@ -3,9 +3,15 @@ package com.rsm.eztrivia.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.BitmapFactory
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,27 +19,41 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -41,14 +61,140 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.rsm.eztrivia.data.FriendChallengeResult
 import com.rsm.eztrivia.data.PlayerState
+import com.rsm.eztrivia.data.PlayerStateStore
+import com.rsm.eztrivia.data.QuestionCatalog
+import com.rsm.eztrivia.model.FriendChallenge
 import com.rsm.eztrivia.model.FriendChallengeCode
 import com.rsm.eztrivia.model.FriendChallengeLink
 import com.rsm.eztrivia.model.RoundSummary
+import com.rsm.eztrivia.model.TriviaEngine
+import com.rsm.eztrivia.model.TriviaQuestion
 import com.rsm.eztrivia.share.ScoreCardContent
 import com.rsm.eztrivia.share.ScoreCardShare
 import java.text.NumberFormat
+import kotlin.random.Random
+import kotlinx.coroutines.launch
 
 private val friendChallengeTint = Color(0xFF4F46E5)
+
+private sealed interface FriendScreen {
+    data class Lobby(val initialInput: String? = null) : FriendScreen
+    data class Round(
+        val seed: ULong,
+        val invitation: FriendChallengeCode?,
+        val questions: List<TriviaQuestion>,
+    ) : FriendScreen
+    data class Result(val result: FriendChallengeResult) : FriendScreen
+}
+
+@Composable
+fun FriendChallengeApp(
+    incomingUrl: String?,
+    onIncomingUrlConsumed: () -> Unit,
+    onBackToPlay: () -> Unit,
+) {
+    val context = LocalContext.current
+    val store = remember(context.applicationContext) { PlayerStateStore(context.applicationContext) }
+    val playerState by store.state.collectAsState()
+    val scope = rememberCoroutineScope()
+    val catalogResult by produceState<Result<List<TriviaQuestion>>?>(initialValue = null) {
+        value = runCatching { QuestionCatalog.load(context) }
+    }
+    var screen by remember { mutableStateOf<FriendScreen>(FriendScreen.Lobby()) }
+
+    Surface(modifier = Modifier.fillMaxSize()) {
+        when (val result = catalogResult) {
+            null -> FriendLoadingScreen()
+            else -> result.fold(
+                onSuccess = { catalog ->
+                    fun startRound(seed: ULong, invitation: FriendChallengeCode?) {
+                        val questions = FriendChallenge.challenge(seed, catalog)
+                        if (questions.size == FriendChallenge.QUESTION_COUNT) {
+                            screen = FriendScreen.Round(seed, invitation, questions)
+                        }
+                    }
+
+                    fun openCode(code: FriendChallengeCode) {
+                        val saved = playerState.friendChallengeResult(code)
+                        if (saved != null) {
+                            screen = FriendScreen.Result(saved)
+                        } else {
+                            startRound(code.seed, code)
+                        }
+                    }
+
+                    LaunchedEffect(incomingUrl) {
+                        if (!incomingUrl.isNullOrBlank()) {
+                            val code = FriendChallengeLink.codeFrom(incomingUrl)
+                            if (code != null) {
+                                openCode(code)
+                            } else {
+                                screen = FriendScreen.Lobby(incomingUrl)
+                            }
+                            onIncomingUrlConsumed()
+                        }
+                    }
+
+                    when (val current = screen) {
+                        is FriendScreen.Lobby -> FriendChallengeLobbyScreen(
+                            playerState = playerState,
+                            initialInput = current.initialInput,
+                            onBack = onBackToPlay,
+                            onCreateChallenge = {
+                                var seed = Random.nextLong().toULong()
+                                while ("v${FriendChallenge.CODE_VERSION}-$seed" in playerState.friendChallengeResultsByAttemptId) {
+                                    seed = Random.nextLong().toULong()
+                                }
+                                startRound(seed, null)
+                            },
+                            onOpenChallenge = ::openCode,
+                        )
+                        is FriendScreen.Round -> FriendChallengeRoundScreen(
+                            questions = current.questions,
+                            onAnswer = { question, correct ->
+                                scope.launch { store.recordQuestionAnswer(question, correct) }
+                            },
+                            onComplete = { engine ->
+                                val code = current.invitation ?: FriendChallengeCode(
+                                    seed = current.seed,
+                                    targetScore = engine.score,
+                                    targetPoints = engine.points,
+                                )
+                                val friendResult = FriendChallengeResult(
+                                    code = code,
+                                    score = engine.score,
+                                    total = engine.questions.size,
+                                    points = engine.points,
+                                    outcomes = engine.outcomes,
+                                    createdChallenge = current.invitation == null,
+                                    dateMillis = System.currentTimeMillis(),
+                                )
+                                screen = FriendScreen.Result(friendResult)
+                                scope.launch {
+                                    store.recordFriendChallenge(
+                                        result = friendResult,
+                                        categories = engine.questions.mapTo(mutableSetOf()) { it.category },
+                                    )
+                                }
+                            },
+                            onExit = { screen = FriendScreen.Lobby() },
+                        )
+                        is FriendScreen.Result -> FriendChallengeResultScreen(
+                            result = current.result,
+                            onHome = onBackToPlay,
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    FriendCatalogErrorScreen(
+                        message = error.message ?: "Unknown catalog error",
+                        onBack = onBackToPlay,
+                    )
+                },
+            )
+        }
+    }
+}
 
 @Composable
 fun FriendChallengeHomeCard(onClick: () -> Unit) {
@@ -67,14 +213,11 @@ fun FriendChallengeHomeCard(onClick: () -> Unit) {
                 shape = RoundedCornerShape(16.dp),
                 color = friendChallengeTint.copy(alpha = 0.14f),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                     Text("2", color = friendChallengeTint, fontWeight = FontWeight.Bold)
                 }
             }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text("Friend Challenge", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
                     "Play a random set, then share it.",
@@ -153,10 +296,7 @@ fun FriendChallengeLobbyScreen(
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Have a challenge link or code?", fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = codeText,
@@ -184,11 +324,7 @@ fun FriendChallengeLobbyScreen(
                             "That code came from an older version of EZ Trivia. Ask your friend for a new one."
                         else -> "That challenge link or code is incomplete or has a typo."
                     }
-                    Text(
-                        message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
+                    Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 }
 
                 Button(
@@ -207,6 +343,218 @@ fun FriendChallengeLobbyScreen(
                     Text(if (existingResult == null) "Play this challenge" else "View your result")
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FriendChallengeRoundScreen(
+    questions: List<TriviaQuestion>,
+    onAnswer: (TriviaQuestion, Boolean) -> Unit,
+    onComplete: (TriviaEngine) -> Unit,
+    onExit: () -> Unit,
+) {
+    val engine = remember(questions) { TriviaEngine(questions) }
+    var revision by remember(questions) { mutableIntStateOf(0) }
+    var showExitConfirmation by remember { mutableStateOf(false) }
+
+    @Suppress("UNUSED_EXPRESSION")
+    revision
+
+    BackHandler { showExitConfirmation = true }
+
+    if (engine.isRoundComplete) {
+        FriendLoadingScreen()
+        return
+    }
+
+    val question = engine.currentQuestion ?: return
+    val answered = engine.selectedAnswerIndex != null
+
+    Scaffold(
+        topBar = {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = { showExitConfirmation = true }) { Text("Exit") }
+                Spacer(modifier = Modifier.weight(1f))
+                Text("Friend Challenge", fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.weight(1f))
+                Text("${engine.score} ✓", color = friendChallengeTint)
+            }
+        },
+        bottomBar = {
+            if (answered) {
+                Surface(shadowElevation = 8.dp) {
+                    Button(
+                        onClick = {
+                            val finishing = engine.currentIndex == engine.questions.lastIndex
+                            if (finishing) onComplete(engine)
+                            engine.advance()
+                            revision += 1
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    ) {
+                        Text(if (engine.currentIndex == engine.questions.lastIndex) "See results" else "Next question")
+                    }
+                }
+            }
+        },
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = 18.dp),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(if (answered) 12.dp else 18.dp),
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "QUESTION ${engine.currentIndex + 1} OF ${engine.questions.size}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    LinearProgressIndicator(
+                        progress = { (engine.currentIndex + 1).toFloat() / engine.questions.size.coerceAtLeast(1) },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = friendChallengeTint,
+                    )
+                }
+            }
+
+            question.visual?.let { visual ->
+                item { FriendFlagVisual(visual, answered) }
+            }
+
+            item {
+                Text(
+                    question.prompt,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = if (question.visual == null) TextAlign.Start else TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            items(question.answers.indices.toList()) { index ->
+                FriendAnswerButton(
+                    question = question,
+                    index = index,
+                    selectedIndex = engine.selectedAnswerIndex,
+                    onClick = {
+                        if (engine.selectedAnswerIndex == null) {
+                            val correct = engine.answer(index)
+                            onAnswer(question, correct)
+                            revision += 1
+                        }
+                    },
+                )
+            }
+
+            if (answered) {
+                item { FriendExplanationCard(question, engine.selectedAnswerIndex) }
+            }
+        }
+    }
+
+    if (showExitConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showExitConfirmation = false },
+            title = { Text("Leave this challenge?") },
+            text = {
+                Text("Your attempt is saved only after all ten questions. You can enter the same code again if you leave now.")
+            },
+            confirmButton = { TextButton(onClick = onExit) { Text("Leave") } },
+            dismissButton = { TextButton(onClick = { showExitConfirmation = false }) { Text("Keep playing") } },
+        )
+    }
+}
+
+@Composable
+private fun FriendAnswerButton(
+    question: TriviaQuestion,
+    index: Int,
+    selectedIndex: Int?,
+    onClick: () -> Unit,
+) {
+    val answered = selectedIndex != null
+    val isCorrect = index == question.correctAnswerIndex
+    val isSelectedWrong = answered && index == selectedIndex && !isCorrect
+    val border = when {
+        answered && isCorrect -> friendChallengeTint
+        isSelectedWrong -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.outlineVariant
+    }
+    val container = when {
+        answered && isCorrect -> friendChallengeTint.copy(alpha = 0.13f)
+        isSelectedWrong -> MaterialTheme.colorScheme.errorContainer
+        else -> MaterialTheme.colorScheme.surface
+    }
+
+    OutlinedButton(
+        onClick = onClick,
+        enabled = !answered,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(2.dp, border),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = container,
+            disabledContainerColor = container,
+            disabledContentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 14.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
+                Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                    Text(('A'.code + index).toChar().toString(), fontWeight = FontWeight.Bold)
+                }
+            }
+            Text(question.answers[index], modifier = Modifier.weight(1f), textAlign = TextAlign.Start, fontWeight = FontWeight.SemiBold)
+            if (answered && isCorrect) Text("✓", fontWeight = FontWeight.Bold)
+            if (isSelectedWrong) Text("×", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun FriendExplanationCard(question: TriviaQuestion, selectedIndex: Int?) {
+    val correct = selectedIndex == question.correctAnswerIndex
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                if (correct) "Correct!" else "Good try!",
+                style = MaterialTheme.typography.titleMedium,
+                color = if (correct) friendChallengeTint else MaterialTheme.colorScheme.tertiary,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(question.explanation, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun FriendFlagVisual(visual: String, compact: Boolean) {
+    val context = LocalContext.current
+    val bitmap = remember(visual) {
+        runCatching {
+            context.assets.open("flags/$visual.png").use { stream -> BitmapFactory.decodeStream(stream) }
+        }.getOrNull()
+    } ?: return
+
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Card {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Flag image for this question",
+                modifier = Modifier.height(if (compact) 110.dp else 175.dp).padding(8.dp),
+                contentScale = ContentScale.Fit,
+            )
         }
     }
 }
@@ -261,18 +609,11 @@ fun FriendChallengeResultScreen(
     )
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(22.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Surface(
-            modifier = Modifier.size(92.dp),
-            shape = CircleShape,
-            color = friendChallengeTint.copy(alpha = 0.14f),
-        ) {
+        Surface(modifier = Modifier.size(92.dp), shape = CircleShape, color = friendChallengeTint.copy(alpha = 0.14f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 Text(
                     if (result.createdChallenge) "↗" else if (beatTarget) "★" else "✓",
@@ -294,9 +635,7 @@ fun FriendChallengeResultScreen(
 
         Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
             ResultStat(formatPoints(result.points), "your points")
-            if (!result.createdChallenge) {
-                ResultStat(formatPoints(result.code.targetPoints), "target")
-            }
+            if (!result.createdChallenge) ResultStat(formatPoints(result.code.targetPoints), "target")
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -317,12 +656,7 @@ fun FriendChallengeResultScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Text(
-                    result.code.displayString,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                )
+                Text(result.code.displayString, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, maxLines = 1)
                 OutlinedButton(
                     onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -349,9 +683,7 @@ fun FriendChallengeResultScreen(
             Text(if (result.createdChallenge) "Challenge a friend" else "Share result")
         }
 
-        Button(onClick = onHome, modifier = Modifier.fillMaxWidth()) {
-            Text("Back to categories")
-        }
+        Button(onClick = onHome, modifier = Modifier.fillMaxWidth()) { Text("Back to categories") }
         Spacer(modifier = Modifier.height(8.dp))
     }
 }
@@ -361,6 +693,31 @@ private fun ResultStat(value: String, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun FriendLoadingScreen() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            CircularProgressIndicator()
+            Text("Preparing challenge…")
+        }
+    }
+}
+
+@Composable
+private fun FriendCatalogErrorScreen(message: String, onBack: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Challenge unavailable", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(message, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = onBack) { Text("Back to categories") }
+        }
     }
 }
 
