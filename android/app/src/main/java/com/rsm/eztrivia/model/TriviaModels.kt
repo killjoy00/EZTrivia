@@ -2,23 +2,27 @@ package com.rsm.eztrivia.model
 
 import kotlin.random.Random
 
-enum class TriviaCategory(val wireName: String, val title: String) {
-    FOOTBALL("football", "Football"),
-    BASKETBALL("basketball", "Basketball"),
-    SOCCER("soccer", "Soccer"),
-    FLAGS("flags", "World Flags"),
-    HISTORY("history", "History"),
-    SCIENCE("science", "Science"),
-    MOVIES("movies", "Movies"),
-    TV("tv", "TV"),
-    GEOGRAPHY("geography", "Geography"),
-    MUSIC("music", "Music"),
-    ANIMALS("animals", "Animals"),
-    FOOD("food", "Food & Drink"),
-    LITERATURE("literature", "Books & Literature"),
-    ART("art", "Art & Architecture"),
-    MYTHOLOGY("mythology", "Mythology & Legends"),
-    VIDEO_GAMES("videoGames", "Video Games");
+enum class TriviaCategory(
+    val wireName: String,
+    val title: String,
+    val subtitle: String,
+) {
+    FOOTBALL("football", "Football", "Touchdowns & legends"),
+    BASKETBALL("basketball", "Basketball", "Hoops, teams & legends"),
+    SOCCER("soccer", "Soccer", "The beautiful game"),
+    FLAGS("flags", "World Flags", "Colors around the globe"),
+    HISTORY("history", "History", "People who shaped our world"),
+    SCIENCE("science", "Science", "Nature, space & discovery"),
+    MOVIES("movies", "Movies", "Big-screen favorites"),
+    TV("tv", "TV", "Small-screen favorites"),
+    GEOGRAPHY("geography", "Geography", "Places near & far"),
+    MUSIC("music", "Music", "Artists, songs & sounds"),
+    ANIMALS("animals", "Animals", "Wildlife & nature"),
+    FOOD("food", "Food & Drink", "Flavors of the world"),
+    LITERATURE("literature", "Books & Literature", "Books, authors & stories"),
+    ART("art", "Art & Architecture", "Masterpieces & monuments"),
+    MYTHOLOGY("mythology", "Mythology & Legends", "Gods, heroes & folklore"),
+    VIDEO_GAMES("videoGames", "Video Games", "Consoles, classics & studios");
 
     companion object {
         private val byWireName = entries.associateBy(TriviaCategory::wireName)
@@ -28,10 +32,14 @@ enum class TriviaCategory(val wireName: String, val title: String) {
     }
 }
 
-enum class TriviaDifficulty(val wireName: String, val title: String) {
-    EASY("easy", "Easy"),
-    MEDIUM("medium", "Medium"),
-    HARD("hard", "Hard");
+enum class TriviaDifficulty(
+    val wireName: String,
+    val title: String,
+    val subtitle: String,
+) {
+    EASY("easy", "Easy", "A friendly warm-up"),
+    MEDIUM("medium", "Medium", "A balanced challenge"),
+    HARD("hard", "Hard", "For trivia experts");
 
     companion object {
         private val byWireName = entries.associateBy(TriviaDifficulty::wireName)
@@ -131,6 +139,28 @@ object QuestionPicker {
         TriviaDifficulty.HARD,
     )
 
+    fun round(
+        bank: List<TriviaQuestion>,
+        category: TriviaCategory,
+        difficulty: TriviaDifficulty = TriviaDifficulty.EASY,
+        count: Int = 10,
+        excludedIds: Set<String> = emptySet(),
+        random: Random = Random.Default,
+    ): List<TriviaQuestion> {
+        if (count <= 0) return emptyList()
+
+        val matching = bank.filter { it.category == category && it.difficulty == difficulty }
+        val unseen = matching.filter { it.id !in excludedIds }
+        val pool = unseen.shuffled(random).toMutableList()
+
+        if (pool.size < count) {
+            val chosen = pool.mapTo(mutableSetOf()) { it.id }
+            pool += matching.filter { it.id !in chosen }.shuffled(random)
+        }
+
+        return pool.take(count).map { it.shuffledAnswers(random) }
+    }
+
     fun quickPlayRound(
         bank: List<TriviaQuestion>,
         count: Int = 10,
@@ -155,4 +185,10 @@ object QuestionPicker {
             picked.shuffledAnswers(random)
         }
     }
+
+    fun availableCount(
+        bank: List<TriviaQuestion>,
+        category: TriviaCategory,
+        difficulty: TriviaDifficulty,
+    ): Int = bank.count { it.category == category && it.difficulty == difficulty }
 }

@@ -41,6 +41,7 @@ kotlin {
     }
 }
 
+val generatedAssetDir = file("$buildDir/generated/questionCatalog")
 val generatedCatalog = layout.buildDirectory.file("generated/questionCatalog/questions.json")
 val repositoryRoot = rootProject.projectDir.parentFile
 
@@ -60,8 +61,19 @@ val generateQuestionCatalog = tasks.register<Exec>("generateQuestionCatalog") {
     )
 }
 
+val generateFlagAssets = tasks.register<Sync>("generateFlagAssets") {
+    val source = repositoryRoot.resolve("EZTriviaApp/Assets.xcassets/Flags")
+    inputs.dir(source)
+    from(source) {
+        include("**/*.imageset/*.png")
+        eachFile { path = name }
+        includeEmptyDirs = false
+    }
+    into(generatedAssetDir.resolve("flags"))
+}
+
 tasks.named("preBuild") {
-    dependsOn(generateQuestionCatalog)
+    dependsOn(generateQuestionCatalog, generateFlagAssets)
 }
 
 dependencies {
@@ -72,6 +84,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
 
