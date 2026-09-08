@@ -37,11 +37,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,12 +54,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.rsm.eztrivia.data.PlayerState
+import com.rsm.eztrivia.data.PlayerStateStore
 import com.rsm.eztrivia.data.QuestionCatalog
 import com.rsm.eztrivia.model.QuestionPicker
 import com.rsm.eztrivia.model.TriviaCategory
 import com.rsm.eztrivia.model.TriviaDifficulty
 import com.rsm.eztrivia.model.TriviaEngine
 import com.rsm.eztrivia.model.TriviaQuestion
+import kotlinx.coroutines.launch
 
 private sealed interface AppScreen {
     data object Home : AppScreen
@@ -73,6 +78,10 @@ private sealed interface RoundMode {
 @Composable
 fun EZTriviaApp() {
     val context = LocalContext.current
+    val playerStateStore = remember(context.applicationContext) {
+        PlayerStateStore(context.applicationContext)
+    }
+    val playerState by playerStateStore.state.collectAsState()
     val catalogResult by produceState<Result<List<TriviaQuestion>>?>(initialValue = null) {
         value = runCatching { QuestionCatalog.load(context) }
     }
@@ -81,7 +90,13 @@ fun EZTriviaApp() {
         when (val result = catalogResult) {
             null -> LoadingScreen()
             else -> result.fold(
-                onSuccess = { catalog -> TriviaNavigation(catalog) },
+                onSuccess = { catalog ->
+                    TriviaNavigation(
+                        catalog = catalog,
+                        playerStateStore = playerStateStore,
+                        playerState = playerState,
+                    )
+                },
                 onFailure = { error -> CatalogErrorScreen(error.message ?: "Unknown catalog error") },
             )
         }
@@ -89,19 +104,45 @@ fun EZTriviaApp() {
 }
 
 @Composable
-private fun TriviaNavigation(catalog: List<TriviaQuestion>) {
+private fun TriviaNavigation(
+    catalog: List<TriviaQuestion>,
+    playerStateStore: PlayerStateStore,
+    playerState: PlayerState,
+) {
     var screen by remember { mutableStateOf<AppScreen>(AppScreen.Home) }
+    val scope = rememberCoroutineScope()
+
+    fun markSeen(questions: List<TriviaQuestion>) {
+        questions.groupBy { it.category to it.difficulty }.forEach { (key, group) ->
+            val (category, difficulty) = key
+            scope.launch {
+                playerStateStore.markSeen(
+                    ids = group.mapTo(mutableSetOf()) { it.id },
+                    category = category,
+                    difficulty = difficulty,
+                    availableCount = QuestionPicker.availableCount(catalog, category, difficulty),
+                )
+            }
+        }
+    }
 
     fun start(mode: RoundMode) {
         val questions = when (mode) {
-            RoundMode.QuickPlay -> QuestionPicker.quickPlayRound(bank = catalog)
+            RoundMode.QuickPlay -> QuestionPicker.quickPlayRound(
+                bank = catalog,
+                excludedIds = playerState.allSeenQuestionIds,
+            )
             is RoundMode.Category -> QuestionPicker.round(
                 bank = catalog,
                 category = mode.category,
                 difficulty = mode.difficulty,
+                excludedIds = playerState.seenQuestions(mode.category, mode.difficulty),
             )
         }
-        if (questions.isNotEmpty()) screen = AppScreen.Round(mode, questions)
+        if (questions.isNotEmpty()) {
+            markSeen(questions)
+            screen = AppScreen.Round(mode, questions)
+        }
     }
 
     BackHandler(enabled = screen != AppScreen.Home) {
@@ -118,6 +159,7 @@ private fun TriviaNavigation(catalog: List<TriviaQuestion>) {
     when (val current = screen) {
         AppScreen.Home -> HomeScreen(
             catalog = catalog,
+            playerState = playerState,
             onQuickPlay = { start(RoundMode.QuickPlay) },
             onCategory = { screen = AppScreen.Difficulty(it) },
         )
@@ -130,6 +172,29 @@ private fun TriviaNavigation(catalog: List<TriviaQuestion>) {
         is AppScreen.Round -> RoundScreen(
             mode = current.mode,
             questions = current.questions,
+            onAnswer = { question, correct ->
+                scope.launch { playerStateStore.recordQuestionAnswer(question, correct) }
+            },
+            onComplete = { mode, engine ->
+                scope.launch {
+                    when (mode) {
+                        RoundMode.QuickPlay -> playerStateStore.recordQuickPlay(
+                            score = engine.score,
+                            total = engine.questions.size,
+                            points = engine.points,
+                            outcomes = engine.outcomes,
+                            categories = engine.questions.mapTo(mutableSetOf()) { it.category },
+                        )
+                        is RoundMode.Category -> playerStateStore.recordCategoryRound(
+                            category = mode.category,
+                            difficulty = mode.difficulty,
+                            score = engine.score,
+                            total = engine.questions.size,
+                            points = engine.points,
+                        )
+                    }
+                }
+            },
             onExit = {
                 screen = when (val mode = current.mode) {
                     RoundMode.QuickPlay -> AppScreen.Home
@@ -145,6 +210,7 @@ private fun TriviaNavigation(catalog: List<TriviaQuestion>) {
 @Composable
 private fun HomeScreen(
     catalog: List<TriviaQuestion>,
+    playerState: PlayerState,
     onQuickPlay: () -> Unit,
     onCategory: (TriviaCategory) -> Unit,
 ) {
@@ -166,6 +232,7 @@ private fun HomeScreen(
         )
 
         QuickPlayCard(onClick = onQuickPlay)
+        PlayerProgressCard(playerState = playerState, totalQuestions = catalog.size)
 
         Text(
             text = "Choose a category",
@@ -192,6 +259,42 @@ private fun HomeScreen(
 }
 
 @Composable
+private fun PlayerProgressCard(playerState: PlayerState, totalQuestions: Int) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Your progress", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    "${playerState.completedQuestionIds.size} of $totalQuestions questions answered",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "${playerState.totalRoundsCompleted}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text("rounds", style = MaterialTheme.typography.labelSmall)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "${playerState.lifetimePointsTotal}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text("points", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+@Composable
 private fun QuickPlayCard(onClick: () -> Unit) {
     Card(
         modifier = Modifier
@@ -203,10 +306,7 @@ private fun QuickPlayCard(onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Box(
-                modifier = Modifier.size(54.dp),
-                contentAlignment = Alignment.Center,
-            ) {
+            Box(modifier = Modifier.size(54.dp), contentAlignment = Alignment.Center) {
                 Text("10", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -237,10 +337,7 @@ private fun CategoryCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(
-                modifier = Modifier.size(38.dp),
-                contentAlignment = Alignment.Center,
-            ) {
+            Box(modifier = Modifier.size(38.dp), contentAlignment = Alignment.Center) {
                 Surface(
                     shape = RoundedCornerShape(11.dp),
                     color = categoryColor(category).copy(alpha = 0.16f),
@@ -285,10 +382,7 @@ private fun DifficultyScreen(
             Text(category.title, fontWeight = FontWeight.Bold)
         }
         Text("Choose your challenge", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text(
-            "Questions are served 10 at a time.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Text("Questions are served 10 at a time.", color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             listItems(TriviaDifficulty.entries) { difficulty ->
@@ -327,6 +421,8 @@ private fun DifficultyScreen(
 private fun RoundScreen(
     mode: RoundMode,
     questions: List<TriviaQuestion>,
+    onAnswer: (TriviaQuestion, Boolean) -> Unit,
+    onComplete: (RoundMode, TriviaEngine) -> Unit,
     onExit: () -> Unit,
     onPlayAgain: () -> Unit,
     onHome: () -> Unit,
@@ -375,6 +471,8 @@ private fun RoundScreen(
                 Surface(shadowElevation = 8.dp) {
                     Button(
                         onClick = {
+                            val finishing = engine.currentIndex == engine.questions.lastIndex
+                            if (finishing) onComplete(mode, engine)
                             engine.advance()
                             revision += 1
                         },
@@ -398,14 +496,12 @@ private fun RoundScreen(
         ) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row {
-                        Text(
-                            "QUESTION ${engine.currentIndex + 1} OF ${engine.questions.size}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
+                    Text(
+                        "QUESTION ${engine.currentIndex + 1} OF ${engine.questions.size}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Bold,
+                    )
                     LinearProgressIndicator(
                         progress = { (engine.currentIndex + 1).toFloat() / engine.questions.size.coerceAtLeast(1) },
                         modifier = Modifier.fillMaxWidth(),
@@ -434,8 +530,11 @@ private fun RoundScreen(
                     index = index,
                     selectedIndex = engine.selectedAnswerIndex,
                     onClick = {
-                        engine.answer(index)
-                        revision += 1
+                        if (engine.selectedAnswerIndex == null) {
+                            val correct = engine.answer(index)
+                            onAnswer(question, correct)
+                            revision += 1
+                        }
                     },
                 )
             }
@@ -451,12 +550,8 @@ private fun RoundScreen(
             onDismissRequest = { showExitConfirmation = false },
             title = { Text("Leave this round?") },
             text = { Text("Your current score won't be saved.") },
-            confirmButton = {
-                TextButton(onClick = onExit) { Text("Leave round") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showExitConfirmation = false }) { Text("Keep playing") }
-            },
+            confirmButton = { TextButton(onClick = onExit) { Text("Leave round") } },
+            dismissButton = { TextButton(onClick = { showExitConfirmation = false }) { Text("Keep playing") } },
         )
     }
 }
@@ -500,10 +595,7 @@ private fun AnswerButton(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
                 Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
                     Text(('A'.code + index).toChar().toString(), fontWeight = FontWeight.Bold)
                 }
@@ -564,9 +656,7 @@ private fun FlagVisual(visual: String, compact: Boolean) {
 }
 
 private fun loadFlagBitmap(context: Context, visual: String) = runCatching {
-    context.assets.open("flags/$visual.png").use { stream ->
-        BitmapFactory.decodeStream(stream)
-    }
+    context.assets.open("flags/$visual.png").use { stream -> BitmapFactory.decodeStream(stream) }
 }.getOrNull()
 
 @Composable
@@ -582,6 +672,11 @@ private fun ResultScreen(
         ratio >= 0.8f -> "Trivia champion!"
         ratio >= 0.5f -> "Nice work!"
         else -> "Keep learning!"
+    }
+    val message = when {
+        ratio >= 0.9f -> "Outstanding — you really know your stuff."
+        ratio >= 0.6f -> "A strong round. Can you beat it next time?"
+        else -> "Every question is a chance to learn something new."
     }
 
     Column(
@@ -610,13 +705,12 @@ private fun ResultScreen(
         )
         Text("${engine.points} points", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            engine.outcomes.joinToString(" ") { if (it) "✓" else "×" },
-            style = MaterialTheme.typography.headlineSmall,
-        )
+        Text(engine.outcomes.joinToString(" ") { if (it) "✓" else "×" }, style = MaterialTheme.typography.headlineSmall)
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(message, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(28.dp))
         Button(onClick = onPlayAgain, modifier = Modifier.fillMaxWidth()) {
-            Text("Play 10 more")
+            Text(if (mode == RoundMode.QuickPlay) "Play another mix" else "Play 10 more")
         }
         TextButton(onClick = onHome, modifier = Modifier.fillMaxWidth()) {
             Text("Back to categories")
