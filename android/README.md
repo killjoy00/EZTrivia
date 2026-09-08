@@ -1,7 +1,8 @@
 # EZ Trivia Android
 
 This directory contains the native Android client. The iOS SwiftUI app remains
-unchanged in `EZTriviaApp/`.
+in `EZTriviaApp/`, with shared deterministic game contracts owned by
+`Sources/EZTriviaCore/`.
 
 ## Foundation contract
 
@@ -17,11 +18,12 @@ unchanged in `EZTriviaApp/`.
 - flag questions also carry the Swift `FlagCatalog` confusability metadata that
   deterministic cross-platform modes need to redraw the same answer choices
 
-The Android client now ports the shared domain models, weighted scoring,
-round-engine behavior, deterministic RNG primitive, Friend Challenge v3 code
-format and exact round construction. Category rounds, Quick Play, Scores/history,
-local achievement facts, result-card sharing, and Friend Challenges are playable
-offline.
+The Android client ports the shared domain models, weighted scoring, round-engine
+behavior, deterministic RNG primitive, Friend Challenge v3, and Daily Challenge
+v2. Category rounds, Quick Play, Daily, Scores/history, local achievement facts,
+result-card sharing, and Friend Challenges are playable offline.
+
+## Deterministic cross-platform modes
 
 Friend Challenge v3 deliberately uses repository-owned deterministic algorithms
 for category order, question selection, answer order, and flag distractor draws.
@@ -31,10 +33,24 @@ target score or point total cannot create a second attempt at the same round.
 Android accepts both `eztrivia://challenge/...` links and the public GitHub Pages
 challenge handoff used by iOS sharing.
 
-Player state is stored with Preferences DataStore. Completed Friend Challenges
-are locally one-attempt, survive the recent-category-history clear action, count
-toward durable round/category achievement facts, and intentionally do not add to
-category lifetime leaderboard points—matching the iOS scoring contract.
+Daily Challenge v2 uses the same repository-owned deterministic primitives and a
+frozen sixteen-category roster. It begins with internal day 251, displayed as
+**Daily #252 on September 9, 2026**. iOS keeps its already-shipped legacy Swift
+selection algorithm for earlier historical days, so adding Android does not
+rewrite a Daily that players may already have completed. Android does not claim
+parity for those pre-v2 historical rounds.
+
+Swift and Kotlin tests pin the same full-round fingerprints for multiple Daily
+v2 dates. Each fingerprint covers the ten question IDs, every answer's exact
+position, and every correct-answer index, so catalog or algorithm drift fails CI
+instead of silently serving different rounds to iOS and Android players.
+
+Player state is stored with Preferences DataStore. Completed Daily and Friend
+Challenge results are locally one-attempt, survive the recent-category-history
+clear action, count toward durable round/category achievement facts, and
+intentionally do not add to category lifetime leaderboard points—matching the
+iOS scoring contract. Daily streaks remain alive through the first unplayed day
+and break only after a full local calendar day is missed, matching iOS.
 
 ## CI
 
@@ -42,11 +58,3 @@ The repository's `android-ci.yml` workflow installs Gradle 9.6, generates the
 question asset, runs unit tests, lint, and assembles the debug APK. No local
 Android workstation is required for this workflow. The generated APK is uploaded
 as the `eztrivia-android-debug` artifact.
-
-## Cross-platform boundary
-
-Friend Challenge v3 is frozen around explicit repository-owned algorithms and is
-safe for exact Swift/Kotlin parity. Daily Challenge still relies on seeded Swift
-standard-library selection/shuffle behavior in parts of its current contract, so
-Android should not claim identical Daily rounds until that algorithm is likewise
-frozen and versioned across both clients.

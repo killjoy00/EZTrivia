@@ -30,4 +30,20 @@ object RoundSummary {
         "$points points",
         playStoreUrl,
     ).joinToString("\n")
+
+    fun daily(
+        day: Int,
+        outcomes: List<Boolean>,
+        points: Int,
+        streak: Int,
+    ): String {
+        val lines = mutableListOf(
+            "EZ Trivia Daily #$day — ${outcomes.count { it }}/${outcomes.size}",
+            grid(outcomes),
+            "$points points",
+        )
+        if (streak > 1) lines += "$streak day streak 🔥"
+        lines += playStoreUrl
+        return lines.joinToString("\n")
+    }
 }
