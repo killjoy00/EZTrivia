@@ -70,7 +70,7 @@ object FriendChallenge {
             }
             if (pool.isEmpty()) continue
 
-            val index = (generator.next() % pool.size.toULong()).toInt()
+            val index = (generator.nextULong() % pool.size.toULong()).toInt()
             val picked = pool[index]
             usedIds += picked.id
             questions += presenting(picked, bank, generator)
@@ -135,32 +135,6 @@ object FriendChallenge {
             bCode !in a.confusableFlagCodes &&
             aCode !in b.confusableFlagCodes
     }
-}
-
-internal class SeededGenerator(seed: ULong) {
-    private var state: ULong = if (seed == 0UL) 0x9E3779B97F4A7C15UL else seed
-
-    fun next(): ULong {
-        state = state xor (state shl 13)
-        state = state xor (state shr 7)
-        state = state xor (state shl 17)
-        return state
-    }
-}
-
-private fun <T> List<T>.deterministicallyShuffled(generator: SeededGenerator): List<T> {
-    val result = toMutableList()
-    if (result.size <= 1) return result
-
-    for (index in result.lastIndex downTo 1) {
-        val other = (generator.next() % (index + 1).toULong()).toInt()
-        if (other != index) {
-            val temporary = result[index]
-            result[index] = result[other]
-            result[other] = temporary
-        }
-    }
-    return result
 }
 
 /** Deep-link and share-link handoff shared with the iOS client. */
