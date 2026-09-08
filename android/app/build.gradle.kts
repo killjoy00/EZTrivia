@@ -29,10 +29,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    // AGP 9.4 rejects Provider values in the legacy SourceSet API. This is a
-    // concrete generated directory, with task ordering carried explicitly by
+    // AGP 9.4 rejects Provider values in the legacy SourceSet API. These are
+    // concrete generated directories, with task ordering carried explicitly by
     // preBuild below.
     sourceSets["main"].assets.srcDir(file("$buildDir/generated/questionCatalog"))
+    sourceSets["main"].res.srcDir(file("$buildDir/generated/soundResources"))
 }
 
 kotlin {
@@ -42,6 +43,7 @@ kotlin {
 }
 
 val generatedAssetDir = file("$buildDir/generated/questionCatalog")
+val generatedSoundResDir = file("$buildDir/generated/soundResources")
 val generatedCatalog = layout.buildDirectory.file("generated/questionCatalog/questions.json")
 val repositoryRoot = rootProject.projectDir.parentFile
 
@@ -75,8 +77,15 @@ val generateFlagAssets = tasks.register<Sync>("generateFlagAssets") {
     into(generatedAssetDir.resolve("flags"))
 }
 
+val generateSoundResources = tasks.register<Sync>("generateSoundResources") {
+    val source = repositoryRoot.resolve("EZTriviaApp/Sounds")
+    inputs.dir(source)
+    from(source) { include("*.wav") }
+    into(generatedSoundResDir.resolve("raw"))
+}
+
 tasks.named("preBuild") {
-    dependsOn(generateQuestionCatalog, generateFlagAssets)
+    dependsOn(generateQuestionCatalog, generateFlagAssets, generateSoundResources)
 }
 
 dependencies {
@@ -87,6 +96,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.core:core-ktx:1.18.0")
     implementation("androidx.datastore:datastore-preferences:1.2.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
