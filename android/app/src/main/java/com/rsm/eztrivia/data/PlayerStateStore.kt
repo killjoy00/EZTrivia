@@ -177,6 +177,13 @@ object PlayerStateReducer {
             playedCategoryRawValues = state.playedCategoryRawValues + categories.map(TriviaCategory::wireName),
         )
     }
+
+    /** Mirrors iOS ScoreStore.clear(): clear recent category history and seen-cycle state only. */
+    fun clearRecentCategoryHistory(state: PlayerState): PlayerState =
+        state.copy(
+            recentCategoryResults = emptyList(),
+            seenQuestionIds = emptyMap(),
+        )
 }
 
 class PlayerStateStore(context: Context) {
@@ -249,6 +256,10 @@ class PlayerStateStore(context: Context) {
                 categories = categories,
             )
         }
+    }
+
+    suspend fun clearRecentCategoryHistory() {
+        update(PlayerStateReducer::clearRecentCategoryHistory)
     }
 
     private suspend fun update(transform: (PlayerState) -> PlayerState) {
