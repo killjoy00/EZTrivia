@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -51,20 +52,21 @@ import com.rsm.eztrivia.model.TriviaDifficulty
 import java.text.DateFormat
 import java.util.Date
 
-enum class AppSection { PLAY, SCORES }
+enum class AppSection { PLAY, SCORES, SETTINGS }
 
 @Composable
 fun EZTriviaBottomBar(
     selected: AppSection,
     onPlay: () -> Unit,
     onScores: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     val context = LocalContext.current
     NavigationBar {
         NavigationBarItem(
             selected = selected == AppSection.PLAY,
             onClick = onPlay,
-            icon = { Text("▶") },
+            icon = { Text("▶", modifier = Modifier.clearAndSetSemantics { }) },
             label = { Text("Play") },
         )
         NavigationBarItem(
@@ -72,7 +74,7 @@ fun EZTriviaBottomBar(
             onClick = {
                 context.startActivity(Intent(context, DailyChallengeActivity::class.java))
             },
-            icon = { Text("☀") },
+            icon = { Text("☀", modifier = Modifier.clearAndSetSemantics { }) },
             label = { Text("Daily") },
         )
         NavigationBarItem(
@@ -80,14 +82,20 @@ fun EZTriviaBottomBar(
             onClick = {
                 context.startActivity(Intent(context, FriendChallengeActivity::class.java))
             },
-            icon = { Text("↔") },
+            icon = { Text("↔", modifier = Modifier.clearAndSetSemantics { }) },
             label = { Text("Friends") },
         )
         NavigationBarItem(
             selected = selected == AppSection.SCORES,
             onClick = onScores,
-            icon = { Text("★") },
+            icon = { Text("★", modifier = Modifier.clearAndSetSemantics { }) },
             label = { Text("Scores") },
+        )
+        NavigationBarItem(
+            selected = selected == AppSection.SETTINGS,
+            onClick = onSettings,
+            icon = { Text("⚙", modifier = Modifier.clearAndSetSemantics { }) },
+            label = { Text("Settings") },
         )
     }
 }
@@ -97,6 +105,7 @@ fun ScoresScreen(
     playerState: PlayerState,
     catalogQuestionIds: Set<String>,
     onPlay: () -> Unit,
+    onSettings: () -> Unit,
     onAchievements: () -> Unit,
     onClearRecent: () -> Unit,
 ) {
@@ -125,6 +134,7 @@ fun ScoresScreen(
                 selected = AppSection.SCORES,
                 onPlay = onPlay,
                 onScores = {},
+                onSettings = onSettings,
             )
         },
     ) { innerPadding ->

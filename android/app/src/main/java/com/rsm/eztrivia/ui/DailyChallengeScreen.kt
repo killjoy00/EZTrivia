@@ -49,9 +49,11 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.rsm.eztrivia.data.AppSettings
 import com.rsm.eztrivia.data.DailyResult
 import com.rsm.eztrivia.data.PlayerState
 import com.rsm.eztrivia.data.PlayerStateStore
@@ -128,10 +130,16 @@ fun DailyChallengeScreen(
     onBack: () -> Unit,
 ) {
     val today = remember { DailyChallenge.day() }
+    val settings = rememberAppSettings()
     val scope = rememberCoroutineScope()
     var persistedResult by remember(today) { mutableStateOf<DailyResult?>(null) }
     var localResult by remember(today) { mutableStateOf<DailyResult?>(null) }
     var loaded by remember(today) { mutableStateOf(false) }
+
+    DailyReminderEffect(
+        settings = settings,
+        playedDays = playerState.dailyResultsByDay.keys,
+    )
 
     LaunchedEffect(today) {
         persistedResult = store.persistedDailyResult(today)
@@ -153,6 +161,7 @@ fun DailyChallengeScreen(
             DailyRoundScreen(
                 day = today,
                 questions = questions,
+                settings = settings,
                 onAnswer = { question, correct ->
                     scope.launch { store.recordQuestionAnswer(question, correct) }
                 },
@@ -183,11 +192,14 @@ fun DailyChallengeScreen(
 private fun DailyRoundScreen(
     day: Int,
     questions: List<TriviaQuestion>,
+    settings: AppSettings,
     onAnswer: (TriviaQuestion, Boolean) -> Unit,
     onComplete: (TriviaEngine) -> Unit,
     onExit: () -> Unit,
 ) {
     val engine = remember(day, questions) { TriviaEngine(questions) }
+    val feedback = rememberAppFeedback()
+    val view = LocalView.current
     var revision by remember(day, questions) { mutableIntStateOf(0) }
     var showExitConfirmation by remember { mutableStateOf(false) }
 
@@ -204,6 +216,24 @@ private fun DailyRoundScreen(
     val question = engine.currentQuestion ?: return
     val answered = engine.selectedAnswerIndex != null
 
+    fun advanceRound() {
+        if (engine.isRoundComplete || engine.selectedAnswerIndex == null) return
+        val finishing = engine.currentIndex == engine.questions.lastIndex
+        if (finishing) {
+            onComplete(engine)
+            feedback.roundComplete(settings, view)
+        }
+        engine.advance()
+        revision += 1
+    }
+
+    val autoAdvanceRemaining = rememberAutoAdvanceCountdown(
+        questionIndex = engine.currentIndex,
+        selectedAnswerIndex = engine.selectedAnswerIndex,
+        settings = settings,
+        onElapsed = ::advanceRound,
+    )
+
     Scaffold(
         topBar = {
             Row(
@@ -214,22 +244,18 @@ private fun DailyRoundScreen(
                 Spacer(modifier = Modifier.weight(1f))
                 Text("Daily #${DailyChallenge.displayNumber(day)}", fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.weight(1f))
-                Text("${engine.score} ✓", color = dailyTint)
+                Text("${engine.score} correct", color = dailyTint)
             }
         },
         bottomBar = {
             if (answered) {
                 Surface(shadowElevation = 8.dp) {
                     Button(
-                        onClick = {
-                            val finishing = engine.currentIndex == engine.questions.lastIndex
-                            if (finishing) onComplete(engine)
-                            engine.advance()
-                            revision += 1
-                        },
+                        onClick = ::advanceRound,
                         modifier = Modifier.fillMaxWidth().padding(14.dp),
                     ) {
-                        Text(if (engine.currentIndex == engine.questions.lastIndex) "Finish" else "Next question")
+                        val base = if (engine.currentIndex == engine.questions.lastIndex) "Finish" else "Next question"
+                        Text(roundActionLabel(base, autoAdvanceRemaining))
                     }
                 }
             }
@@ -264,7 +290,7 @@ private fun DailyRoundScreen(
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     textAlign = if (question.visual == null) TextAlign.Start else TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().questionHeading(),
                 )
             }
 
@@ -276,6 +302,7 @@ private fun DailyRoundScreen(
                     onClick = {
                         if (engine.selectedAnswerIndex == null) {
                             val correct = engine.answer(index)
+                            feedback.answer(correct, settings, view)
                             onAnswer(question, correct)
                             revision += 1
                         }
@@ -308,6 +335,7 @@ private fun DailyAnswerButton(
     val answered = selectedIndex != null
     val isCorrect = index == question.correctAnswerIndex
     val isSelectedWrong = answered && index == selectedIndex && !isCorrect
+    val letter = ('A'.code + index).toChar()
     val border = when {
         answered && isCorrect -> dailyTint
         isSelectedWrong -> MaterialTheme.colorScheme.error
@@ -322,7 +350,15 @@ private fun DailyAnswerButton(
     OutlinedButton(
         onClick = onClick,
         enabled = !answered,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .answerAccessibility(
+                letter = letter,
+                answer = question.answers[index],
+                answered = answered,
+                isCorrect = isCorrect,
+                isSelectedWrong = isSelectedWrong,
+            ),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(2.dp, border),
         colors = ButtonDefaults.outlinedButtonColors(
@@ -339,7 +375,7 @@ private fun DailyAnswerButton(
         ) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
                 Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
-                    Text(('A'.code + index).toChar().toString(), fontWeight = FontWeight.Bold)
+                    Text(letter.toString(), fontWeight = FontWeight.Bold)
                 }
             }
             Text(question.answers[index], modifier = Modifier.weight(1f), textAlign = TextAlign.Start, fontWeight = FontWeight.SemiBold)

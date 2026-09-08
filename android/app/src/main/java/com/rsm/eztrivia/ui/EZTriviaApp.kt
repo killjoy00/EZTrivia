@@ -52,9 +52,12 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.rsm.eztrivia.data.AppSettings
+import com.rsm.eztrivia.data.AppSettingsStore
 import com.rsm.eztrivia.data.PlayerState
 import com.rsm.eztrivia.data.PlayerStateStore
 import com.rsm.eztrivia.data.QuestionCatalog
@@ -71,6 +74,7 @@ import kotlinx.coroutines.launch
 private sealed interface AppScreen {
     data object Home : AppScreen
     data object Scores : AppScreen
+    data object Settings : AppScreen
     data object Achievements : AppScreen
     data class Difficulty(val category: TriviaCategory) : AppScreen
     data class Round(val mode: RoundMode, val questions: List<TriviaQuestion>) : AppScreen
@@ -87,10 +91,19 @@ fun EZTriviaApp() {
     val playerStateStore = remember(context.applicationContext) {
         PlayerStateStore(context.applicationContext)
     }
+    val settingsStore = remember(context.applicationContext) {
+        AppSettingsStore(context.applicationContext)
+    }
     val playerState by playerStateStore.state.collectAsState()
+    val settings by settingsStore.state.collectAsState()
     val catalogResult by produceState<Result<List<TriviaQuestion>>?>(initialValue = null) {
         value = runCatching { QuestionCatalog.load(context) }
     }
+
+    DailyReminderEffect(
+        settings = settings,
+        playedDays = playerState.dailyResultsByDay.keys,
+    )
 
     Surface(modifier = Modifier.fillMaxSize()) {
         when (val result = catalogResult) {
@@ -101,6 +114,8 @@ fun EZTriviaApp() {
                         catalog = catalog,
                         playerStateStore = playerStateStore,
                         playerState = playerState,
+                        settingsStore = settingsStore,
+                        settings = settings,
                     )
                 },
                 onFailure = { error -> CatalogErrorScreen(error.message ?: "Unknown catalog error") },
@@ -114,6 +129,8 @@ private fun TriviaNavigation(
     catalog: List<TriviaQuestion>,
     playerStateStore: PlayerStateStore,
     playerState: PlayerState,
+    settingsStore: AppSettingsStore,
+    settings: AppSettings,
 ) {
     var screen by remember { mutableStateOf<AppScreen>(AppScreen.Home) }
     val scope = rememberCoroutineScope()
@@ -156,6 +173,7 @@ private fun TriviaNavigation(
         screen = when (val current = screen) {
             AppScreen.Home -> AppScreen.Home
             AppScreen.Scores -> AppScreen.Home
+            AppScreen.Settings -> AppScreen.Home
             AppScreen.Achievements -> AppScreen.Scores
             is AppScreen.Difficulty -> AppScreen.Home
             is AppScreen.Round -> when (val mode = current.mode) {
@@ -172,15 +190,24 @@ private fun TriviaNavigation(
             onQuickPlay = { start(RoundMode.QuickPlay) },
             onCategory = { screen = AppScreen.Difficulty(it) },
             onScores = { screen = AppScreen.Scores },
+            onSettings = { screen = AppScreen.Settings },
         )
         AppScreen.Scores -> ScoresScreen(
             playerState = playerState,
             catalogQuestionIds = catalogQuestionIds,
             onPlay = { screen = AppScreen.Home },
+            onSettings = { screen = AppScreen.Settings },
             onAchievements = { screen = AppScreen.Achievements },
             onClearRecent = {
                 scope.launch { playerStateStore.clearRecentCategoryHistory() }
             },
+        )
+        AppScreen.Settings -> SettingsScreen(
+            settings = settings,
+            settingsStore = settingsStore,
+            playerState = playerState,
+            onPlay = { screen = AppScreen.Home },
+            onScores = { screen = AppScreen.Scores },
         )
         AppScreen.Achievements -> AchievementsScreen(
             playerState = playerState,
@@ -195,6 +222,7 @@ private fun TriviaNavigation(
         is AppScreen.Round -> RoundScreen(
             mode = current.mode,
             questions = current.questions,
+            settings = settings,
             onAnswer = { question, correct ->
                 scope.launch { playerStateStore.recordQuestionAnswer(question, correct) }
             },
@@ -237,6 +265,7 @@ private fun HomeScreen(
     onQuickPlay: () -> Unit,
     onCategory: (TriviaCategory) -> Unit,
     onScores: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     val catalogQuestionIds = remember(catalog) { catalog.mapTo(mutableSetOf()) { it.id } }
     val answeredCurrentQuestions = playerState.completedQuestionIds.count { it in catalogQuestionIds }
@@ -247,6 +276,7 @@ private fun HomeScreen(
                 selected = AppSection.PLAY,
                 onPlay = {},
                 onScores = onScores,
+                onSettings = onSettings,
             )
         },
     ) { innerPadding ->
@@ -467,6 +497,7 @@ private fun DifficultyScreen(
 private fun RoundScreen(
     mode: RoundMode,
     questions: List<TriviaQuestion>,
+    settings: AppSettings,
     onAnswer: (TriviaQuestion, Boolean) -> Unit,
     onComplete: (RoundMode, TriviaEngine) -> Unit,
     onExit: () -> Unit,
@@ -474,6 +505,8 @@ private fun RoundScreen(
     onHome: () -> Unit,
 ) {
     val engine = remember(questions) { TriviaEngine(questions) }
+    val feedback = rememberAppFeedback()
+    val view = LocalView.current
     var revision by remember(questions) { mutableIntStateOf(0) }
     var showExitConfirmation by remember { mutableStateOf(false) }
 
@@ -497,6 +530,24 @@ private fun RoundScreen(
         is RoundMode.Category -> categoryColor(mode.category)
     }
 
+    fun advanceRound() {
+        if (engine.isRoundComplete || engine.selectedAnswerIndex == null) return
+        val finishing = engine.currentIndex == engine.questions.lastIndex
+        if (finishing) {
+            onComplete(mode, engine)
+            feedback.roundComplete(settings, view)
+        }
+        engine.advance()
+        revision += 1
+    }
+
+    val autoAdvanceRemaining = rememberAutoAdvanceCountdown(
+        questionIndex = engine.currentIndex,
+        selectedAnswerIndex = engine.selectedAnswerIndex,
+        settings = settings,
+        onElapsed = ::advanceRound,
+    )
+
     Scaffold(
         topBar = {
             Row(
@@ -509,24 +560,24 @@ private fun RoundScreen(
                 Spacer(modifier = Modifier.weight(1f))
                 Text(roundTitle(mode), fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.weight(1f))
-                Text("${engine.score} ✓", color = MaterialTheme.colorScheme.primary)
+                Text("${engine.score} correct", color = MaterialTheme.colorScheme.primary)
             }
         },
         bottomBar = {
             if (answered) {
                 Surface(shadowElevation = 8.dp) {
                     Button(
-                        onClick = {
-                            val finishing = engine.currentIndex == engine.questions.lastIndex
-                            if (finishing) onComplete(mode, engine)
-                            engine.advance()
-                            revision += 1
-                        },
+                        onClick = ::advanceRound,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(14.dp),
                     ) {
-                        Text(if (engine.currentIndex == engine.questions.lastIndex) "See results" else "Next question")
+                        val base = if (engine.currentIndex == engine.questions.lastIndex) {
+                            "See results"
+                        } else {
+                            "Next question"
+                        }
+                        Text(roundActionLabel(base, autoAdvanceRemaining))
                     }
                 }
             }
@@ -566,7 +617,9 @@ private fun RoundScreen(
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     textAlign = if (question.visual == null) TextAlign.Start else TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .questionHeading(),
                 )
             }
 
@@ -578,6 +631,7 @@ private fun RoundScreen(
                     onClick = {
                         if (engine.selectedAnswerIndex == null) {
                             val correct = engine.answer(index)
+                            feedback.answer(correct, settings, view)
                             onAnswer(question, correct)
                             revision += 1
                         }
@@ -612,6 +666,7 @@ private fun AnswerButton(
     val answered = selectedIndex != null
     val isCorrect = index == question.correctAnswerIndex
     val isSelectedWrong = answered && index == selectedIndex && !isCorrect
+    val letter = ('A'.code + index).toChar()
     val border = when {
         answered && isCorrect -> MaterialTheme.colorScheme.primary
         isSelectedWrong -> MaterialTheme.colorScheme.error
@@ -626,7 +681,15 @@ private fun AnswerButton(
     OutlinedButton(
         onClick = onClick,
         enabled = !answered,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .answerAccessibility(
+                letter = letter,
+                answer = question.answers[index],
+                answered = answered,
+                isCorrect = isCorrect,
+                isSelectedWrong = isSelectedWrong,
+            ),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(2.dp, border),
         colors = ButtonDefaults.outlinedButtonColors(
@@ -643,7 +706,7 @@ private fun AnswerButton(
         ) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
                 Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
-                    Text(('A'.code + index).toChar().toString(), fontWeight = FontWeight.Bold)
+                    Text(letter.toString(), fontWeight = FontWeight.Bold)
                 }
             }
             Text(
