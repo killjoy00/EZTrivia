@@ -59,14 +59,24 @@ jobs:
           python3 - <<'PY'
           import json, os
           from pathlib import Path
+          from Scripts.export_android_catalog import parse_flag_catalog
+
           payload = json.loads(Path(os.environ["RUNNER_TEMP"], "questions.json").read_text())
           assert payload["schemaVersion"] == 1
           assert len(payload["questions"]) == 2341
           assert len({q["id"] for q in payload["questions"]}) == 2341
+
           flags = [q for q in payload["questions"] if q["category"] == "flags"]
           assert len(flags) == 241
           assert all(len(q["flagCode"]) == 2 for q in flags)
           assert all("confusableFlagCodes" in q for q in flags)
+
+          swift_flags = parse_flag_catalog(Path("Sources/EZTriviaCore/FlagCatalog.swift"))
+          expected_order = [
+              code for code, metadata in swift_flags.items() if metadata["askable"]
+          ]
+          actual_order = [q["flagCode"] for q in flags]
+          assert actual_order == expected_order, "Android flag order drifted from Swift FlagCatalog"
           PY
 
       - name: Unit tests
