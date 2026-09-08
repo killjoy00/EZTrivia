@@ -6,14 +6,22 @@ on:
     paths:
       - "android/**"
       - "Scripts/export_android_catalog.py"
+      - "Sources/EZTriviaCore/DailyChallenge.swift"
+      - "Sources/EZTriviaCore/FriendChallenge.swift"
       - "Sources/EZTriviaCore/FlagCatalog.swift"
+      - "Sources/EZTriviaCore/Models.swift"
+      - "Sources/EZTriviaCore/QuestionBank.swift"
       - "QuestionReview.csv"
       - ".github/workflows/android-ci.yml"
   pull_request:
     paths:
       - "android/**"
       - "Scripts/export_android_catalog.py"
+      - "Sources/EZTriviaCore/DailyChallenge.swift"
+      - "Sources/EZTriviaCore/FriendChallenge.swift"
       - "Sources/EZTriviaCore/FlagCatalog.swift"
+      - "Sources/EZTriviaCore/Models.swift"
+      - "Sources/EZTriviaCore/QuestionBank.swift"
       - "QuestionReview.csv"
       - ".github/workflows/android-ci.yml"
 
@@ -63,6 +71,11 @@ jobs:
 
       - name: Unit tests
         run: gradle testDebugUnitTest --stacktrace
+
+      - name: Surface unit test failures
+        if: failure()
+        run: |
+          find app/build/test-results/testDebugUnitTest -type f -name '*.xml' -print -exec cat {} \;
 
       - name: Lint
         run: gradle lintDebug --stacktrace
