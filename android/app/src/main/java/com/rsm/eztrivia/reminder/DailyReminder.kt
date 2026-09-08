@@ -160,6 +160,17 @@ private object DailyReminderNotifier {
     }
 
     fun post(context: Context, streak: Int) {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+
         ensureChannel(context)
         val contentIntent = PendingIntent.getActivity(
             context,
@@ -183,6 +194,11 @@ private object DailyReminderNotifier {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
-        NotificationManagerCompat.from(context).notify(REMINDER_REQUEST_CODE, notification)
+        try {
+            NotificationManagerCompat.from(context).notify(REMINDER_REQUEST_CODE, notification)
+        } catch (_: SecurityException) {
+            // Permission can be revoked between the check and notify(). A local
+            // streak reminder should fail silently rather than crash the app.
+        }
     }
 }
