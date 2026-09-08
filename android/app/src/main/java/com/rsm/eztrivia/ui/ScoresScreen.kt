@@ -1,5 +1,6 @@
 package com.rsm.eztrivia.ui
 
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -31,10 +32,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.rsm.eztrivia.FriendChallengeActivity
 import com.rsm.eztrivia.data.CategoryRoundResult
+import com.rsm.eztrivia.data.FriendChallengeResult
 import com.rsm.eztrivia.data.PlayerState
 import com.rsm.eztrivia.data.QuickPlayResult
 import com.rsm.eztrivia.model.AchievementCatalog
@@ -52,12 +56,21 @@ fun EZTriviaBottomBar(
     onPlay: () -> Unit,
     onScores: () -> Unit,
 ) {
+    val context = LocalContext.current
     NavigationBar {
         NavigationBarItem(
             selected = selected == AppSection.PLAY,
             onClick = onPlay,
             icon = { Text("▶") },
             label = { Text("Play") },
+        )
+        NavigationBarItem(
+            selected = false,
+            onClick = {
+                context.startActivity(Intent(context, FriendChallengeActivity::class.java))
+            },
+            icon = { Text("↔") },
+            label = { Text("Friends") },
         )
         NavigationBarItem(
             selected = selected == AppSection.SCORES,
@@ -88,6 +101,9 @@ fun ScoresScreen(
     } else {
         playerState.recentCategoryResults.take(10)
     }
+    val friendResults = playerState.friendChallengeResultsByAttemptId.values
+        .sortedByDescending(FriendChallengeResult::dateMillis)
+        .take(10)
 
     Scaffold(
         bottomBar = {
@@ -128,7 +144,11 @@ fun ScoresScreen(
                 )
             }
 
-            if (playerState.recentCategoryResults.isEmpty() && playerState.quickPlayResults.isEmpty()) {
+            if (
+                playerState.recentCategoryResults.isEmpty() &&
+                playerState.quickPlayResults.isEmpty() &&
+                friendResults.isEmpty()
+            ) {
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(
@@ -137,7 +157,7 @@ fun ScoresScreen(
                         ) {
                             Text("No rounds yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Text(
-                                "Finish a category round or Quick Play and it will appear here.",
+                                "Finish a category round, Quick Play, or Friend Challenge and it will appear here.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -166,6 +186,13 @@ fun ScoresScreen(
                 item { SectionHeading("Recent Quick Play") }
                 items(playerState.quickPlayResults.take(10), key = QuickPlayResult::id) { result ->
                     QuickPlayRow(result)
+                }
+            }
+
+            if (friendResults.isNotEmpty()) {
+                item { SectionHeading("Recent Friend Challenges") }
+                items(friendResults, key = { it.code.attemptId }) { result ->
+                    FriendChallengeRow(result)
                 }
             }
 
@@ -208,7 +235,7 @@ fun ScoresScreen(
             onDismissRequest = { showClearConfirmation = false },
             title = { Text("Clear recent rounds?") },
             text = {
-                Text("Recent category rounds and the seen-question cycle will be cleared. Lifetime points, question coverage, Quick Play history, and achievements will be kept.")
+                Text("Recent category rounds and the seen-question cycle will be cleared. Lifetime points, question coverage, Quick Play history, Friend Challenge history, and achievements will be kept.")
             },
             confirmButton = {
                 TextButton(
@@ -346,6 +373,32 @@ private fun QuickPlayRow(result: QuickPlayResult) {
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Quick Play", fontWeight = FontWeight.Bold)
+                Text(
+                    "${formatDate(result.dateMillis)} · ${result.points} pts",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text("${result.score}/${result.total}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun FriendChallengeRow(result: FriendChallengeResult) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Surface(modifier = Modifier.size(38.dp), shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    Text("2", fontWeight = FontWeight.Bold)
+                }
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(if (result.createdChallenge) "Created challenge" else "Played challenge", fontWeight = FontWeight.Bold)
                 Text(
                     "${formatDate(result.dateMillis)} · ${result.points} pts",
                     style = MaterialTheme.typography.bodySmall,

@@ -23,6 +23,8 @@ private data class QuestionPayload(
     val answers: List<String>,
     val correctAnswerIndex: Int,
     val explanation: String,
+    val flagCode: String? = null,
+    val confusableFlagCodes: Set<String> = emptySet(),
 )
 
 object QuestionCatalog {
@@ -46,6 +48,8 @@ object QuestionCatalog {
                 answers = question.answers,
                 correctAnswerIndex = question.correctAnswerIndex,
                 explanation = question.explanation,
+                flagCode = question.flagCode,
+                confusableFlagCodes = question.confusableFlagCodes,
             )
         }
     }

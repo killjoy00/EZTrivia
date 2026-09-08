@@ -13,6 +13,7 @@ data class AchievementDefinition(
 sealed interface AchievementGoal {
     data class Rounds(val target: Int) : AchievementGoal
     data class QuickRounds(val target: Int) : AchievementGoal
+    data class FriendChallenges(val target: Int) : AchievementGoal
     data class Perfect(val difficulty: TriviaDifficulty) : AchievementGoal
     data class Categories(val target: Int) : AchievementGoal
     data class LifetimePoints(val target: Int) : AchievementGoal
@@ -23,9 +24,8 @@ sealed interface AchievementGoal {
  *
  * IDs deliberately match iOS where the achievement already exists. Play Games
  * can therefore sync these same facts later without migrating local progress.
- * Daily- and Friend-specific badges stay out of this list until those modes are
- * actually present on Android; showing permanently-zero badges would imply a
- * feature the client cannot yet play.
+ * Daily-specific badges stay out of this list until Daily Challenge itself is
+ * present on Android.
  */
 object AchievementCatalog {
     val all: List<AchievementDefinition> = listOf(
@@ -127,6 +127,13 @@ object AchievementCatalog {
             unlockedDescription = "You completed ten Quick Play rounds.",
             goal = AchievementGoal.QuickRounds(10),
         ),
+        AchievementDefinition(
+            id = "EZTrivia.local.friend_challenges_5",
+            title = "Friendly Rivalry",
+            lockedDescription = "Complete five Friend Challenges.",
+            unlockedDescription = "You completed five Friend Challenges.",
+            goal = AchievementGoal.FriendChallenges(5),
+        ),
     )
 
     fun progress(state: PlayerState): Map<String, Int> =
@@ -136,6 +143,7 @@ object AchievementCatalog {
         when (val goal = achievement.goal) {
             is AchievementGoal.Rounds -> percentage(state.totalRoundsCompleted, goal.target)
             is AchievementGoal.QuickRounds -> percentage(state.quickPlayRoundsCompleted, goal.target)
+            is AchievementGoal.FriendChallenges -> percentage(state.friendChallengesCompleted, goal.target)
             is AchievementGoal.Perfect -> if (goal.difficulty.wireName in state.perfectDifficultyRawValues) 100 else 0
             is AchievementGoal.Categories -> percentage(state.playedCategoryRawValues.size, goal.target)
             is AchievementGoal.LifetimePoints -> percentage(state.lifetimePointsTotal, goal.target)

@@ -1,8 +1,8 @@
 package com.rsm.eztrivia.model
 
-private const val QUESTION_COUNT = 10
-private const val MAXIMUM_POINTS = 1_650
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class FriendChallengeCode(
     val version: Int = CODE_VERSION,
     val seed: ULong,
@@ -11,8 +11,8 @@ data class FriendChallengeCode(
 ) {
     init {
         require(version in 1..9)
-        require(targetScore in 0..QUESTION_COUNT)
-        require(targetPoints in 0..MAXIMUM_POINTS)
+        require(targetScore in 0..FriendChallenge.QUESTION_COUNT)
+        require(targetPoints in 0..FriendChallenge.MAXIMUM_POINTS)
     }
 
     val attemptId: String get() = "v$version-$seed"
@@ -50,8 +50,8 @@ data class FriendChallengeCode(
             val decodedScore = decode(body.substring(13, 14)) ?: return null
             val decodedPoints = decode(body.substring(14, 17)) ?: return null
             val decodedChecksum = decode(body.substring(17, 19)) ?: return null
-            if (decodedScore > QUESTION_COUNT.toULong()) return null
-            if (decodedPoints > MAXIMUM_POINTS.toULong()) return null
+            if (decodedScore > FriendChallenge.QUESTION_COUNT.toULong()) return null
+            if (decodedPoints > FriendChallenge.MAXIMUM_POINTS.toULong()) return null
 
             val score = decodedScore.toInt()
             val points = decodedPoints.toInt()

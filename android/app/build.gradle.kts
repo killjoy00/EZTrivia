@@ -47,9 +47,11 @@ val repositoryRoot = rootProject.projectDir.parentFile
 
 val generateQuestionCatalog = tasks.register<Exec>("generateQuestionCatalog") {
     val source = repositoryRoot.resolve("QuestionReview.csv")
+    val flagCatalog = repositoryRoot.resolve("Sources/EZTriviaCore/FlagCatalog.swift")
     val exporter = repositoryRoot.resolve("Scripts/export_android_catalog.py")
 
     inputs.file(source)
+    inputs.file(flagCatalog)
     inputs.file(exporter)
     outputs.file(generatedCatalog)
 
@@ -57,6 +59,7 @@ val generateQuestionCatalog = tasks.register<Exec>("generateQuestionCatalog") {
         "python3",
         exporter.absolutePath,
         "--input", source.absolutePath,
+        "--flag-catalog", flagCatalog.absolutePath,
         "--output", generatedCatalog.get().asFile.absolutePath,
     )
 }

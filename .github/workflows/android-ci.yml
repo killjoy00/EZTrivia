@@ -6,12 +6,14 @@ on:
     paths:
       - "android/**"
       - "Scripts/export_android_catalog.py"
+      - "Sources/EZTriviaCore/FlagCatalog.swift"
       - "QuestionReview.csv"
       - ".github/workflows/android-ci.yml"
   pull_request:
     paths:
       - "android/**"
       - "Scripts/export_android_catalog.py"
+      - "Sources/EZTriviaCore/FlagCatalog.swift"
       - "QuestionReview.csv"
       - ".github/workflows/android-ci.yml"
 
@@ -44,6 +46,7 @@ jobs:
         run: |
           python3 Scripts/export_android_catalog.py \
             --input QuestionReview.csv \
+            --flag-catalog Sources/EZTriviaCore/FlagCatalog.swift \
             --output "$RUNNER_TEMP/questions.json"
           python3 - <<'PY'
           import json, os
@@ -52,6 +55,10 @@ jobs:
           assert payload["schemaVersion"] == 1
           assert len(payload["questions"]) == 2341
           assert len({q["id"] for q in payload["questions"]}) == 2341
+          flags = [q for q in payload["questions"] if q["category"] == "flags"]
+          assert len(flags) == 241
+          assert all(len(q["flagCode"]) == 2 for q in flags)
+          assert all("confusableFlagCodes" in q for q in flags)
           PY
 
       - name: Unit tests

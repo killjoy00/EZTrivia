@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.rsm.eztrivia.model.FriendChallengeCode
 import com.rsm.eztrivia.model.TriviaCategory
 import com.rsm.eztrivia.model.TriviaDifficulty
 import com.rsm.eztrivia.model.TriviaQuestion
@@ -16,6 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.serialization.Serializable
@@ -48,10 +50,22 @@ data class QuickPlayResult(
 )
 
 @Serializable
+data class FriendChallengeResult(
+    val code: FriendChallengeCode,
+    val score: Int,
+    val total: Int,
+    val points: Int,
+    val outcomes: List<Boolean>,
+    val createdChallenge: Boolean,
+    val dateMillis: Long,
+)
+
+@Serializable
 data class PlayerState(
     val schemaVersion: Int = 1,
     val recentCategoryResults: List<CategoryRoundResult> = emptyList(),
     val quickPlayResults: List<QuickPlayResult> = emptyList(),
+    val friendChallengeResultsByAttemptId: Map<String, FriendChallengeResult> = emptyMap(),
     val seenQuestionIds: Map<String, Set<String>> = emptyMap(),
     val completedQuestionIds: Set<String> = emptySet(),
     val correctlyAnsweredQuestionIds: Set<String> = emptySet(),
@@ -67,8 +81,14 @@ data class PlayerState(
     val lifetimePointsTotal: Int
         get() = lifetimePointsByCategory.values.sum()
 
+    val friendChallengesCompleted: Int
+        get() = friendChallengeResultsByAttemptId.size
+
     fun seenQuestions(category: TriviaCategory, difficulty: TriviaDifficulty): Set<String> =
         seenQuestionIds[PlayerStateReducer.cacheKey(category, difficulty)].orEmpty()
+
+    fun friendChallengeResult(code: FriendChallengeCode): FriendChallengeResult? =
+        friendChallengeResultsByAttemptId[code.attemptId]
 }
 
 object PlayerStateReducer {
@@ -178,6 +198,21 @@ object PlayerStateReducer {
         )
     }
 
+    fun recordFriendChallenge(
+        state: PlayerState,
+        result: FriendChallengeResult,
+        categories: Set<TriviaCategory>,
+    ): PlayerState {
+        val attemptId = result.code.attemptId
+        if (attemptId in state.friendChallengeResultsByAttemptId) return state
+
+        return state.copy(
+            friendChallengeResultsByAttemptId = state.friendChallengeResultsByAttemptId + (attemptId to result),
+            totalRoundsCompleted = state.totalRoundsCompleted + 1,
+            playedCategoryRawValues = state.playedCategoryRawValues + categories.map(TriviaCategory::wireName),
+        )
+    }
+
     /** Mirrors iOS ScoreStore.clear(): clear recent category history and seen-cycle state only. */
     fun clearRecentCategoryHistory(state: PlayerState): PlayerState =
         state.copy(
@@ -204,6 +239,16 @@ class PlayerStateStore(context: Context) {
 
     val current: PlayerState
         get() = state.value
+
+    /** Reads disk-backed state before deciding whether an external challenge is replayable. */
+    suspend fun persistedFriendChallengeResult(code: FriendChallengeCode): FriendChallengeResult? {
+        val preferences = dataStore.data
+            .catch { error ->
+                if (error is IOException) emit(emptyPreferences()) else throw error
+            }
+            .first()
+        return decode(preferences[stateKey]).friendChallengeResult(code)
+    }
 
     suspend fun markSeen(
         ids: Set<String>,
@@ -256,6 +301,13 @@ class PlayerStateStore(context: Context) {
                 categories = categories,
             )
         }
+    }
+
+    suspend fun recordFriendChallenge(
+        result: FriendChallengeResult,
+        categories: Set<TriviaCategory>,
+    ) {
+        update { current -> PlayerStateReducer.recordFriendChallenge(current, result, categories) }
     }
 
     suspend fun clearRecentCategoryHistory() {

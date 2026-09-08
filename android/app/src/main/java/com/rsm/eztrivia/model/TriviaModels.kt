@@ -58,11 +58,19 @@ data class TriviaQuestion(
     val answers: List<String>,
     val correctAnswerIndex: Int,
     val explanation: String,
+    val flagCode: String? = null,
+    val confusableFlagCodes: Set<String> = emptySet(),
 ) {
     init {
         require(answers.size == 4) { "A trivia question must have exactly four answers" }
         require(correctAnswerIndex in answers.indices) { "Correct answer index is out of bounds" }
+        require(category == TriviaCategory.FLAGS || flagCode == null) {
+            "Only flag questions may carry a flag code"
+        }
     }
+
+    val correctAnswer: String
+        get() = answers[correctAnswerIndex]
 
     fun shuffledAnswers(random: Random = Random.Default): TriviaQuestion {
         val indexedAnswers = answers.mapIndexed { index, answer -> index to answer }.shuffled(random)
