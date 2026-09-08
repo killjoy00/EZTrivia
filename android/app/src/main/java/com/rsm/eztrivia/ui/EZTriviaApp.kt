@@ -21,8 +21,8 @@ import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.items as listItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -181,7 +181,7 @@ private fun HomeScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            items(TriviaCategory.entries) { category ->
+            gridItems(TriviaCategory.entries) { category ->
                 CategoryCard(
                     category = category,
                     questionCount = catalog.count { it.category == category },
@@ -205,8 +205,7 @@ private fun QuickPlayCard(onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Box(
-                modifier = Modifier
-                    .size(54.dp),
+                modifier = Modifier.size(54.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text("10", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -293,7 +292,7 @@ private fun DifficultyScreen(
         )
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(TriviaDifficulty.entries) { difficulty ->
+            listItems(TriviaDifficulty.entries) { difficulty ->
                 val count = QuestionPicker.availableCount(catalog, category, difficulty)
                 Card(
                     modifier = Modifier
@@ -337,8 +336,6 @@ private fun RoundScreen(
     var revision by remember(questions) { mutableIntStateOf(0) }
     var showExitConfirmation by remember { mutableStateOf(false) }
 
-    // Read revision so mutations to the platform-neutral engine invalidate this
-    // Compose subtree without making the core model depend on Compose runtime.
     @Suppress("UNUSED_EXPRESSION")
     revision
 
@@ -432,7 +429,7 @@ private fun RoundScreen(
                 )
             }
 
-            items(question.answers.indices.toList()) { index ->
+            listItems(question.answers.indices.toList()) { index ->
                 AnswerButton(
                     question = question,
                     index = index,
@@ -568,7 +565,9 @@ private fun FlagVisual(visual: String, compact: Boolean) {
 }
 
 private fun loadFlagBitmap(context: Context, visual: String) = runCatching {
-    context.assets.open("flags/$visual.png").use(BitmapFactory::decodeStream)
+    context.assets.open("flags/$visual.png").use { stream ->
+        BitmapFactory.decodeStream(stream)
+    }
 }.getOrNull()
 
 @Composable
@@ -593,7 +592,12 @@ private fun ResultScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(headline, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text(
+            headline,
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+        )
         Spacer(modifier = Modifier.height(14.dp))
         Text("You scored", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
@@ -624,7 +628,10 @@ private fun ResultScreen(
 @Composable
 private fun LoadingScreen() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             CircularProgressIndicator()
             Text("Preparing questions…")
         }
