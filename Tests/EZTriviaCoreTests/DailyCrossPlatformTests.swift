@@ -2,6 +2,13 @@ import Foundation
 import Testing
 @testable import EZTriviaCore
 
+private let dailyV2GoldenFingerprints: [Int: UInt64] = [
+    251: 18_180_449_488_707_544_938,
+    252: 8_400_231_617_344_702_755,
+    365: 4_864_099_897_389_026_914,
+    512: 4_921_592_935_424_845_763,
+]
+
 private func dailyV2Fingerprint(_ challenge: DailyChallenge) -> UInt64 {
     let payload = challenge.questions.map { question in
         "\(question.id)\u{1F}\(question.correctAnswerIndex)\u{1F}\(question.answers.joined(separator: "\u{1E}"))"
@@ -42,16 +49,11 @@ private func dailyV2Fingerprint(_ challenge: DailyChallenge) -> UInt64 {
     }
 }
 
-@Test func dailyV2FingerprintIsAvailableForTheKotlinGoldenTest() {
-    let days = [251, 252, 365, 512]
-    let fingerprints = days.map { day in
-        (day, dailyV2Fingerprint(DailyChallenge.crossPlatformChallenge(for: day)))
+@Test func dailyV2MatchesTheCrossLanguageGoldenFingerprints() {
+    for (day, expected) in dailyV2GoldenFingerprints {
+        let actual = dailyV2Fingerprint(DailyChallenge.crossPlatformChallenge(for: day))
+        #expect(actual == expected)
     }
-
-    // Keep this compact line in CI logs. The Android test pins the same values;
-    // a catalog or algorithm edit must update both clients deliberately.
-    print("DAILY_V2_GOLDEN " + fingerprints.map { "\($0.0)=\($0.1)" }.joined(separator: " "))
-    #expect(Set(fingerprints.map(\.1)).count == fingerprints.count)
 }
 
 @Test func publicDailyBuilderSwitchesToV2AtTheBoundary() {
