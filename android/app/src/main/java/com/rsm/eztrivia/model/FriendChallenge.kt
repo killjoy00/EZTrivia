@@ -2,7 +2,6 @@ package com.rsm.eztrivia.model
 
 import java.net.URI
 import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 
 /**
  * Android implementation of Friend Challenge v3.
@@ -195,6 +194,6 @@ object FriendChallengeLink {
         }
     }
 
-    private fun decode(value: String): String =
-        URLDecoder.decode(value, StandardCharsets.UTF_8)
+    @Suppress("DEPRECATION")
+    private fun decode(value: String): String = URLDecoder.decode(value, "UTF-8")
 }
