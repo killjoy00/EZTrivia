@@ -1,7 +1,7 @@
 package com.rsm.eztrivia.model
 
 private const val QUESTION_COUNT = 10
-private const val MAXIMUM_POINTS = 1_600
+private const val MAXIMUM_POINTS = 1_650
 
 data class FriendChallengeCode(
     val version: Int = CODE_VERSION,
