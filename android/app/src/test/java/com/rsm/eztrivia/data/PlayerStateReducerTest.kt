@@ -1,5 +1,6 @@
 package com.rsm.eztrivia.data
 
+import com.rsm.eztrivia.model.FriendChallengeCode
 import com.rsm.eztrivia.model.TriviaCategory
 import com.rsm.eztrivia.model.TriviaDifficulty
 import org.junit.Assert.assertEquals
@@ -94,7 +95,60 @@ class PlayerStateReducerTest {
     }
 
     @Test
+    fun friendChallengeIsOneAttemptAndDoesNotAddLifetimeCategoryPoints() {
+        val originalCode = FriendChallengeCode(seed = 42UL, targetScore = 7, targetPoints = 1_100)
+        val firstResult = FriendChallengeResult(
+            code = originalCode,
+            score = 8,
+            total = 10,
+            points = 1_250,
+            outcomes = List(10) { it < 8 },
+            createdChallenge = false,
+            dateMillis = 100,
+        )
+        val first = PlayerStateReducer.recordFriendChallenge(
+            state = PlayerState(),
+            result = firstResult,
+            categories = setOf(TriviaCategory.SCIENCE, TriviaCategory.MUSIC),
+        )
+
+        assertEquals(1, first.friendChallengesCompleted)
+        assertEquals(1, first.totalRoundsCompleted)
+        assertTrue(first.lifetimePointsByCategory.isEmpty())
+        assertTrue("science" in first.playedCategoryRawValues)
+        assertTrue("music" in first.playedCategoryRawValues)
+
+        val alteredTargetSameSeed = FriendChallengeResult(
+            code = FriendChallengeCode(seed = 42UL, targetScore = 1, targetPoints = 100),
+            score = 10,
+            total = 10,
+            points = 1_650,
+            outcomes = List(10) { true },
+            createdChallenge = false,
+            dateMillis = 200,
+        )
+        val replay = PlayerStateReducer.recordFriendChallenge(
+            state = first,
+            result = alteredTargetSameSeed,
+            categories = setOf(TriviaCategory.HISTORY),
+        )
+
+        assertEquals(first, replay)
+        assertEquals(firstResult, replay.friendChallengeResult(originalCode))
+    }
+
+    @Test
     fun clearingRecentHistoryKeepsPermanentProgress() {
+        val friendCode = FriendChallengeCode(seed = 99UL, targetScore = 6, targetPoints = 950)
+        val friendResult = FriendChallengeResult(
+            code = friendCode,
+            score = 7,
+            total = 10,
+            points = 1_100,
+            outcomes = List(10) { it < 7 },
+            createdChallenge = false,
+            dateMillis = 300,
+        )
         val original = PlayerState(
             recentCategoryResults = listOf(
                 CategoryRoundResult(
@@ -116,6 +170,7 @@ class PlayerStateReducerTest {
                     dateMillis = 200,
                 ),
             ),
+            friendChallengeResultsByAttemptId = mapOf(friendCode.attemptId to friendResult),
             seenQuestionIds = mapOf("history-hard" to setOf("q1", "q2")),
             completedQuestionIds = setOf("q1", "q2"),
             correctlyAnsweredQuestionIds = setOf("q1"),
@@ -131,6 +186,7 @@ class PlayerStateReducerTest {
         assertTrue(cleared.recentCategoryResults.isEmpty())
         assertTrue(cleared.seenQuestionIds.isEmpty())
         assertEquals(original.quickPlayResults, cleared.quickPlayResults)
+        assertEquals(original.friendChallengeResultsByAttemptId, cleared.friendChallengeResultsByAttemptId)
         assertEquals(original.completedQuestionIds, cleared.completedQuestionIds)
         assertEquals(original.correctlyAnsweredQuestionIds, cleared.correctlyAnsweredQuestionIds)
         assertEquals(original.lifetimePointsByCategory, cleared.lifetimePointsByCategory)
