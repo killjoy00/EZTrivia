@@ -72,7 +72,11 @@ class DailyChallengeCatalogParityTest {
         var goldenSetContainsAFlag = false
         swiftGoldenFingerprints.forEach { (day, expected) ->
             val challenge = DailyChallenge.challenge(day, bank)
-            assertEquals(expected, fingerprint(challenge))
+            assertEquals(
+                "Daily v2 fingerprint mismatch for internal day $day",
+                expected,
+                fingerprint(challenge),
+            )
             goldenSetContainsAFlag = goldenSetContainsAFlag ||
                 challenge.any { it.category == TriviaCategory.FLAGS }
         }
