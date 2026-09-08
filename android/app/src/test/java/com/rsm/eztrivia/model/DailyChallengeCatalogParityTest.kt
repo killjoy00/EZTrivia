@@ -9,6 +9,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DailyChallengeCatalogParityTest {
+    private val swiftGoldenFingerprints = mapOf(
+        251 to 18_180_449_488_707_544_938UL,
+        252 to 8_400_231_617_344_702_755UL,
+        365 to 4_864_099_897_389_026_914UL,
+        512 to 4_921_592_935_424_845_763UL,
+    )
+
     private fun bank(): List<TriviaQuestion> {
         val catalogFile = sequenceOf(
             File("build/generated/questionCatalog/questions.json"),
@@ -60,13 +67,11 @@ class DailyChallengeCatalogParityTest {
     }
 
     @Test
-    fun dailyFingerprintCanBeComparedWithSwiftGoldenOutput() {
+    fun androidMatchesTheSwiftDailyV2GoldenFingerprints() {
         val bank = bank()
-        val fingerprints = listOf(251, 252, 365, 512).associateWith { day ->
-            fingerprint(DailyChallenge.challenge(day, bank))
+        swiftGoldenFingerprints.forEach { (day, expected) ->
+            assertEquals(expected, fingerprint(DailyChallenge.challenge(day, bank)))
         }
-        println("DAILY_V2_ANDROID_GOLDEN " + fingerprints.entries.joinToString(" ") { "${it.key}=${it.value}" })
-        assertEquals(fingerprints.size, fingerprints.values.toSet().size)
     }
 
     private fun fingerprint(questions: List<TriviaQuestion>): ULong {
