@@ -68,10 +68,14 @@ private func dailyV2Fingerprint(_ challenge: DailyChallenge) -> UInt64 {
 }
 
 @Test func dailyV2MatchesTheCrossLanguageGoldenFingerprints() {
+    var goldenSetContainsAFlag = false
     for (day, expected) in dailyV2GoldenFingerprints {
-        let actual = dailyV2Fingerprint(DailyChallenge.crossPlatformChallenge(for: day))
+        let challenge = DailyChallenge.crossPlatformChallenge(for: day)
+        let actual = dailyV2Fingerprint(challenge)
         #expect(actual == expected)
+        goldenSetContainsAFlag = goldenSetContainsAFlag || challenge.questions.contains { $0.category == .flags }
     }
+    #expect(goldenSetContainsAFlag)
 }
 
 @Test func publicDailyBuilderSwitchesToV2AtTheBoundary() {
