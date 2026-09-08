@@ -51,7 +51,7 @@ object FriendChallenge {
 
     init {
         check(CODE_VERSION == FriendChallengeCode.CODE_VERSION)
-        check(difficultyRamp.sumOf(Scoring::points) == MAXIMUM_POINTS)
+        check(difficultyRamp.sumOf { Scoring.points(it) } == MAXIMUM_POINTS)
     }
 
     fun challenge(seed: ULong, bank: List<TriviaQuestion>): List<TriviaQuestion> {
@@ -177,17 +177,29 @@ object FriendChallengeLink {
 
     /** Accept a raw code, the custom scheme, or the public HTTPS handoff. */
     fun codeFrom(rawValue: String): FriendChallengeCode? {
-        val trimmed = rawValue.trim()
-        FriendChallengeCode.parse(trimmed)?.let { return it }
+        val candidate = rawCodeCandidate(rawValue) ?: return null
+        return FriendChallengeCode.parse(candidate)
+    }
 
-        val uri = runCatching { URI(trimmed) }.getOrNull() ?: return null
+    fun rejectionReason(rawValue: String): FriendChallengeCode.RejectionReason? {
+        val candidate = rawCodeCandidate(rawValue) ?: rawValue.trim()
+        return FriendChallengeCode.rejectionReason(candidate)
+    }
+
+    private fun rawCodeCandidate(rawValue: String): String? {
+        val trimmed = rawValue.trim()
+        if (trimmed.isEmpty()) return null
+        FriendChallengeCode.parse(trimmed)?.let { return it.displayString }
+
+        val uri = runCatching { URI(trimmed) }.getOrNull()
+        if (uri == null || uri.scheme == null) return trimmed
+
         val scheme = uri.scheme?.lowercase()
         val host = uri.host?.lowercase()
 
         if (scheme == CUSTOM_SCHEME && host == CUSTOM_HOST) {
             val rawCode = uri.rawPath.orEmpty().trim('/')
-            if (rawCode.isEmpty()) return null
-            return FriendChallengeCode.parse(decode(rawCode))
+            return rawCode.takeIf { it.isNotEmpty() }?.let(::decode)
         }
 
         if (
@@ -195,8 +207,7 @@ object FriendChallengeLink {
             host == "killjoy00.github.io" &&
             uri.path?.lowercase() == "/eztrivia/challenge.html"
         ) {
-            val rawCode = queryValue(uri.rawQuery, "code") ?: return null
-            return FriendChallengeCode.parse(rawCode)
+            return queryValue(uri.rawQuery, "code")
         }
 
         return null
@@ -206,7 +217,7 @@ object FriendChallengeLink {
         if (rawQuery.isNullOrBlank()) return null
         return rawQuery.split('&').firstNotNullOfOrNull { item ->
             val parts = item.split('=', limit = 2)
-            if (decode(parts[0]) != name || parts.size != 2) null else decode(parts[1])
+            if (parts.size != 2 || decode(parts[0]) != name) null else decode(parts[1])
         }
     }
 
