@@ -35,6 +35,10 @@ public struct DailyChallenge: Sendable, Equatable {
 
     private static let epoch = DateComponents(year: 2026, month: 1, day: 1)
 
+    /// Raw day numbering in the supplied calendar. Kept public for historical
+    /// tests and explicit callers; app-facing code should use `currentDay` so
+    /// Daily v2 cannot diverge when an iPhone uses a non-Gregorian display
+    /// calendar while Android uses ISO/Gregorian `LocalDate`.
     public static func day(for date: Date, in calendar: Calendar = .current) -> Int {
         guard let epochDate = calendar.date(from: epoch) else { return 0 }
         let from = calendar.startOfDay(for: epochDate)
@@ -42,9 +46,37 @@ public struct DailyChallenge: Sendable, Equatable {
         return calendar.dateComponents([.day], from: from, to: to).day ?? 0
     }
 
+    /// The app-facing local day. Before v2 this intentionally preserves the
+    /// user's existing Calendar.current behavior. At and after the v2 cutover,
+    /// the contract is explicitly Gregorian in the same local time zone as
+    /// Android's LocalDate.
+    public static func currentDay(
+        for date: Date = Date(),
+        in legacyCalendar: Calendar = .current
+    ) -> Int {
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = legacyCalendar.timeZone
+        let v2Day = day(for: date, in: gregorian)
+        if v2Day >= crossPlatformStartDay { return v2Day }
+        return day(for: date, in: legacyCalendar)
+    }
+
     public static func startOfDay(_ day: Int, in calendar: Calendar = .current) -> Date? {
-        guard let epochDate = calendar.date(from: epoch) else { return nil }
-        return calendar.date(byAdding: .day, value: day, to: calendar.startOfDay(for: epochDate))
+        let effectiveCalendar: Calendar
+        if day >= crossPlatformStartDay {
+            var gregorian = Calendar(identifier: .gregorian)
+            gregorian.timeZone = calendar.timeZone
+            effectiveCalendar = gregorian
+        } else {
+            effectiveCalendar = calendar
+        }
+
+        guard let epochDate = effectiveCalendar.date(from: epoch) else { return nil }
+        return effectiveCalendar.date(
+            byAdding: .day,
+            value: day,
+            to: effectiveCalendar.startOfDay(for: epochDate)
+        )
     }
 
     // MARK: - Building
@@ -53,7 +85,7 @@ public struct DailyChallenge: Sendable, Equatable {
         in calendar: Calendar = .current,
         using bank: [TriviaQuestion] = QuestionBank.all
     ) -> DailyChallenge {
-        challenge(for: day(for: Date(), in: calendar), using: bank)
+        challenge(for: currentDay(for: Date(), in: calendar), using: bank)
     }
 
     /// Builds a Daily while preserving the exact legacy behavior before the
