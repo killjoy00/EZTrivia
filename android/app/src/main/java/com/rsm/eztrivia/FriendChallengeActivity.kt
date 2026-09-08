@@ -21,7 +21,7 @@ class FriendChallengeActivity : ComponentActivity() {
                 FriendChallengeApp(
                     incomingUrl = incomingUrl,
                     onIncomingUrlConsumed = { incomingUrl = null },
-                    onBackToPlay = { finish() },
+                    onBackToPlay = ::returnToPlay,
                 )
             }
         }
@@ -31,5 +31,14 @@ class FriendChallengeActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         incomingUrl = intent.dataString
+    }
+
+    private fun returnToPlay() {
+        startActivity(
+            Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+        )
+        finish()
     }
 }
