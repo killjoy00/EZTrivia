@@ -6,10 +6,11 @@ Swift CI job. This exporter converts that already-verified data into a compact,
 platform-neutral JSON payload while reconstructing QuestionBank.all ordering so
 seeded Android modes can consume the same bank order as iOS.
 
-Flag questions carry one extra piece of source metadata: the flag code and the
-small set of visually-confusable codes that iOS refuses to offer together. That
-lets Android reproduce Friend Challenge v3's seeded flag distractor redraw
-exactly instead of freezing the four review-export choices.
+Flag questions carry source metadata from Swift's FlagCatalog: the flag code,
+its visually-confusable codes, and its exact declaration order. Preserving that
+source order is part of the deterministic contract. Re-sorting flags by their
+Unicode display names is not equivalent (for example, accented names can land
+in a different position) and changes seeded flag selection/distractor draws.
 """
 
 from __future__ import annotations
@@ -80,17 +81,17 @@ def parse_sequence(question_id: str) -> int:
 
 
 def parse_flag_catalog(path: Path) -> dict[str, dict[str, object]]:
-    """Read the compact gameplay metadata from Swift's FlagCatalog source.
+    """Read gameplay metadata and exact order from Swift's FlagCatalog source.
 
     FlagCatalog remains the source of truth. Parsing it here avoids maintaining
-    a second Android-only confusable-pair list that could silently drift when a
-    flag is reclassified on iOS.
+    a second Android-only confusable-pair list or flag order that could silently
+    drift when iOS reclassifies or reorders a flag.
     """
 
     source = path.read_text(encoding="utf-8")
     entries: dict[str, dict[str, object]] = {}
 
-    for match in FLAG_ENTRY_RE.finditer(source):
+    for order, match in enumerate(FLAG_ENTRY_RE.finditer(source)):
         code = match.group("code")
         tail = match.group("tail")
         confusable_match = CONFUSABLE_RE.search(tail)
@@ -103,6 +104,7 @@ def parse_flag_catalog(path: Path) -> dict[str, dict[str, object]]:
             "difficulty": match.group("difficulty"),
             "askable": not bool(re.search(r"\baskable:\s*false\b", tail)),
             "confusable": confusable,
+            "order": order,
         }
 
     if len(entries) != EXPECTED_FLAG_COUNT:
@@ -122,14 +124,10 @@ def bank_sort_key(question: dict[str, object]) -> tuple[object, ...]:
     difficulty = str(question["difficulty"])
 
     # QuestionBank builds all text categories first, in a fixed category order,
-    # then appends flags. Text seeds are stored Easy/Medium/Hard in authored
-    # sequence. FlagCatalog is ordered by difficulty then display name.
+    # then appends FlagCatalog.askable in FlagCatalog declaration order. That
+    # declaration order -- not a fresh alphabetical sort -- is the seeded pool.
     if category == "flags":
-        answers = question["answers"]
-        correct_index = int(question["correctAnswerIndex"])
-        assert isinstance(answers, list)
-        correct_answer = str(answers[correct_index])
-        return (1, DIFFICULTY_ORDER[difficulty], correct_answer, str(question["id"]))
+        return (1, int(question["_flagOrder"]))
 
     return (
         0,
@@ -198,6 +196,8 @@ def convert(input_path: Path, flag_catalog_path: Path) -> dict[str, object]:
                     )
                 question["flagCode"] = flag_code
                 question["confusableFlagCodes"] = metadata["confusable"]
+                # Temporary sort-only field; removed before JSON serialization.
+                question["_flagOrder"] = metadata["order"]
 
             questions.append(question)
 
@@ -213,6 +213,8 @@ def convert(input_path: Path, flag_catalog_path: Path) -> dict[str, object]:
         )
 
     questions.sort(key=bank_sort_key)
+    for question in flag_questions:
+        question.pop("_flagOrder", None)
     return {"schemaVersion": 1, "questions": questions}
 
 
