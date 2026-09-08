@@ -183,7 +183,7 @@ fun ScoresScreen(
                 }
                 item {
                     Text(
-                        "Harder questions are worth more. These totals will become the category leaderboard totals when Play Games is connected.",
+                        "Harder questions are worth more. Keep playing to build your totals in every category.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -276,7 +276,7 @@ private fun AchievementSummaryCard(completed: Int, total: Int, onClick: () -> Un
             }
             LinearProgressIndicator(progress = { fraction.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
             Text(
-                "Local achievement facts are ready now; Play Games sync can attach to the same IDs later.",
+                "Complete rounds, explore categories, and build your lifetime score to unlock badges.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -417,7 +417,7 @@ fun AchievementsScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Text(
-                        "These badges are computed from the same durable player facts used by iOS where the IDs overlap.",
+                        "Badges unlock automatically as you play.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -430,7 +430,7 @@ fun AchievementsScreen(
         item {
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "Daily- and Friend-specific badges will appear when those modes land on Android. Play Games syncing is a separate service layer; this screen does not require sign-in.",
+                "More achievements will appear as new ways to play arrive.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
