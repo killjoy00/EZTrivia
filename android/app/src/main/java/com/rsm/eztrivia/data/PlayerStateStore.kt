@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.rsm.eztrivia.model.DailyStreak
 import com.rsm.eztrivia.model.FriendChallengeCode
 import com.rsm.eztrivia.model.TriviaCategory
 import com.rsm.eztrivia.model.TriviaDifficulty
@@ -50,6 +51,16 @@ data class QuickPlayResult(
 )
 
 @Serializable
+data class DailyResult(
+    val day: Int,
+    val score: Int,
+    val total: Int,
+    val points: Int,
+    val outcomes: List<Boolean>,
+    val dateMillis: Long,
+)
+
+@Serializable
 data class FriendChallengeResult(
     val code: FriendChallengeCode,
     val score: Int,
@@ -65,6 +76,7 @@ data class PlayerState(
     val schemaVersion: Int = 1,
     val recentCategoryResults: List<CategoryRoundResult> = emptyList(),
     val quickPlayResults: List<QuickPlayResult> = emptyList(),
+    val dailyResultsByDay: Map<Int, DailyResult> = emptyMap(),
     val friendChallengeResultsByAttemptId: Map<String, FriendChallengeResult> = emptyMap(),
     val seenQuestionIds: Map<String, Set<String>> = emptyMap(),
     val completedQuestionIds: Set<String> = emptySet(),
@@ -86,6 +98,10 @@ data class PlayerState(
 
     fun seenQuestions(category: TriviaCategory, difficulty: TriviaDifficulty): Set<String> =
         seenQuestionIds[PlayerStateReducer.cacheKey(category, difficulty)].orEmpty()
+
+    fun dailyResult(day: Int): DailyResult? = dailyResultsByDay[day]
+
+    fun dailyStreak(today: Int): Int = DailyStreak.current(dailyResultsByDay.keys, today)
 
     fun friendChallengeResult(code: FriendChallengeCode): FriendChallengeResult? =
         friendChallengeResultsByAttemptId[code.attemptId]
@@ -198,6 +214,19 @@ object PlayerStateReducer {
         )
     }
 
+    fun recordDaily(
+        state: PlayerState,
+        result: DailyResult,
+        categories: Set<TriviaCategory>,
+    ): PlayerState {
+        if (result.day in state.dailyResultsByDay) return state
+        return state.copy(
+            dailyResultsByDay = state.dailyResultsByDay + (result.day to result),
+            totalRoundsCompleted = state.totalRoundsCompleted + 1,
+            playedCategoryRawValues = state.playedCategoryRawValues + categories.map(TriviaCategory::wireName),
+        )
+    }
+
     fun recordFriendChallenge(
         state: PlayerState,
         result: FriendChallengeResult,
@@ -239,6 +268,15 @@ class PlayerStateStore(context: Context) {
 
     val current: PlayerState
         get() = state.value
+
+    suspend fun persistedDailyResult(day: Int): DailyResult? {
+        val preferences = dataStore.data
+            .catch { error ->
+                if (error is IOException) emit(emptyPreferences()) else throw error
+            }
+            .first()
+        return decode(preferences[stateKey]).dailyResult(day)
+    }
 
     /** Reads disk-backed state before deciding whether an external challenge is replayable. */
     suspend fun persistedFriendChallengeResult(code: FriendChallengeCode): FriendChallengeResult? {
@@ -301,6 +339,13 @@ class PlayerStateStore(context: Context) {
                 categories = categories,
             )
         }
+    }
+
+    suspend fun recordDaily(
+        result: DailyResult,
+        categories: Set<TriviaCategory>,
+    ) {
+        update { current -> PlayerStateReducer.recordDaily(current, result, categories) }
     }
 
     suspend fun recordFriendChallenge(
