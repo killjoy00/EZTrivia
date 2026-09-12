@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 and above. Same two DataStore files, for both cloud backup and
+     device-to-device transfer. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="file" path="datastore/eztrivia_player_state.preferences_pb" />
+        <include domain="file" path="datastore/eztrivia_app_settings.preferences_pb" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="datastore/eztrivia_player_state.preferences_pb" />
+        <include domain="file" path="datastore/eztrivia_app_settings.preferences_pb" />
+    </device-transfer>
+</data-extraction-rules>

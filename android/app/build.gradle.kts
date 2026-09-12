@@ -20,6 +20,24 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    buildTypes {
+        release {
+            // R8 on release, and exercised by CI: a shrinker configuration that
+            // is never built is a configuration that breaks on release day.
+            // kotlinx.serialization is reflective enough to need explicit keep
+            // rules, which live in proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+        }
+        debug {
+            isMinifyEnabled = false
+        }
+    }
+
     buildFeatures {
         compose = true
     }
@@ -32,8 +50,12 @@ android {
     // AGP 9.4 rejects Provider values in the legacy SourceSet API. These are
     // concrete generated directories, with task ordering carried explicitly by
     // preBuild below.
-    sourceSets["main"].assets.srcDir(file("$buildDir/generated/questionCatalog"))
-    sourceSets["main"].res.srcDir(file("$buildDir/generated/soundResources"))
+    sourceSets["main"].assets.srcDir(
+        layout.buildDirectory.dir("generated/questionCatalog").get().asFile
+    )
+    sourceSets["main"].res.srcDir(
+        layout.buildDirectory.dir("generated/soundResources").get().asFile
+    )
 }
 
 kotlin {
@@ -42,8 +64,8 @@ kotlin {
     }
 }
 
-val generatedAssetDir = file("$buildDir/generated/questionCatalog")
-val generatedSoundResDir = file("$buildDir/generated/soundResources")
+val generatedAssetDir = layout.buildDirectory.dir("generated/questionCatalog").get().asFile
+val generatedSoundResDir = layout.buildDirectory.dir("generated/soundResources").get().asFile
 val generatedCatalog = layout.buildDirectory.file("generated/questionCatalog/questions.json")
 val repositoryRoot = rootProject.projectDir.parentFile
 
