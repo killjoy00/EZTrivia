@@ -269,6 +269,14 @@ class PlayerStateStore(context: Context) {
     val current: PlayerState
         get() = state.value
 
+    /** The persisted state, awaited rather than sampled. See `AppSettingsStore.loaded`. */
+    suspend fun loaded(): PlayerState = dataStore.data
+        .catch { error ->
+            if (error is IOException) emit(emptyPreferences()) else throw error
+        }
+        .map { preferences -> decode(preferences[stateKey]) }
+        .first()
+
     suspend fun persistedDailyResult(day: Int): DailyResult? {
         val preferences = dataStore.data
             .catch { error ->

@@ -93,10 +93,20 @@ jobs:
       - name: Assemble debug APK
         run: gradle assembleDebug --stacktrace
 
-      - name: Upload debug APK
+      # The release build is where R8 runs. Building it here is the only way to
+      # know the keep rules are right: kotlinx.serialization failures surface at
+      # run time on the first decode, not at compile time, so a shrinker
+      # configuration that is never built is one that breaks on release day.
+      # The APK is unsigned -- signing is a Play Console concern, not CI's.
+      - name: Assemble release APK (exercises R8)
+        run: gradle assembleRelease --stacktrace
+
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: eztrivia-android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: eztrivia-android
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
           retention-days: 14

@@ -14,6 +14,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
@@ -65,6 +66,20 @@ class AppSettingsStore(context: Context) {
         }
         .map(::decode)
         .stateIn(scope, SharingStarted.Eagerly, AppSettings())
+
+    /**
+     * The persisted settings, awaited rather than sampled.
+     *
+     * `state` is seeded eagerly with defaults, so a caller outside a
+     * composition -- a broadcast receiver, say -- that read `state.value`
+     * could act on defaults that were never on disk.
+     */
+    suspend fun loaded(): AppSettings = dataStore.data
+        .catch { error ->
+            if (error is IOException) emit(emptyPreferences()) else throw error
+        }
+        .map(::decode)
+        .first()
 
     suspend fun setAutoAdvanceEnabled(enabled: Boolean) = set(Keys.autoAdvanceEnabled, enabled)
 

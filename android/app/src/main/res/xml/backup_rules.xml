@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and below. Player progress and settings are both DataStore
+     preference files and are worth carrying to a new device; nothing else the
+     app writes is. -->
+<full-backup-content>
+    <include domain="file" path="datastore/eztrivia_player_state.preferences_pb" />
+    <include domain="file" path="datastore/eztrivia_app_settings.preferences_pb" />
+</full-backup-content>
