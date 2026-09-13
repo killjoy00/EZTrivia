@@ -5,3 +5,10 @@ DerivedData/
 xcuserdata/
 __pycache__/
 *.pyc
+
+# Android signing material must never be committed. Release signing is supplied
+# to GitHub Actions through repository secrets.
+*.jks
+*.keystore
+*.p12
+android/keystore.properties
