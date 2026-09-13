@@ -6,6 +6,11 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+val releaseVersionCode = providers.environmentVariable("EZTRIVIA_VERSION_CODE").orNull?.toIntOrNull()
+val releaseVersionName = providers.environmentVariable("EZTRIVIA_VERSION_NAME").orNull
+val uploadKeystorePath = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PATH")
+val uploadKeystorePassword = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PASSWORD")
+
 android {
     namespace = "com.rsm.eztrivia"
     compileSdk = 36
@@ -14,14 +19,29 @@ android {
         applicationId = "com.rsm.eztrivia"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0-alpha01"
+        versionCode = releaseVersionCode ?: 1
+        versionName = releaseVersionName ?: "1.0.0-alpha01"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val uploadSigningConfig = if (uploadKeystorePath.isPresent && uploadKeystorePassword.isPresent) {
+        signingConfigs.create("upload") {
+            storeFile = file(uploadKeystorePath.get())
+            storePassword = uploadKeystorePassword.get()
+            keyAlias = "upload"
+            keyPassword = uploadKeystorePassword.get()
+        }
+    } else {
+        null
+    }
+
     buildTypes {
         release {
+            // Keep ordinary CI unsigned, but sign Play release bundles whenever
+            // the protected upload-key environment variables are supplied.
+            uploadSigningConfig?.let { signingConfig = it }
+
             // R8 on release, and exercised by CI: a shrinker configuration that
             // is never built is a configuration that breaks on release day.
             // kotlinx.serialization is reflective enough to need explicit keep
