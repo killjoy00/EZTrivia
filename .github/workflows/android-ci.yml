@@ -13,7 +13,6 @@ on:
       - "Sources/EZTriviaCore/QuestionBank.swift"
       - "QuestionReview.csv"
       - ".github/workflows/android-ci.yml"
-      - ".github/workflows/android-play-release.yml"
   pull_request:
     paths:
       - "android/**"
@@ -25,7 +24,6 @@ on:
       - "Sources/EZTriviaCore/QuestionBank.swift"
       - "QuestionReview.csv"
       - ".github/workflows/android-ci.yml"
-      - ".github/workflows/android-play-release.yml"
 
 concurrency:
   group: android-ci-${{ github.ref }}
@@ -97,7 +95,7 @@ jobs:
 
       # Release builds are unsigned in ordinary CI. The purpose here is to
       # exercise R8/resource shrinking and the same App Bundle packaging used by
-      # Google Play before any signing secret is involved.
+      # Google Play before any signing key is involved.
       - name: Assemble release APK (exercises R8)
         run: gradle assembleRelease --stacktrace
 
