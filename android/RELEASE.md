@@ -1,48 +1,54 @@
 # Android release setup
 
-The repository can build and validate Android without secrets. A Play release
-uses Play App Signing plus a separate upload key held outside the repository.
+The repository can build and validate Android without signing material. A Play
+release uses Play App Signing plus a separate upload key held outside the
+repository.
 
-## 1. One-time upload-key setup
+## 1. Upload key
 
-The release workflow expects a PKCS12 upload keystore whose alias is `upload`.
-Use one password for both the keystore and the key. Never commit the keystore.
+Use a PKCS12 upload keystore whose alias is `upload`. Use one password for both
+the keystore and the key. Never commit the keystore or its password.
 
-Add exactly these repository secrets in GitHub:
+The Gradle release build accepts signing material only through environment
+variables:
 
-- `ANDROID_UPLOAD_KEYSTORE_BASE64` — base64 text of the `.p12` file
-- `ANDROID_UPLOAD_KEY_PASSWORD` — the keystore/key password
+- `ANDROID_UPLOAD_KEYSTORE_PATH` — absolute path to the `.p12` file
+- `ANDROID_UPLOAD_KEYSTORE_PASSWORD` — keystore/key password
+- `EZTRIVIA_VERSION_CODE` — positive integer; must increase for every Play upload
+- `EZTRIVIA_VERSION_NAME` — player-facing version such as `1.0.0`
 
-The workflow materializes the keystore only inside the ephemeral GitHub Actions
-runner, verifies the `upload` alias, builds the signed Android App Bundle, then
-uploads the bundle as an Actions artifact. The keystore itself is never uploaded
-as an artifact.
+When the signing variables are absent, the release build stays unsigned. That is
+the mode used by ordinary CI.
 
-The Gradle release build remains unsigned when those environment variables are
-absent, so ordinary pull-request CI does not require signing credentials.
+## 2. Build the signed Play bundle
 
-## 2. Build a Play bundle
+In a trusted release environment with the upload key available:
 
-After the two secrets exist:
+```bash
+cd android
+ANDROID_UPLOAD_KEYSTORE_PATH=/secure/eztrivia-upload.p12 \
+ANDROID_UPLOAD_KEYSTORE_PASSWORD='...' \
+EZTRIVIA_VERSION_CODE=1 \
+EZTRIVIA_VERSION_NAME=1.0.0 \
+gradle bundleRelease
+```
 
-1. GitHub → `killjoy00/EZTrivia` → **Actions**.
-2. Open **Android Play Release**.
-3. Tap **Run workflow** and leave the branch on `main`.
-4. Enter a `version_code`. It must be a positive integer and must increase for
-   every bundle uploaded to Play. Start with `1`.
-5. Enter a `version_name`. Start with `1.0.0`.
-6. Run the workflow.
-7. Download the artifact named `eztrivia-play-v<version_code>`.
-8. Upload `app-release.aab` to Play Console → **Internal testing**.
+The Play bundle is written to:
 
-The artifact also contains `release-info.txt` and the R8 `mapping.txt` file. Keep
-`mapping.txt` with the release record so obfuscated crash reports can be decoded.
+    android/app/build/outputs/bundle/release/app-release.aab
+
+Keep the matching R8 mapping file with the release record:
+
+    android/app/build/outputs/mapping/release/mapping.txt
+
+Upload the `.aab` to Play Console → **Internal testing**. Start at version code
+`1`; every later upload must use a larger version code.
 
 ## 3. Play App Signing
 
-Use **Play App Signing** in Play Console. The upload key above authenticates the
-bundle uploaded to Google; Google holds and uses the separate app-signing key
-that signs APKs delivered to players.
+Use **Play App Signing** in Play Console. The upload key authenticates the bundle
+you upload; Google holds and uses the separate app-signing key that signs APKs
+delivered to players.
 
 After the first bundle is accepted, Play Console exposes the app-signing
 certificate fingerprint. That fingerprint is also required for verified Friend
@@ -89,7 +95,7 @@ To check verification on a device once it is published:
 
 ## What CI proves before release
 
-Ordinary Android CI now builds all of the following without signing credentials:
+Ordinary Android CI builds all of the following without signing credentials:
 
 - debug APK
 - minified/resource-shrunk release APK
