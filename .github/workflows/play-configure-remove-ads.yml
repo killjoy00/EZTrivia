@@ -1,11 +1,6 @@
 name: Configure Play Remove Ads
 
 on:
-  push:
-    branches:
-      - configure-eztrivia-remove-ads
-    paths:
-      - .github/workflows/play-configure-remove-ads.yml
   workflow_dispatch:
 
 permissions:
