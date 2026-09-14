@@ -1,0 +1,45 @@
+name: Read Play App Signing Certificate
+
+on:
+  push:
+    branches: [android/signing-secret-check]
+    paths:
+      - ".github/workflows/play-generated-apks-cert.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  read-cert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+
+      - name: Read generated APK signing certificate
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.rsm.eztrivia/generatedApks/1" \
+            > "${RUNNER_TEMP}/generated-apks.json"
+
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          data = json.loads(Path(os.environ["RUNNER_TEMP"], "generated-apks.json").read_text())
+          groups = data.get("generatedApks", [])
+          if not groups:
+              raise SystemExit("No generated APK signing metadata returned for version 1")
+          print(f"Signing groups: {len(groups)}")
+          for group in groups:
+              print("certificateSha256Hash=" + group.get("certificateSha256Hash", ""))
+          PY
