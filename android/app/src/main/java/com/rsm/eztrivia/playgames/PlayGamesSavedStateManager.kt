@@ -89,6 +89,7 @@ class PlayGamesSavedStateManager(
                     }
 
                     val conflict = openResult.conflict
+                        ?: throw IOException("Google Play Games reported a save conflict without conflict data.")
                     val server = decodeSnapshot(conflict.snapshot)
                     val conflicting = decodeSnapshot(conflict.conflictingSnapshot)
 
@@ -115,6 +116,7 @@ class PlayGamesSavedStateManager(
                 }
 
                 val openedSnapshot = openResult.data
+                    ?: throw IOException("Google Play Games opened a save without snapshot data.")
                 val remote = decodeSnapshot(openedSnapshot)
                 val merged = playerStateStore.mergeCloudEnvelope(remote)
                 val wroteSnapshot = openedSnapshot.snapshotContents.writeBytes(
