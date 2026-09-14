@@ -86,9 +86,9 @@ jobs:
             -alias upload >/dev/null
           chmod 600 "$RUNNER_TEMP/eztrivia-upload.p12"
 
-      - name: Run release unit tests
+      - name: Run Android unit tests
         working-directory: android
-        run: gradle testReleaseUnitTest --stacktrace
+        run: gradle testDebugUnitTest --stacktrace
 
       - name: Build signed release bundle
         working-directory: android
