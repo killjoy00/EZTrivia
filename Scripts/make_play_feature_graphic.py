@@ -79,8 +79,39 @@ def rounded_icon(source: Image.Image, size: int, radius: int) -> Image.Image:
     return icon
 
 
+def add_texture(canvas: Image.Image) -> None:
+    """Composite low-contrast trivia marks without losing alpha on RGB export."""
+    layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    texture_font = font(66, bold=True)
+    for x, y, alpha in ((30, 42, 20), (900, 46, 18), (225, 400, 12), (928, 402, 10)):
+        draw.text((x, y), "?", font=texture_font, fill=(255, 255, 255, alpha))
+    for x, y, radius, fill in (
+        (410, 58, 5, (*GOLD, 115)),
+        (448, 82, 3, (*CYAN, 140)),
+        (939, 291, 5, (*WHITE, 70)),
+        (760, 71, 4, (*GOLD, 90)),
+    ):
+        draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=fill)
+    canvas.alpha_composite(layer)
+
+
+def translucent_round_rect(
+    canvas: Image.Image,
+    box: tuple[int, int, int, int],
+    radius: int,
+    fill: tuple[int, int, int, int],
+    outline: tuple[int, int, int, int] | None = None,
+    width: int = 1,
+) -> None:
+    layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    draw.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=width)
+    canvas.alpha_composite(layer)
+
+
 def feature_chips(
-    draw: ImageDraw.ImageDraw,
+    canvas: Image.Image,
     x: int,
     y: int,
     max_width: int,
@@ -88,15 +119,15 @@ def feature_chips(
     labels = ("Quick Play", "Daily Challenge", "Friend battles")
     gap = 10
     horizontal_padding = 17
-    vertical_padding = 10
 
+    measure = ImageDraw.Draw(canvas)
     selected_font = None
     widths: list[int] = []
     for size in range(19, 14, -1):
         candidate = font(size, bold=True)
         candidate_widths = []
         for label in labels:
-            left, top, right, bottom = draw.textbbox((0, 0), label, font=candidate)
+            left, top, right, bottom = measure.textbbox((0, 0), label, font=candidate)
             candidate_widths.append((right - left) + horizontal_padding * 2)
         if sum(candidate_widths) + gap * (len(labels) - 1) <= max_width:
             selected_font = candidate
@@ -106,28 +137,28 @@ def feature_chips(
         selected_font = font(14, bold=True)
         widths = []
         for label in labels:
-            left, top, right, bottom = draw.textbbox((0, 0), label, font=selected_font)
+            left, top, right, bottom = measure.textbbox((0, 0), label, font=selected_font)
             widths.append((right - left) + horizontal_padding * 2)
 
-    cursor = x
     chip_height = 43
-    for label, chip_width in zip(labels, widths):
-        draw.rounded_rectangle(
+    cursor = x
+    for chip_width in widths:
+        translucent_round_rect(
+            canvas,
             (cursor, y, cursor + chip_width, y + chip_height),
             radius=chip_height // 2,
-            fill=(14, 8, 65, 72),
-            outline=(255, 255, 255, 38),
-            width=1,
+            fill=(14, 8, 65, 125),
+            outline=(255, 255, 255, 72),
         )
+        cursor += chip_width + gap
+
+    draw = ImageDraw.Draw(canvas)
+    cursor = x
+    for label, chip_width in zip(labels, widths):
         bbox = draw.textbbox((0, 0), label, font=selected_font)
         text_height = bbox[3] - bbox[1]
         text_y = y + (chip_height - text_height) // 2 - bbox[1]
-        draw.text(
-            (cursor + horizontal_padding, text_y),
-            label,
-            font=selected_font,
-            fill=WHITE,
-        )
+        draw.text((cursor + horizontal_padding, text_y), label, font=selected_font, fill=WHITE)
         cursor += chip_width + gap
 
 
@@ -138,21 +169,7 @@ def main() -> int:
     canvas = gradient()
     add_glow(canvas, (-130, -160, 420, 390), CYAN, 72)
     add_glow(canvas, (690, 180, 1180, 670), GOLD, 38)
-
-    draw = ImageDraw.Draw(canvas, "RGBA")
-
-    # Quiet trivia texture: visible enough to add energy, subtle enough to keep
-    # the art legible when Play displays it as a small card.
-    texture_font = font(72, bold=True)
-    for x, y, alpha in ((24, 38, 25), (215, 395, 20), (900, 44, 24), (928, 398, 13)):
-        draw.text((x, y), "?", font=texture_font, fill=(255, 255, 255, alpha))
-    for x, y, radius, fill in (
-        (410, 58, 5, (*GOLD, 115)),
-        (448, 82, 3, (*CYAN, 140)),
-        (939, 291, 5, (*WHITE, 70)),
-        (760, 71, 4, (*GOLD, 90)),
-    ):
-        draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=fill)
+    add_texture(canvas)
 
     # Place the real shipped icon, not invented UI, so the listing art remains
     # faithful to the app even as gameplay screens evolve.
@@ -168,7 +185,7 @@ def main() -> int:
     canvas.alpha_composite(shadow)
     canvas.alpha_composite(icon, (icon_x, icon_y))
 
-    draw = ImageDraw.Draw(canvas, "RGBA")
+    draw = ImageDraw.Draw(canvas)
     text_x = 430
     max_text_width = WIDTH - text_x - 62
 
@@ -177,33 +194,28 @@ def main() -> int:
     eyebrow_bbox = draw.textbbox((0, 0), eyebrow, font=eyebrow_font)
     eyebrow_width = eyebrow_bbox[2] - eyebrow_bbox[0]
     pill_width = eyebrow_width + 38
-    draw.rounded_rectangle(
+    translucent_round_rect(
+        canvas,
         (text_x, 79, text_x + pill_width, 119),
         radius=20,
-        fill=(255, 255, 255, 25),
-        outline=(255, 255, 255, 46),
-        width=1,
+        fill=(255, 255, 255, 30),
+        outline=(255, 255, 255, 55),
     )
+    draw = ImageDraw.Draw(canvas)
     draw.text((text_x + 19, 87), eyebrow, font=eyebrow_font, fill=SOFT_WHITE)
 
     title = "EZ Trivia"
     title_font = fit_text(draw, title, max_text_width, start_size=86, min_size=66, bold=True)
-    draw.text((text_x, 137), title, font=title_font, fill=WHITE, stroke_width=1, stroke_fill=(255, 255, 255, 24))
+    draw.text((text_x, 137), title, font=title_font, fill=WHITE)
 
     tagline_font = font(39, bold=True)
     draw.text((text_x, 244), "Play. Learn. Compete.", font=tagline_font, fill=(255, 230, 163))
 
     detail = "2,341 questions • 16 categories • 3 difficulty levels"
-    detail_font = fit_text(
-        draw,
-        detail,
-        max_text_width,
-        start_size=24,
-        min_size=18,
-    )
+    detail_font = fit_text(draw, detail, max_text_width, start_size=24, min_size=18)
     draw.text((text_x, 309), detail, font=detail_font, fill=SOFT_WHITE)
 
-    feature_chips(draw, text_x, 365, max_text_width)
+    feature_chips(canvas, text_x, 365, max_text_width)
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     final = canvas.convert("RGB")
