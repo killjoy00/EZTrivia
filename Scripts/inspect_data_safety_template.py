@@ -6,12 +6,11 @@ import re
 import requests
 
 HELP = "https://support.google.com/googleplay/android-developer/answer/10787469?hl=en"
+CURRENT_SAMPLE_FALLBACK = "https://storage.googleapis.com/support-kms-prod/b5v9It2EgwrgyY1gPFVB3jPUypc5lL3oNg2G"
 page = requests.get(HELP, timeout=60)
 page.raise_for_status()
 match = re.search(r'https://storage\.googleapis\.com/support-kms-prod/[^"<>& ]+', page.text)
-if not match:
-    raise SystemExit("Could not locate Google Data Safety sample CSV URL")
-url = html.unescape(match.group(0))
+url = html.unescape(match.group(0)) if match else CURRENT_SAMPLE_FALLBACK
 print("template_url=", url)
 response = requests.get(url, timeout=60)
 print("download_status=", response.status_code, "content_type=", response.headers.get("content-type"))
