@@ -59,4 +59,8 @@ jobs:
 
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER"
-          "$APKSIGNER" verify --print-certs "$APK" | grep -F 'Signer #1 certificate SHA-1 digest:'
+          "$APKSIGNER" verify \
+            --min-sdk-version 26 \
+            --max-sdk-version 36 \
+            --print-certs \
+            "$APK" | grep -F 'Signer #1 certificate SHA-1 digest:'
