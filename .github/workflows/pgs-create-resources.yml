@@ -1,0 +1,154 @@
+name: Create EZ Trivia PGS resources
+
+on:
+  push:
+    branches: [android/signing-secret-check]
+    paths:
+      - ".github/workflows/pgs-create-resources.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Play Games publishing
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+
+      - name: Create achievements and leaderboards idempotently
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+
+          APP_ID = "406580555223"
+          BASE = f"https://gamesconfiguration.googleapis.com/games/v1configuration/applications/{APP_ID}"
+          TOKEN = os.environ["ACCESS_TOKEN"]
+
+          def request(method, url, body=None):
+              data = None if body is None else json.dumps(body).encode()
+              req = urllib.request.Request(url, data=data, method=method)
+              req.add_header("Authorization", f"Bearer {TOKEN}")
+              if data is not None:
+                  req.add_header("Content-Type", "application/json")
+              try:
+                  with urllib.request.urlopen(req) as response:
+                      raw = response.read().decode()
+                      return json.loads(raw) if raw else {}
+              except urllib.error.HTTPError as error:
+                  detail = error.read().decode()
+                  raise RuntimeError(f"{method} {url} -> HTTP {error.code}: {detail}") from error
+
+          def bundle(value):
+              return {"translations": [{"locale": "en-US", "value": value}]}
+
+          achievements = [
+              ("first_round", "First Round", "Complete any round.", "STANDARD", 25),
+              ("perfect_easy", "Easy Does It", "Earn a perfect score on an Easy category round.", "STANDARD", 50),
+              ("perfect_medium", "Perfectly Balanced", "Earn a perfect score on a Medium category round.", "STANDARD", 75),
+              ("perfect_hard", "Hard to Beat", "Earn a perfect score on a Hard category round.", "STANDARD", 100),
+              ("all_categories", "A Little of Everything", "Play twelve different categories.", "INCREMENTAL", 100),
+              ("all_categories_14", "Full Spectrum", "Play fourteen different categories.", "INCREMENTAL", 100),
+              ("streak_7", "One-Week Streak", "Complete the Daily Challenge seven days in a row.", "INCREMENTAL", 75),
+              ("streak_30", "Monthly Ritual", "Complete the Daily Challenge thirty days in a row.", "INCREMENTAL", 100),
+              ("rounds_10", "Getting Warmed Up", "Complete ten rounds.", "INCREMENTAL", 50),
+              ("rounds_50", "Trivia Regular", "Complete fifty rounds.", "INCREMENTAL", 75),
+              ("rounds_100", "Century Club", "Complete one hundred rounds.", "INCREMENTAL", 100),
+              ("points_10000", "Five Figures", "Earn 10,000 lifetime category points.", "INCREMENTAL", 75),
+              ("points_50000", "Point Collector", "Earn 50,000 lifetime category points.", "INCREMENTAL", 75),
+              ("local_all_categories_16", "The Whole Board", "Play all sixteen trivia categories.", "INCREMENTAL", 100),
+              ("local_quick_play_1", "Shuffle Up", "Complete your first Quick Play round.", "STANDARD", 25),
+              ("local_quick_play_10", "Mix Master", "Complete ten Quick Play rounds.", "INCREMENTAL", 50),
+              ("local_friend_challenges_5", "Friendly Rivalry", "Complete five Friend Challenges.", "INCREMENTAL", 75),
+              ("local_daily_perfect", "Daily Ace", "Score 10/10 on a Daily Challenge.", "STANDARD", 100),
+              ("local_streak_100", "Hundred-Day Habit", "Complete the Daily Challenge one hundred days in a row.", "INCREMENTAL", 150),
+          ]
+
+          leaderboard_defs = [
+              ("daily", "Daily Challenge", 0, 1650),
+              ("football", "Football", 0, 1000000000),
+              ("basketball", "Basketball", 0, 1000000000),
+              ("soccer", "Soccer", 0, 1000000000),
+              ("flags", "World Flags", 0, 1000000000),
+              ("history", "History", 0, 1000000000),
+              ("science", "Science", 0, 1000000000),
+              ("movies", "Movies", 0, 1000000000),
+              ("tv", "TV", 0, 1000000000),
+              ("geography", "Geography", 0, 1000000000),
+              ("music", "Music", 0, 1000000000),
+              ("animals", "Animals", 0, 1000000000),
+              ("food", "Food & Drink", 0, 1000000000),
+              ("literature", "Books & Literature", 0, 1000000000),
+              ("art", "Art & Architecture", 0, 1000000000),
+              ("mythology", "Mythology & Legends", 0, 1000000000),
+              ("videoGames", "Video Games", 0, 1000000000),
+          ]
+
+          existing_achievements = request("GET", f"{BASE}/achievements").get("items", [])
+          achievements_by_name = {
+              item.get("draft", {}).get("name", {}).get("translations", [{}])[0].get("value"): item
+              for item in existing_achievements
+              if item.get("draft", {}).get("name", {}).get("translations")
+          }
+
+          achievement_ids = {}
+          for logical, name, description, kind, points in achievements:
+              item = achievements_by_name.get(name)
+              if item is None:
+                  body = {
+                      "achievementType": kind,
+                      "initialState": "REVEALED",
+                      "draft": {
+                          "name": bundle(name),
+                          "description": bundle(description),
+                          "pointValue": points,
+                      },
+                  }
+                  if kind == "INCREMENTAL":
+                      body["stepsToUnlock"] = 100
+                  item = request("POST", f"{BASE}/achievements", body)
+                  print(f"Created achievement: {name} -> {item.get('id')}")
+              achievement_ids[logical] = item["id"]
+
+          existing_leaderboards = request("GET", f"{BASE}/leaderboards").get("items", [])
+          leaderboards_by_name = {
+              item.get("draft", {}).get("name", {}).get("translations", [{}])[0].get("value"): item
+              for item in existing_leaderboards
+              if item.get("draft", {}).get("name", {}).get("translations")
+          }
+
+          leaderboard_ids = {}
+          for logical, name, score_min, score_max in leaderboard_defs:
+              item = leaderboards_by_name.get(name)
+              if item is None:
+                  body = {
+                      "scoreOrder": "LARGER_IS_BETTER",
+                      "scoreMin": score_min,
+                      "scoreMax": score_max,
+                      "draft": {
+                          "name": bundle(name),
+                          "scoreFormat": {
+                              "numberFormatType": "NUMERIC",
+                              "numDecimalPlaces": 0,
+                          },
+                      },
+                  }
+                  item = request("POST", f"{BASE}/leaderboards", body)
+                  print(f"Created leaderboard: {name} -> {item.get('id')}")
+              leaderboard_ids[logical] = item["id"]
+
+          print("PGS_RESOURCE_MAP_BEGIN")
+          print(json.dumps({"achievements": achievement_ids, "leaderboards": leaderboard_ids}, sort_keys=True))
+          print("PGS_RESOURCE_MAP_END")
+          print(f"Achievement points configured: {sum(x[4] for x in achievements)}")
+          print(f"Achievements configured: {len(achievement_ids)}")
+          print(f"Leaderboards configured: {len(leaderboard_ids)}")
+          PY
