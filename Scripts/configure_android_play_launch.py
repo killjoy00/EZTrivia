@@ -8,7 +8,6 @@ those settings are not exposed by the credentials/APIs used here.
 
 import json
 import os
-import sys
 from urllib.parse import quote
 
 from google.auth.transport.requests import AuthorizedSession
@@ -74,15 +73,17 @@ def main():
     if listing_response.status_code != 200:
         fail(listing_response, "Could not update en-US store listing")
 
+    # This account is configured for managed publishing behavior where edits are
+    # sent through the review pipeline automatically; Play rejects the legacy
+    # changesNotSentForReview flag, so commit with no override.
     commit_response = session.post(
         f"{PLAY_API}/applications/{PACKAGE}/edits/{edit_id}:commit",
-        params={"changesNotSentForReview": "true"},
         json={},
         timeout=60,
     )
     if commit_response.status_code != 200:
         fail(commit_response, "Could not commit Play listing edit")
-    print("Store listing updated and committed without sending changes for review.")
+    print("Store listing updated and committed.")
 
     # 2. Use the same US customer price as the approved iOS non-consumable
     # ($0.99). Play's conversion endpoint supplies current per-region prices and
