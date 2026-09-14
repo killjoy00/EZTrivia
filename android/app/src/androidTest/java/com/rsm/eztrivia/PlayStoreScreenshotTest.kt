@@ -116,7 +116,7 @@ class DailyPlayStoreScreenshotTest {
 
     @Test
     fun captureDailyChallenge() {
-        waitForText(composeRule, "DAILY #")
+        waitForText(composeRule, "Daily #")
         savePlayStoreScreenshot("03-daily")
     }
 }
