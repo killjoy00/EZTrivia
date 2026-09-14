@@ -125,7 +125,7 @@ class RemoveAdsBillingManager(
 
     override fun onPurchasesUpdated(
         billingResult: BillingResult,
-        purchases: MutableList<Purchase>?,
+        purchases: List<Purchase>?,
     ) {
         when (billingResult.responseCode) {
             BillingClient.BillingResponseCode.OK -> {
