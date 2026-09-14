@@ -1,0 +1,25 @@
+name: Inspect Play Data Safety Template
+
+on:
+  push:
+    branches:
+      - android-data-safety-impl
+    paths:
+      - Scripts/inspect_data_safety_template.py
+      - .github/workflows/inspect-data-safety.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet requests
+      - run: python Scripts/inspect_data_safety_template.py
