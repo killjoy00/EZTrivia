@@ -1,0 +1,27 @@
+name: Configure Android AdMob
+
+on:
+  push:
+    branches:
+      - android-launch-console-setup-3
+    paths:
+      - .github/workflows/configure-admob-android.yml
+      - Scripts/configure_admob_android.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet google-auth requests
+      - name: Configure Android AdMob app and banner
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: python Scripts/configure_admob_android.py
