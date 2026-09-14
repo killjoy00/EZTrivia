@@ -3,18 +3,11 @@ package com.rsm.eztrivia
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.rsm.eztrivia.ads.AdConsentManager
-import com.rsm.eztrivia.ads.AndroidAdBanner
 import com.rsm.eztrivia.billing.BillingManager
 import com.rsm.eztrivia.data.PlayerStateStore
 import com.rsm.eztrivia.playgames.PlayGamesManager
@@ -52,22 +45,8 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val adState by adConsentManager.state.collectAsState()
-            val billingState by billingManager.state.collectAsState()
-
             MaterialTheme {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        EZTriviaApp()
-                    }
-                    if (
-                        adState.canRequestAds &&
-                        adState.adsInitialized &&
-                        !billingState.hasRemovedAds
-                    ) {
-                        AndroidAdBanner()
-                    }
-                }
+                EZTriviaApp()
             }
         }
 
