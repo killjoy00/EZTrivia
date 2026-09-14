@@ -53,14 +53,15 @@ Required assets:
 - Feature graphic: 1024 × 500 JPEG or 24-bit PNG with no alpha.
 - At least two screenshots are required overall. For a game, target at least three portrait screenshots at 1080 × 1920 or higher so the listing is eligible for the richer recommendation formats.
 
-Recommended portrait screenshot sequence:
+The automated Play-image workflow now generates and uploads one 1024 × 500 feature graphic plus five 1080 × 1920 en-US phone screenshots, then verifies those images in a fresh Play edit.
+
+Current phone screenshot sequence:
 
 1. **Play** — top-level Play screen showing Quick Play plus the category/difficulty entry points.
 2. **Question + explanation** — a real question after answering, with the explanation visible.
 3. **Daily Challenge** — Daily round or result/streak state.
 4. **Friend Challenge** — create/join flow demonstrating the shared-link/code feature.
 5. **Scores** — question coverage, recent results, and lifetime points.
-6. **Achievements / Play Games** — only if captured from a real configured testing build.
 
 Use actual in-game UI. Do not put features in screenshots that are not present in the Android build. Keep the first three images focused on gameplay rather than Settings or purchase UI.
 
@@ -91,45 +92,43 @@ Complete the IARC questionnaire from the actual question catalog and game behavi
 
 Not applicable to the product as currently implemented. EZ Trivia is a general-knowledge trivia game.
 
-## Data safety working draft
+## Data safety — submitted
 
-This section is a **submission checklist, not a substitute for reviewing the live Data safety form**. Google says developers must account for data handled by third-party SDKs as well as first-party code:
-https://support.google.com/googleplay/android-developer/answer/10787469
+The Google Play Data safety declaration was submitted programmatically through the Android Publisher v3 `applications.dataSafety` endpoint and accepted with HTTP 204 in workflow run `34893523302` on September 14, 2026 UTC. The declaration is generated from Google's CSV format and archived as a workflow artifact for release evidence.
 
-### Known first-party behavior
+The submitted global/account answers are:
 
-- Gameplay remains local-first on Android. The app stores gameplay progress, history, seen-question state, preferences, lifetime points, and achievement-related facts in local DataStore files.
-- EZ Trivia does not operate a separate Android account/profile backend and does not receive a player's Google Account password.
-- When Play Games authentication is available, the app submits configured achievement progress, category lifetime-point scores, and the current Daily Challenge weighted score to Google Play Games Services.
-- When Google Play Games Saved Games is available, the app reads and writes a private saved-game snapshot through the player's Play Games profile. That snapshot includes gameplay history, completed/correct question-progress facts, seen-question state, lifetime category points, achievement-related progress, and merge bookkeeping used to preserve independent offline progress from multiple devices.
-- The Saved Games snapshot is used for app functionality / player-progress synchronization, not for advertising or developer-run analytics. Gameplay can continue offline when the service is unavailable, with synchronization retried later.
-- EZ Trivia ships no first-party analytics or crash-reporting SDK.
-- Google Play Billing processes the optional one-time Remove Ads purchase. The app caches only the entitlement state locally; payment details are not sent to an EZ Trivia server.
-- Question reporting opens the user's email client with a prefilled draft. Nothing is sent unless the user chooses to send the email.
+- User data is collected/shared: **Yes**.
+- All declared collected data is encrypted in transit: **Yes**.
+- EZ Trivia account creation: **None**. The app does not operate a developer-run account system.
+- Outside-app account login into an EZ Trivia account: **No**. Optional Google Play Games authentication is a Google platform profile, not an EZ Trivia account.
+- Developer-provided global data-deletion request mechanism: **No**. Local data and Google-managed data have separate controls; EZ Trivia does not operate one deletion endpoint covering all bundled SDK data.
 
-### Google Mobile Ads SDK disclosures
+The declaration includes these nine data types:
 
-The Android build currently uses Google Mobile Ads SDK 25.4.0. Google's current SDK disclosure says the SDK automatically collects and shares the following for advertising, analytics, and fraud-prevention purposes:
+| Play Data safety type | Collected | Shared | Required / optional | Main reasons |
+| --- | --- | --- | --- | --- |
+| Approximate location | Yes | Yes | Required for ad-supported path | App functionality, analytics, fraud/security, advertising |
+| Page views and taps in app | Yes | Yes | Required for ad-supported path | Analytics, fraud/security, advertising |
+| Diagnostics | Yes | Yes | Required for ad-supported path | App functionality, analytics, fraud/security, advertising |
+| Device or other identifiers | Yes | Yes | Required for ad-supported path | App functionality, analytics, fraud/security, advertising |
+| Name | Yes | Yes | Optional | Play Games functionality |
+| Email address | Yes | Yes | Optional | Play Games functionality |
+| Personal identifiers | Yes | Yes | Optional | Play Games functionality plus applicable Google SDK purposes |
+| Other actions / gameplay activity | Yes | Yes | Optional | Play Games/Saved Games functionality, analytics, fraud/security |
+| Purchase history | Yes | No | Optional | Remove Ads purchase functionality |
 
-| Google SDK data | Likely Play Data safety area to review |
-| --- | --- |
-| IP address, which can estimate general location | Approximate location |
-| User product interactions such as app launch/taps | App activity / app interactions |
-| SDK/app performance diagnostics | App info and performance / diagnostics |
-| Advertising ID, app set ID, and applicable account identifiers | Device or other IDs |
+EZ Trivia does **not** declare payment-card/bank-account data, precise location, files/docs, messages, photos/videos, audio, contacts, calendar, or a first-party crash-log category. The app has no first-party analytics or crash-reporting SDK.
 
-Google also states this SDK data is encrypted in transit. Use the live SDK disclosure when completing the form, especially if the SDK version changes:
-https://developers.google.com/admob/android/privacy/play-data-disclosure
+Google Mobile Ads SDK 25.4.0 is the reason the declaration includes approximate location, app interactions, diagnostics, and identifiers in the required ad-supported path. UMP gates ad requests where applicable, and the app stops requesting the banner after Remove Ads is owned. Optional Play Games features account for the Play Games identity and gameplay categories. Google Play Billing provides purchase ownership to the app but EZ Trivia does not receive payment credentials or operate a purchase backend.
 
-Because Google's Mobile Ads disclosure explicitly says these data are both **collected and shared**, the Data safety form cannot accurately say that EZ Trivia collects or shares no user data once production ads are enabled.
+The exact declaration, rationale, automation behavior, and future-review rules are recorded in `android/DATA_SAFETY.md`.
 
-### Google Play Games / Billing review points
+References:
 
-The app also uses Google Play Games Services and Google Play Billing. Before submitting Data safety, compare the live Play Console/SDK Index guidance with the actual integration and make sure the form covers platform processing of gamer identity/device data, achievements/scores, private Saved Games progress, and purchase-related data where Google requires disclosure. The app itself does not read the player's name/email, send purchase tokens to an EZ Trivia backend, or operate a developer-run player-state server.
-
-### Account deletion
-
-EZ Trivia does not create a developer-run user account. Player-owned local data can be removed by clearing app data/uninstalling; Play Games Saved Games, achievements/leaderboards, and purchase records are controlled through the relevant Google account/platform controls. If the Play Console asks about account deletion, answer based on the fact that there is no separate EZ Trivia account rather than treating optional Play Games authentication as an EZ Trivia account system.
+- https://support.google.com/googleplay/android-developer/answer/10787469
+- https://developers.google.com/admob/android/privacy/play-data-disclosure
+- https://developers.google.com/android-publisher/api-ref/rest/v3/applications.dataSafety
 
 ## Release/compliance checklist
 
@@ -138,14 +137,15 @@ Before moving beyond Internal Testing:
 - [ ] Create the Android EZ Trivia app in AdMob for package `com.rsm.eztrivia`.
 - [ ] Create a production banner ad unit and configure AdMob Privacy & messaging.
 - [ ] Add repository secrets `ANDROID_ADMOB_APP_ID` and `ANDROID_ADMOB_BANNER_ID`.
-- [ ] Create and activate Google Play one-time product `com.rsm.eztrivia.removeads` with its default purchase option and price.
+- [x] Create and activate Google Play one-time product `com.rsm.eztrivia.removeads` with its default purchase option and price.
 - [ ] Enable **Saved Games** for the linked Google Play Games Services project.
 - [ ] Install from a Play testing track on two Android devices using the same Play Games profile; make independent progress offline on both, reconnect, and verify histories, lifetime points, Daily/Friend one-attempt results, question progress, and round counters merge without duplication or loss.
 - [ ] From a Play testing build, validate consent, banner display, purchase, pending purchase, restore, and entitlement revocation/refund behavior.
 - [ ] Complete Main store listing using the copy above.
-- [ ] Upload feature graphic and real Android screenshots.
-- [ ] Complete Ads, App access, Target audience, Content rating, and Data safety forms.
-- [ ] Confirm the published privacy-policy URL loads publicly and matches the Data safety answers.
+- [x] Upload feature graphic and real Android phone screenshots.
+- [ ] Complete Ads, App access, Target audience, and Content rating forms.
+- [x] Submit the Data safety declaration through the Android Publisher API and archive the accepted CSV.
+- [ ] Confirm the published privacy-policy URL loads publicly and matches the submitted Data safety answers after the privacy update is deployed.
 - [ ] Publish/finish testing Google Play Games Services resources when runtime validation is complete.
 - [ ] Publish root-domain Digital Asset Links for verified Friend Challenge links.
 - [ ] Run the signed Internal Testing release workflow with production AdMob secrets before any production promotion.
