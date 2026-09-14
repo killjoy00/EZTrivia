@@ -232,6 +232,10 @@ fun SettingsScreen(
             }
 
             item {
+                MonetizationSettingsCard()
+            }
+
+            item {
                 SettingsSection(title = "Accessibility") {
                     Text(
                         "Answer choices expose their letter, text, and result state to screen readers. Question prompts are headings, touch targets use Material sizing, and auto-advance stops while touch exploration is active.",

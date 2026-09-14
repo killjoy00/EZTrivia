@@ -11,6 +11,16 @@ val releaseVersionName = providers.environmentVariable("EZTRIVIA_VERSION_NAME").
 val uploadKeystorePath = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PATH")
 val uploadKeystorePassword = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PASSWORD")
 
+// Ordinary CI uses Google's official sample IDs so ad/consent code is compiled
+// and R8-tested without requiring production credentials. Signed Play releases
+// should provide the Android-specific AdMob IDs through these environment vars.
+val adMobAppId = providers.environmentVariable("ANDROID_ADMOB_APP_ID").orNull
+    ?.takeIf { it.isNotBlank() }
+    ?: "ca-app-pub-3940256099942544~3347511713"
+val adMobBannerId = providers.environmentVariable("ANDROID_ADMOB_BANNER_ID").orNull
+    ?.takeIf { it.isNotBlank() }
+    ?: "ca-app-pub-3940256099942544/6300978111"
+
 android {
     namespace = "com.rsm.eztrivia"
     compileSdk = 36
@@ -21,6 +31,9 @@ android {
         targetSdk = 36
         versionCode = releaseVersionCode ?: 1
         versionName = releaseVersionName ?: "1.0.0-alpha01"
+
+        manifestPlaceholders["adMobAppId"] = adMobAppId
+        buildConfigField("String", "ADMOB_BANNER_ID", "\"$adMobBannerId\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -60,6 +73,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -143,6 +157,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("com.google.android.gms:play-services-games-v2:22.0.0")
+    implementation("com.google.android.gms:play-services-ads:25.4.0")
+    implementation("com.google.android.ump:user-messaging-platform:4.0.0")
+    implementation("com.android.billingclient:billing:9.1.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
