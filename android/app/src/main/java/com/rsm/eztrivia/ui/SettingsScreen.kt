@@ -61,8 +61,13 @@ fun SettingsScreen(
     val scheduler = remember(context.applicationContext) {
         DailyReminderScheduler(context.applicationContext)
     }
-    val playGamesManager = (context as? MainActivity)?.playGamesManager
+    val mainActivity = context as? MainActivity
+    val playGamesManager = mainActivity?.playGamesManager
     val playGamesConnection = playGamesManager?.connection?.collectAsState()?.value
+    val billingManager = mainActivity?.billingManager
+    val billingState = billingManager?.state?.collectAsState()?.value
+    val adConsentManager = mainActivity?.adConsentManager
+    val adConsentState = adConsentManager?.state?.collectAsState()?.value
     var permissionRevision by remember { mutableIntStateOf(0) }
     val playedDays = playerState.dailyResultsByDay.keys
     val notificationsAllowed = remember(permissionRevision, settings.streakRemindersEnabled) {
@@ -228,6 +233,93 @@ fun SettingsScreen(
                             scope.launch { settingsStore.setHapticsEnabled(enabled) }
                         },
                     )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Remove Ads") {
+                    when {
+                        billingState == null -> Text(
+                            "Google Play billing is unavailable in this activity.",
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        billingState.hasRemovedAds -> Text(
+                            "Ads are removed on this device. Google Play will restore the entitlement when this account owns the purchase.",
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        billingState.purchasePending -> Text(
+                            "Your Remove Ads purchase is pending. Ads will disappear after Google Play confirms payment.",
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        billingState.productAvailable -> {
+                            Text(
+                                "One-time purchase. Remove banner ads from EZ Trivia on Android.",
+                                modifier = Modifier.padding(16.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedButton(
+                                onClick = { billingManager.purchase() },
+                                enabled = !billingState.isPurchasing,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                            ) {
+                                Text(
+                                    if (billingState.isPurchasing) {
+                                        "Opening Google Play…"
+                                    } else {
+                                        "Remove Ads${billingState.formattedPrice?.let { " — $it" } ?: ""}"
+                                    }
+                                )
+                            }
+                        }
+                        else -> Text(
+                            "Remove Ads is not available from Google Play for this build yet.",
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (billingState != null && !billingState.hasRemovedAds) {
+                        OutlinedButton(
+                            onClick = { billingManager?.restore() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                        ) {
+                            Text("Restore purchase")
+                        }
+                    }
+                    billingState?.errorMessage?.let { error ->
+                        Text(
+                            error,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+
+            if (adConsentState?.privacyOptionsRequired == true) {
+                item {
+                    SettingsSection(title = "Advertising privacy") {
+                        Text(
+                            "Review or change the advertising privacy choices available for your region.",
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedButton(
+                            onClick = { adConsentManager?.presentPrivacyOptions() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        ) {
+                            Text("Privacy options")
+                        }
+                    }
                 }
             }
 
