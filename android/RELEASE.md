@@ -97,7 +97,49 @@ Billing should be tested with a license tester using an app installed from a
 Google Play testing track; a locally sideloaded build is not a valid end-to-end
 purchase test.
 
-## 6. App Links for Friend Challenge URLs
+## 6. Google Play Games Saved Games
+
+The Android client contains a Google Play Games Saved Games integration for
+private cross-device progress. Before production testing, enable **Saved Games**
+for the linked Play Games Services project in Play Console. The app uses this
+snapshot name:
+
+    eztrivia-player-state-v1
+
+Local DataStore state remains the source used by gameplay. Cloud I/O is
+asynchronous: if Play Games or the network is unavailable, the player continues
+offline and the app retries after authentication/state changes or a manual sync
+from Settings.
+
+Conflicts are resolved manually instead of using a last-device-wins policy. The
+cloud envelope carries shared baselines plus per-installation additive counters,
+so lifetime points and completed-round totals from two independently played
+devices can be added without double-counting the same device on repeated syncs.
+Question-progress/achievement facts are monotonic unions; Daily and Friend
+Challenge one-attempt records keep the earliest completion; bounded histories
+are deduplicated; and clear-history timestamps prevent an older snapshot from
+restoring cleared recent/seen state.
+
+Before production, test from Play-installed Internal Testing builds on **two
+Android devices signed into the same Play Games profile**:
+
+1. Sync both devices once.
+2. Take both offline and make different category/Quick Play progress on each.
+3. Complete a Daily/Friend Challenge on one device, and different question
+   progress on the other.
+4. Reconnect device A and wait for sync, then reconnect device B to force a
+   realistic conflict/merge.
+5. Re-open both apps and confirm lifetime points, round counters, histories,
+   question progress, and one-attempt results converge without loss or duplicate
+   counting.
+6. Clear recent category history on one device, sync, then verify an older cloud
+   copy from the other device cannot resurrect the cleared category history or
+   seen-question cycle.
+
+The first production release that advertises Android cross-device progress must
+not ship until Saved Games is enabled and this two-device test passes.
+
+## 7. App Links for Friend Challenge URLs
 
 `AndroidManifest.xml` declares `android:autoVerify="true"` on the
 `https://killjoy00.github.io/EZTrivia/challenge.html` intent filter, so a
@@ -145,9 +187,10 @@ Ordinary Android CI builds all of the following without signing credentials:
 - release Android App Bundle (`.aab`)
 - R8 mapping file
 
-That means App Bundle packaging, Play Billing, Google Mobile Ads/UMP, and the
-shrinker run on every relevant PR rather than being discovered for the first
-time during a Play upload.
+That means App Bundle packaging, Play Billing, Google Mobile Ads/UMP, Play Games
+Saved Games code, and the shrinker run on every relevant PR rather than being
+discovered for the first time during a Play upload. Unit tests also exercise the
+Saved Games merge contract without requiring live Play Games credentials.
 
 ## What is already handled
 
@@ -159,6 +202,9 @@ time during a Play upload.
 - Daily reminders re-armed after reboot and after an app update.
 - R8 keep rules for kotlinx.serialization.
 - Google Play Games v2 authentication, achievements, and leaderboards.
+- Conflict-safe Google Play Games Saved Games client integration and local merge
+  bookkeeping; Play Console Saved Games enablement and real two-device runtime
+  validation still remain before production.
 - Android AdMob/UMP code path and Google Play Billing Remove Ads code path; the
   real AdMob IDs, UMP message, and Play product still require console setup and
   runtime validation before production submission.
