@@ -14,15 +14,17 @@ val uploadKeystorePassword = providers.environmentVariable("ANDROID_UPLOAD_KEYST
 // Google-provided demo IDs are deliberately the fallback for development and
 // Internal Testing until the Android AdMob app/ad unit is created. They cannot
 // generate revenue or invalid live-ad traffic. Production readiness requires
-// replacing both through the release environment.
+// replacing both through the release environment. Treat the pair atomically:
+// a partially configured release falls back to both demo IDs rather than
+// mixing a production app ID with a demo banner (or vice versa).
 val sampleAdMobAppId = "ca-app-pub-3940256099942544~3347511713"
 val sampleAdMobBannerId = "ca-app-pub-3940256099942544/9214589741"
 val configuredAdMobAppId = providers.environmentVariable("ANDROID_ADMOB_APP_ID").orNull
 val configuredAdMobBannerId = providers.environmentVariable("ANDROID_ADMOB_BANNER_ID").orNull
-val resolvedAdMobAppId = configuredAdMobAppId ?: sampleAdMobAppId
-val resolvedAdMobBannerId = configuredAdMobBannerId ?: sampleAdMobBannerId
 val adMobProductionConfigured =
     !configuredAdMobAppId.isNullOrBlank() && !configuredAdMobBannerId.isNullOrBlank()
+val resolvedAdMobAppId = if (adMobProductionConfigured) configuredAdMobAppId!! else sampleAdMobAppId
+val resolvedAdMobBannerId = if (adMobProductionConfigured) configuredAdMobBannerId!! else sampleAdMobBannerId
 
 android {
     namespace = "com.rsm.eztrivia"
