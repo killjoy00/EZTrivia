@@ -1,0 +1,56 @@
+name: Inspect Remove Ads Price
+
+on:
+  push:
+    branches: [ops/inspect-iap-price]
+    paths:
+      - ".github/workflows/inspect-iap-price.yml"
+      - "Scripts/inspect_remove_ads_price.py"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Normalize App Store Connect API key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/private_keys"
+          key="$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          if ! grep -q 'BEGIN' "$key" && grep -q '\\n' "$key"; then
+            printf '%b' "$(cat "$key")" > "$key.tmp" && mv "$key.tmp" "$key"
+          fi
+          if ! grep -q 'BEGIN' "$key" && base64 -d < "$key" > "$key.tmp" 2>/dev/null; then
+            if grep -q 'BEGIN' "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi
+          fi
+          if ! grep -q 'BEGIN' "$key"; then
+            body=$(tr -d '\n\r ' < "$key")
+            { echo "-----BEGIN PRIVATE KEY-----"
+              echo "$body" | fold -w 64
+              echo "-----END PRIVATE KEY-----"; } > "$key.tmp" && mv "$key.tmp" "$key"
+          fi
+          chmod 600 "$key"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install read-only inspector dependencies
+        run: pip install --quiet "pyjwt[crypto]" requests
+
+      - name: Read current US Remove Ads price
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_PATH: ${{ runner.temp }}/unused
+        run: |
+          export ASC_KEY_PATH="$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          python3 Scripts/inspect_remove_ads_price.py
