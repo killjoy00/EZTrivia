@@ -10,32 +10,9 @@ permissions:
   contents: read
 
 jobs:
-  enable-and-smoke:
+  smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Authenticate to Google Cloud
-        id: cloud-auth
-        uses: google-github-actions/auth@v3
-        with:
-          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          token_format: access_token
-          access_token_scopes: https://www.googleapis.com/auth/cloud-platform
-
-      - name: Enable Games Configuration API if permitted
-        env:
-          ACCESS_TOKEN: ${{ steps.cloud-auth.outputs.access_token }}
-        run: |
-          set -euo pipefail
-          BODY="$RUNNER_TEMP/enable-response.json"
-          STATUS="$(curl -sS -o "$BODY" -w '%{http_code}' -X POST \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{}' \
-            "https://serviceusage.googleapis.com/v1/projects/406580555223/services/gamesconfiguration.googleapis.com:enable")"
-          echo "Enable HTTP ${STATUS}"
-          cat "$BODY"
-          test "$STATUS" = "200"
-
       - name: Authenticate to Play publishing
         id: play-auth
         uses: google-github-actions/auth@v3
@@ -49,6 +26,7 @@ jobs:
           ACCESS_TOKEN: ${{ steps.play-auth.outputs.access_token }}
         run: |
           set -euo pipefail
+          sleep 20
           BASE="https://gamesconfiguration.googleapis.com/games/v1configuration/applications/406580555223"
           for KIND in achievements leaderboards; do
             BODY="$RUNNER_TEMP/${KIND}.json"
