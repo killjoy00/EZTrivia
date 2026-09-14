@@ -21,19 +21,16 @@ jobs:
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
 
-      - name: List Play Games configuration
+      - name: Inspect Play Games configuration response
         env:
           ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
           set -euo pipefail
-          BASE="https://gamesconfiguration.googleapis.com/games/v1configuration/applications/406580555223"
-          echo "Achievements:"
-          curl --fail-with-body -sS \
+          URL="https://gamesconfiguration.googleapis.com/games/v1configuration/applications/406580555223/achievements"
+          BODY="$RUNNER_TEMP/pgs-response.json"
+          STATUS="$(curl -sS -o "$BODY" -w '%{http_code}' \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            "${BASE}/achievements" \
-            | python3 -c 'import json,sys; data=json.load(sys.stdin); print(len(data.get("items", [])))'
-          echo "Leaderboards:"
-          curl --fail-with-body -sS \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            "${BASE}/leaderboards" \
-            | python3 -c 'import json,sys; data=json.load(sys.stdin); print(len(data.get("items", [])))'
+            "$URL")"
+          echo "HTTP ${STATUS}"
+          cat "$BODY"
+          test "$STATUS" = "200"
