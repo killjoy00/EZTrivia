@@ -92,6 +92,8 @@ jobs:
           ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
           EZTRIVIA_VERSION_CODE: ${{ inputs.version_code }}
           EZTRIVIA_VERSION_NAME: ${{ inputs.version_name }}
+          ANDROID_ADMOB_APP_ID: ${{ vars.ANDROID_ADMOB_APP_ID }}
+          ANDROID_ADMOB_BANNER_ID: ${{ vars.ANDROID_ADMOB_BANNER_ID }}
         run: gradle bundleRelease --stacktrace
 
       - name: Verify bundle signature
