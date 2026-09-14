@@ -7,6 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.rsm.eztrivia.ads.AdConsentManager
 import com.rsm.eztrivia.billing.RemoveAdsBillingManager
 import com.rsm.eztrivia.data.PlayerStateStore
 import com.rsm.eztrivia.playgames.PlayGamesManager
@@ -21,12 +22,16 @@ class MainActivity : ComponentActivity() {
     lateinit var removeAdsBillingManager: RemoveAdsBillingManager
         private set
 
+    lateinit var adConsentManager: AdConsentManager
+        private set
+
     private lateinit var playerStateStore: PlayerStateStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         playGamesManager = PlayGamesManager(this)
         removeAdsBillingManager = RemoveAdsBillingManager(this).also { it.start() }
+        adConsentManager = AdConsentManager(this).also { it.configure() }
         playerStateStore = PlayerStateStore(applicationContext)
 
         lifecycleScope.launch {
