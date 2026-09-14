@@ -15,17 +15,16 @@ sealed interface AchievementGoal {
     data class QuickRounds(val target: Int) : AchievementGoal
     data class FriendChallenges(val target: Int) : AchievementGoal
     data class Perfect(val difficulty: TriviaDifficulty) : AchievementGoal
+    data object PerfectDaily : AchievementGoal
     data class Categories(val target: Int) : AchievementGoal
+    data class Streak(val target: Int) : AchievementGoal
     data class LifetimePoints(val target: Int) : AchievementGoal
 }
 
 /**
- * Achievement facts Android can compute today without a network service.
- *
- * IDs deliberately match iOS where the achievement already exists. Play Games
- * can therefore sync these same facts later without migrating local progress.
- * Daily-specific badges stay out of this list until Daily Challenge itself is
- * present on Android.
+ * Cross-platform achievement facts. Android computes these offline first and
+ * Play Games Services mirrors the same monotonic progress when authenticated.
+ * IDs deliberately match iOS wherever the badge is shared between platforms.
  */
 object AchievementCatalog {
     val all: List<AchievementDefinition> = listOf(
@@ -70,6 +69,20 @@ object AchievementCatalog {
             lockedDescription = "Play fourteen different categories.",
             unlockedDescription = "You played fourteen different categories.",
             goal = AchievementGoal.Categories(14),
+        ),
+        AchievementDefinition(
+            id = "EZTrivia.achievement.streak_7",
+            title = "One-Week Streak",
+            lockedDescription = "Complete the Daily Challenge seven days in a row.",
+            unlockedDescription = "You completed a seven-day Daily Challenge streak.",
+            goal = AchievementGoal.Streak(7),
+        ),
+        AchievementDefinition(
+            id = "EZTrivia.achievement.streak_30",
+            title = "Monthly Ritual",
+            lockedDescription = "Complete the Daily Challenge thirty days in a row.",
+            unlockedDescription = "You completed a thirty-day Daily Challenge streak.",
+            goal = AchievementGoal.Streak(30),
         ),
         AchievementDefinition(
             id = "EZTrivia.achievement.rounds_10",
@@ -134,6 +147,20 @@ object AchievementCatalog {
             unlockedDescription = "You completed five Friend Challenges.",
             goal = AchievementGoal.FriendChallenges(5),
         ),
+        AchievementDefinition(
+            id = "EZTrivia.local.daily_perfect",
+            title = "Daily Ace",
+            lockedDescription = "Score 10/10 on a Daily Challenge.",
+            unlockedDescription = "You earned a perfect Daily Challenge score.",
+            goal = AchievementGoal.PerfectDaily,
+        ),
+        AchievementDefinition(
+            id = "EZTrivia.local.streak_100",
+            title = "Hundred-Day Habit",
+            lockedDescription = "Complete the Daily Challenge one hundred days in a row.",
+            unlockedDescription = "You reached a one-hundred-day Daily Challenge streak.",
+            goal = AchievementGoal.Streak(100),
+        ),
     )
 
     fun progress(state: PlayerState): Map<String, Int> =
@@ -145,7 +172,14 @@ object AchievementCatalog {
             is AchievementGoal.QuickRounds -> percentage(state.quickPlayRoundsCompleted, goal.target)
             is AchievementGoal.FriendChallenges -> percentage(state.friendChallengesCompleted, goal.target)
             is AchievementGoal.Perfect -> if (goal.difficulty.wireName in state.perfectDifficultyRawValues) 100 else 0
+            AchievementGoal.PerfectDaily -> if (
+                state.dailyResultsByDay.values.any { it.total > 0 && it.score == it.total }
+            ) 100 else 0
             is AchievementGoal.Categories -> percentage(state.playedCategoryRawValues.size, goal.target)
+            is AchievementGoal.Streak -> percentage(
+                DailyStreak.longest(state.dailyResultsByDay.keys),
+                goal.target,
+            )
             is AchievementGoal.LifetimePoints -> percentage(state.lifetimePointsTotal, goal.target)
         }
 
