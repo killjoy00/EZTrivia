@@ -1,0 +1,37 @@
+name: Configure Play Remove Ads
+
+on:
+  push:
+    branches: [ops/configure-play-remove-ads]
+    paths:
+      - ".github/workflows/configure-play-remove-ads.yml"
+      - "Scripts/configure_play_remove_ads.py"
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Play
+        id: play-auth
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --quiet requests
+
+      - name: Create Remove Ads if absent
+        env:
+          ACCESS_TOKEN: ${{ steps.play-auth.outputs.access_token }}
+        run: python3 Scripts/configure_play_remove_ads.py
