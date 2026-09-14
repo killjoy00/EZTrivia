@@ -1,5 +1,6 @@
 package com.rsm.eztrivia.ui
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,14 +15,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rsm.eztrivia.MainActivity
 
 @Composable
 fun MonetizationSettingsCard() {
-    val activity = LocalContext.current as? MainActivity
+    val activity = LocalActivity.current as? MainActivity
     val billingManager = activity?.removeAdsBillingManager
     val adConsentManager = activity?.adConsentManager
     val purchaseState = billingManager?.state?.collectAsState()?.value
@@ -89,7 +89,7 @@ fun MonetizationSettingsCard() {
                 if (purchaseState?.hasRemovedAds != true && consentState?.privacyOptionsRequired == true) {
                     HorizontalDivider()
                     OutlinedButton(
-                        onClick = { adConsentManager?.showPrivacyOptions() },
+                        onClick = { adConsentManager.showPrivacyOptions() },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp),
