@@ -1,0 +1,74 @@
+name: Google Play API Smoke Retry
+
+on:
+  push:
+    branches: [android/google-play-api]
+    paths:
+      - ".github/workflows/google-play-api-smoke-retry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Verify Google Play service account after IAM fix
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Authenticate to Google
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+
+      - name: Open temporary Play edit and read tracks
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          PACKAGE="com.rsm.eztrivia"
+          API="https://androidpublisher.googleapis.com/androidpublisher/v3"
+
+          EDIT_JSON="$(curl --fail-with-body -sS \
+            -X POST \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            "${API}/applications/${PACKAGE}/edits")"
+
+          EDIT_ID="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"${EDIT_JSON}")"
+          test -n "${EDIT_ID}"
+          echo "EDIT_ID=${EDIT_ID}" >> "${GITHUB_ENV}"
+
+          curl --fail-with-body -sS \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            "${API}/applications/${PACKAGE}/edits/${EDIT_ID}/tracks" \
+            > "${RUNNER_TEMP}/tracks.json"
+
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          payload = json.loads(Path(os.environ["RUNNER_TEMP"], "tracks.json").read_text())
+          tracks = payload.get("tracks", [])
+          print(f"Google Play API access confirmed for com.rsm.eztrivia. Visible tracks: {len(tracks)}")
+          for track in tracks:
+              name = track.get("track", "unknown")
+              releases = track.get("releases", [])
+              versions = sorted({v for r in releases for v in r.get("versionCodes", [])})
+              statuses = sorted({r.get("status", "unknown") for r in releases})
+              print(f"- {name}: versions={','.join(versions) if versions else 'none'} statuses={','.join(statuses) if statuses else 'none'}")
+          PY
+
+      - name: Delete temporary Play edit
+        if: ${{ always() && env.EDIT_ID != '' }}
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          curl --fail-with-body -sS \
+            -X DELETE \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.rsm.eztrivia/edits/${EDIT_ID}"
