@@ -27,7 +27,7 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
           create_credentials_file: false
 
-      - name: Verify Play signing fingerprints against live assetlinks.json
+      - name: Discover Play release and verify signing fingerprints
         env:
           GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
@@ -36,82 +36,127 @@ jobs:
           import json
           import os
           import re
+          import urllib.error
           import urllib.request
 
           package_name = "com.rsm.eztrivia"
-          version_code = 2
           assetlinks_url = "https://killjoy00.github.io/.well-known/assetlinks.json"
-          api_url = (
-              "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/"
-              f"{package_name}/generatedApks/{version_code}"
-          )
+          root = f"https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{package_name}"
+          token = os.environ["GOOGLE_PLAY_ACCESS_TOKEN"]
+
+          def request_json(url, method="GET", body=None):
+              data = None if body is None else json.dumps(body).encode()
+              req = urllib.request.Request(
+                  url,
+                  data=data,
+                  method=method,
+                  headers={
+                      "Authorization": f"Bearer {token}",
+                      "Content-Type": "application/json",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as response:
+                      raw = response.read()
+                      return response.status, (json.loads(raw) if raw else None)
+              except urllib.error.HTTPError as exc:
+                  raw = exc.read().decode(errors="replace")
+                  print(f"HTTP {exc.code} for {method} {url}: {raw}")
+                  return exc.code, None
 
           def normalize_fingerprint(value: str) -> str:
               value = value.strip()
               compact = value.replace(":", "")
               if re.fullmatch(r"[0-9A-Fa-f]{64}", compact):
                   return ":".join(compact[i:i+2] for i in range(0, 64, 2)).upper()
-              try:
-                  padded = value + "=" * (-len(value) % 4)
-                  raw = base64.urlsafe_b64decode(padded)
-                  if len(raw) == 32:
-                      return ":".join(f"{byte:02X}" for byte in raw)
-              except Exception:
-                  pass
+              padded = value + "=" * (-len(value) % 4)
+              raw = base64.urlsafe_b64decode(padded)
+              if len(raw) == 32:
+                  return ":".join(f"{byte:02X}" for byte in raw)
               raise RuntimeError(f"Unrecognized SHA-256 fingerprint format: {value!r}")
 
-          req = urllib.request.Request(
-              api_url,
-              headers={"Authorization": f"Bearer {os.environ['GOOGLE_PLAY_ACCESS_TOKEN']}"},
-          )
-          with urllib.request.urlopen(req, timeout=60) as response:
-              payload = json.load(response)
+          status, edit = request_json(f"{root}/edits", method="POST", body={})
+          if status not in (200, 201) or not edit or not edit.get("id"):
+              raise RuntimeError("Could not create a read-only Google Play edit")
+          edit_id = edit["id"]
+          print(f"Created Play edit {edit_id} for read-only inspection")
 
-          play_fingerprints = []
-          for item in payload.get("generatedApks", []):
-              raw = item.get("certificateSha256Hash")
-              if raw:
-                  normalized = normalize_fingerprint(raw)
-                  if normalized not in play_fingerprints:
-                      play_fingerprints.append(normalized)
+          try:
+              _, track = request_json(f"{root}/edits/{edit_id}/tracks/internal")
+              _, bundles = request_json(f"{root}/edits/{edit_id}/bundles")
 
-          if not play_fingerprints:
-              raise RuntimeError("Google Play returned no generated APK signing fingerprints")
+              version_codes = []
+              if track:
+                  print("Internal track:", json.dumps(track, sort_keys=True))
+                  for release in track.get("releases", []):
+                      for code in release.get("versionCodes", []):
+                          if str(code) not in version_codes:
+                              version_codes.append(str(code))
+              if bundles:
+                  print("Bundles:", json.dumps(bundles, sort_keys=True))
+                  for bundle in bundles.get("bundles", []):
+                      code = bundle.get("versionCode")
+                      if code is not None and str(code) not in version_codes:
+                          version_codes.append(str(code))
 
-          with urllib.request.urlopen(assetlinks_url, timeout=60) as response:
-              assetlinks = json.load(response)
+              for fallback in ("2", "1"):
+                  if fallback not in version_codes:
+                      version_codes.append(fallback)
 
-          site_fingerprints = []
-          has_relation = False
-          for statement in assetlinks:
-              target = statement.get("target", {})
-              if target.get("namespace") != "android_app" or target.get("package_name") != package_name:
-                  continue
-              if "delegate_permission/common.handle_all_urls" in statement.get("relation", []):
-                  has_relation = True
-              for fingerprint in target.get("sha256_cert_fingerprints", []):
-                  normalized = normalize_fingerprint(fingerprint)
-                  if normalized not in site_fingerprints:
-                      site_fingerprints.append(normalized)
+              print("Version codes to inspect:", ", ".join(version_codes))
 
-          print(f"Package: {package_name}")
-          print(f"Play version code inspected: {version_code}")
-          print("Google Play signing SHA-256 fingerprints:")
-          for fingerprint in play_fingerprints:
-              print(f"  {fingerprint}")
-          print("Live assetlinks.json SHA-256 fingerprints:")
-          for fingerprint in site_fingerprints:
-              print(f"  {fingerprint}")
+              play_fingerprints = []
+              successful_version = None
+              for version_code in version_codes:
+                  status, payload = request_json(f"{root}/generatedApks/{version_code}")
+                  if status != 200 or not payload:
+                      continue
+                  successful_version = version_code
+                  for item in payload.get("generatedApks", []):
+                      raw = item.get("certificateSha256Hash")
+                      if raw:
+                          fp = normalize_fingerprint(raw)
+                          if fp not in play_fingerprints:
+                              play_fingerprints.append(fp)
+                  if play_fingerprints:
+                      break
 
-          if not has_relation:
-              raise RuntimeError("Live assetlinks.json is missing delegate_permission/common.handle_all_urls")
+              if not play_fingerprints:
+                  raise RuntimeError("Google Play returned no generated APK signing fingerprints for any discovered version code")
 
-          missing = [fp for fp in play_fingerprints if fp not in site_fingerprints]
-          if missing:
-              print("Missing from live assetlinks.json:")
-              for fingerprint in missing:
+              with urllib.request.urlopen(assetlinks_url, timeout=60) as response:
+                  assetlinks = json.load(response)
+
+              site_fingerprints = []
+              has_relation = False
+              for statement in assetlinks:
+                  target = statement.get("target", {})
+                  if target.get("namespace") != "android_app" or target.get("package_name") != package_name:
+                      continue
+                  if "delegate_permission/common.handle_all_urls" in statement.get("relation", []):
+                      has_relation = True
+                  for fingerprint in target.get("sha256_cert_fingerprints", []):
+                      fp = normalize_fingerprint(fingerprint)
+                      if fp not in site_fingerprints:
+                          site_fingerprints.append(fp)
+
+              print(f"Play version code with generated APK metadata: {successful_version}")
+              print("Google Play signing SHA-256 fingerprints:")
+              for fingerprint in play_fingerprints:
                   print(f"  {fingerprint}")
-              raise SystemExit(2)
+              print("Live assetlinks.json SHA-256 fingerprints:")
+              for fingerprint in site_fingerprints:
+                  print(f"  {fingerprint}")
 
-          print("Digital Asset Links verification passed: every Google Play signing fingerprint is published.")
+              if not has_relation:
+                  raise RuntimeError("Live assetlinks.json is missing delegate_permission/common.handle_all_urls")
+              missing = [fp for fp in play_fingerprints if fp not in site_fingerprints]
+              if missing:
+                  print("Missing from live assetlinks.json:")
+                  for fingerprint in missing:
+                      print(f"  {fingerprint}")
+                  raise SystemExit(2)
+              print("Digital Asset Links verification passed: every Google Play signing fingerprint is published.")
+          finally:
+              request_json(f"{root}/edits/{edit_id}", method="DELETE")
           PY
