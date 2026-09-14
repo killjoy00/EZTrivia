@@ -9,25 +9,32 @@ repository.
 Use a PKCS12 upload keystore whose alias is `upload`. Use one password for both
 the keystore and the key. Never commit the keystore or its password.
 
-The Gradle release build accepts signing material only through environment
-variables:
+The Gradle release build accepts release inputs through environment variables:
 
 - `ANDROID_UPLOAD_KEYSTORE_PATH` — absolute path to the `.p12` file
 - `ANDROID_UPLOAD_KEYSTORE_PASSWORD` — keystore/key password
 - `EZTRIVIA_VERSION_CODE` — positive integer; must increase for every Play upload
 - `EZTRIVIA_VERSION_NAME` — player-facing version such as `1.0.0`
+- `ANDROID_ADMOB_APP_ID` — Android AdMob app ID (`ca-app-pub-...~...`)
+- `ANDROID_ADMOB_BANNER_ID` — Android banner ad-unit ID (`ca-app-pub-.../...`)
 
 When the signing variables are absent, the release build stays unsigned. That is
-the mode used by ordinary CI.
+the mode used by ordinary CI. When the AdMob variables are absent, the build
+uses Google's official sample Android app/banner IDs so CI can compile, shrink,
+and package the advertising code without committing production credentials.
+Production releases must provide the Android-specific real IDs.
 
 ## 2. Build the signed Play bundle
 
-In a trusted release environment with the upload key available:
+In a trusted release environment with the upload key and production AdMob IDs
+available:
 
 ```bash
 cd android
 ANDROID_UPLOAD_KEYSTORE_PATH=/secure/eztrivia-upload.p12 \
 ANDROID_UPLOAD_KEYSTORE_PASSWORD='...' \
+ANDROID_ADMOB_APP_ID='ca-app-pub-...~...' \
+ANDROID_ADMOB_BANNER_ID='ca-app-pub-.../...' \
 EZTRIVIA_VERSION_CODE=1 \
 EZTRIVIA_VERSION_NAME=1.0.0 \
 gradle bundleRelease
@@ -54,7 +61,43 @@ After the first bundle is accepted, Play Console exposes the app-signing
 certificate fingerprint. That fingerprint is also required for verified Friend
 Challenge app links.
 
-## 4. App Links for Friend Challenge URLs
+## 4. Android ads and consent
+
+Create a separate **Android** EZ Trivia app in AdMob for package
+`com.rsm.eztrivia`; do not reuse the iOS AdMob app ID. Create a banner ad unit
+and store both resulting IDs as repository secrets:
+
+- `ANDROID_ADMOB_APP_ID`
+- `ANDROID_ADMOB_BANNER_ID`
+
+The app requests advertising consent through Google's User Messaging Platform
+before making its first ad request. Configure the applicable Privacy & messaging
+message in AdMob before production testing. The banner is suppressed whenever
+UMP says ads cannot yet be requested and after the Remove Ads entitlement is
+owned.
+
+The GitHub Internal Testing workflow passes these secrets into Gradle when they
+exist. A build without them is deliberately a sample-ad build and must not be
+promoted to production.
+
+## 5. Google Play Billing — Remove Ads
+
+Create and activate a one-time Google Play product with this exact product ID:
+
+    com.rsm.eztrivia.removeads
+
+It should behave as a non-consumable entitlement: the app never consumes the
+purchase. Configure its default purchase option, localized title/description,
+and price in Play Console. The Android client queries Google Play for current
+ownership, acknowledges completed purchases, supports pending purchases, and
+provides a restore/recheck action. A successful ownership query is authoritative,
+so a refund or revocation removes the cached entitlement again.
+
+Billing should be tested with a license tester using an app installed from a
+Google Play testing track; a locally sideloaded build is not a valid end-to-end
+purchase test.
+
+## 6. App Links for Friend Challenge URLs
 
 `AndroidManifest.xml` declares `android:autoVerify="true"` on the
 `https://killjoy00.github.io/EZTrivia/challenge.html` intent filter, so a
@@ -102,8 +145,9 @@ Ordinary Android CI builds all of the following without signing credentials:
 - release Android App Bundle (`.aab`)
 - R8 mapping file
 
-That means App Bundle packaging and the shrinker run on every relevant PR rather
-than being discovered for the first time during a Play upload.
+That means App Bundle packaging, Play Billing, Google Mobile Ads/UMP, and the
+shrinker run on every relevant PR rather than being discovered for the first
+time during a Play upload.
 
 ## What is already handled
 
@@ -114,3 +158,7 @@ than being discovered for the first time during a Play upload.
 - Backup and device-transfer rules, scoped to the two DataStore files.
 - Daily reminders re-armed after reboot and after an app update.
 - R8 keep rules for kotlinx.serialization.
+- Google Play Games v2 authentication, achievements, and leaderboards.
+- Android AdMob/UMP code path and Google Play Billing Remove Ads code path; the
+  real AdMob IDs, UMP message, and Play product still require console setup and
+  runtime validation before production submission.
