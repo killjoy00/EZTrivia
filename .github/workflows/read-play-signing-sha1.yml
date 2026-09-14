@@ -1,0 +1,60 @@
+name: Read Play App Signing SHA-1
+
+on:
+  push:
+    branches: [android/signing-secret-check]
+    paths:
+      - ".github/workflows/read-play-signing-sha1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  read-sha1:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+
+      - name: Download one Play-generated APK and print signing SHA-1
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          META="$RUNNER_TEMP/generated-apks.json"
+          curl --fail-with-body -sS \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.rsm.eztrivia/generatedApks/1" \
+            > "$META"
+
+          DOWNLOAD_ID="$(python3 - "$META" <<'PY'
+          import json, sys
+          data = json.load(open(sys.argv[1]))
+          group = data['generatedApks'][0]
+          candidates = []
+          universal = group.get('generatedUniversalApk')
+          if universal:
+              candidates.append(universal.get('downloadId'))
+          for item in group.get('generatedStandaloneApks', []):
+              candidates.append(item.get('downloadId'))
+          for item in group.get('generatedSplitApks', []):
+              candidates.append(item.get('downloadId'))
+          candidates = [x for x in candidates if x]
+          if not candidates:
+              raise SystemExit('No downloadable generated APK found')
+          print(candidates[0])
+          PY
+          )"
+
+          APK="$RUNNER_TEMP/play-generated.apk"
+          curl --fail-with-body -sS -L \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.rsm.eztrivia/generatedApks/1/downloads/${DOWNLOAD_ID}:download" \
+            -o "$APK"
+
+          keytool -printcert -jarfile "$APK" | grep -E '^SHA1:'
