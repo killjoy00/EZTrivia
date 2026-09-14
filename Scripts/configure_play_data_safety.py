@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Build and optionally submit EZ Trivia's Google Play Data safety declaration.
 
-The declaration is generated from Google's current CSV template.  We blank all
-sample answers first, then apply only the answers justified by the Android app
-and its bundled Google SDKs.
+Google's public sample CSV currently lags the validation performed by the
+Android Publisher API for the newer account/deletion questions.  This script
+starts with Google's sample, inserts those current top-level rows when they are
+missing, blanks every sample answer, and then applies only EZ Trivia's answers.
 """
 
 from __future__ import annotations
@@ -32,12 +33,119 @@ API_URL = (
 Q = "Question ID (machine readable)"
 R = "Response ID (machine readable)"
 V = "Response value"
+REQ = "Answer requirement"
+LABEL = "Human-friendly question label"
 
 # Google Play Data safety purposes.
 APP_FUNCTIONALITY = "PSL_APP_FUNCTIONALITY"
 ANALYTICS = "PSL_ANALYTICS"
 FRAUD = "PSL_FRAUD_PREVENTION_SECURITY"
 ADVERTISING = "PSL_ADVERTISING"
+
+# Google added these account/deletion rows after the downloadable sample linked
+# from the public Help article was created. The Publisher API validates them.
+CURRENT_ACCOUNT_ROWS = [
+    (
+        "PSL_SUPPORTED_ACCOUNT_CREATION_METHODS",
+        "PSL_ACM_USER_ID_PASSWORD",
+        "MULTIPLE_CHOICE",
+        "Which account creation methods does the app support? / Username and password",
+    ),
+    (
+        "PSL_SUPPORTED_ACCOUNT_CREATION_METHODS",
+        "PSL_ACM_USER_ID_OTHER_AUTH",
+        "MULTIPLE_CHOICE",
+        "Which account creation methods does the app support? / Username and other authentication",
+    ),
+    (
+        "PSL_SUPPORTED_ACCOUNT_CREATION_METHODS",
+        "PSL_ACM_USER_ID_PASSWORD_OTHER_AUTH",
+        "MULTIPLE_CHOICE",
+        "Which account creation methods does the app support? / Username, password, and other authentication",
+    ),
+    (
+        "PSL_SUPPORTED_ACCOUNT_CREATION_METHODS",
+        "PSL_ACM_OAUTH",
+        "MULTIPLE_CHOICE",
+        "Which account creation methods does the app support? / OAuth",
+    ),
+    (
+        "PSL_SUPPORTED_ACCOUNT_CREATION_METHODS",
+        "PSL_ACM_OTHER",
+        "MULTIPLE_CHOICE",
+        "Which account creation methods does the app support? / Other",
+    ),
+    (
+        "PSL_SUPPORTED_ACCOUNT_CREATION_METHODS",
+        "PSL_ACM_NONE",
+        "MULTIPLE_CHOICE",
+        "Which account creation methods does the app support? / App does not allow account creation",
+    ),
+    ("PSL_ACM_SPECIFY", "", "MAYBE_REQUIRED", "Describe the supported account creation method"),
+    (
+        "PSL_ACCOUNT_DELETION_URL",
+        "",
+        "MAYBE_REQUIRED",
+        "Link users can use to request deletion of their account and associated data",
+    ),
+    (
+        "PSL_SUPPORT_DATA_DELETION_BY_USER",
+        "DATA_DELETION_YES",
+        "SINGLE_CHOICE",
+        "Do you provide a way for users to request data deletion? / Yes",
+    ),
+    (
+        "PSL_SUPPORT_DATA_DELETION_BY_USER",
+        "DATA_DELETION_NO",
+        "SINGLE_CHOICE",
+        "Do you provide a way for users to request data deletion? / No",
+    ),
+    (
+        "PSL_SUPPORT_DATA_DELETION_BY_USER",
+        "DATA_DELETION_NO_AUTO_DELETED",
+        "SINGLE_CHOICE",
+        "Do you provide a way for users to request data deletion? / No, but data is auto-deleted within 90 days",
+    ),
+    ("PSL_DATA_DELETION_URL", "", "MAYBE_REQUIRED", "Delete data URL"),
+    (
+        "PSL_DATA_COLLECTION_COMPLIES_FAMILY_POLICY",
+        "",
+        "OPTIONAL",
+        "Families policy commitment badge",
+    ),
+    ("PSL_INDEPENDENTLY_VALIDATED", "", "OPTIONAL", "Independent security review"),
+    ("PSL_UPI_BADGE_OPT_IN", "", "OPTIONAL", "UPI badge opt-in"),
+    (
+        "PSL_HAS_OUTSIDE_APP_ACCOUNTS",
+        "",
+        "OPTIONAL",
+        "Can users log in with accounts created outside the app?",
+    ),
+    (
+        "PSL_OUTSIDE_APP_ACCOUNT_TYPES",
+        "PSL_LOGIN_WITH_OUTSIDE_APP_ID",
+        "MULTIPLE_CHOICE",
+        "How are outside-app accounts created? / Out-of-app identification",
+    ),
+    (
+        "PSL_OUTSIDE_APP_ACCOUNT_TYPES",
+        "PSL_LOGIN_THROUGH_EMPLOYMENT_OR_ENTERPRISE_ACCOUNT",
+        "MULTIPLE_CHOICE",
+        "How are outside-app accounts created? / Employment or enterprise account",
+    ),
+    (
+        "PSL_OUTSIDE_APP_ACCOUNT_TYPES",
+        "PSL_OUTSIDE_APP_ACCOUNT_TYPE_OTHER",
+        "MULTIPLE_CHOICE",
+        "How are outside-app accounts created? / Other",
+    ),
+    (
+        "PSL_OUTSIDE_APP_ACCOUNT_TYPE_SPECIFY",
+        "",
+        "MAYBE_REQUIRED",
+        "Describe how outside-app accounts are created",
+    ),
+]
 
 # Data types disclosed by EZ Trivia's current Android integration.
 #
@@ -136,12 +244,38 @@ def fetch_template() -> tuple[list[dict[str, str]], list[str]]:
     rows = [dict(row) for row in reader]
     if not reader.fieldnames:
         raise RuntimeError("Google Data safety template has no header")
-    expected = {Q, R, V, "Answer requirement", "Human-friendly question label"}
+    expected = {Q, R, V, REQ, LABEL}
     if not expected.issubset(reader.fieldnames):
         raise RuntimeError(f"Unexpected Data safety template columns: {reader.fieldnames}")
     if len(rows) < 100:
         raise RuntimeError(f"Unexpectedly short Data safety template: {len(rows)} rows")
+    ensure_current_account_rows(rows)
     return rows, list(reader.fieldnames)
+
+
+def ensure_current_account_rows(rows: list[dict[str, str]]) -> None:
+    """Insert account/deletion rows required by the live API if sample lacks them."""
+    existing = {(row.get(Q, ""), row.get(R, "")) for row in rows}
+    missing: list[dict[str, str]] = []
+    for question, response, requirement, label in CURRENT_ACCOUNT_ROWS:
+        if (question, response) not in existing:
+            missing.append(
+                {
+                    Q: question,
+                    R: response,
+                    V: "",
+                    REQ: requirement,
+                    LABEL: label,
+                }
+            )
+    if not missing:
+        return
+
+    # Keep current top-level account/deletion questions together immediately
+    # after the collection/encryption questions, as Play's current exports do.
+    insert_at = 2
+    rows[insert_at:insert_at] = missing
+    print(f"Added {len(missing)} current account/deletion row(s) absent from public sample CSV.")
 
 
 def index_rows(rows: list[dict[str, str]]) -> dict[tuple[str, str], dict[str, str]]:
@@ -179,12 +313,24 @@ def apply_declaration(rows: list[dict[str, str]]) -> None:
     answer(index, "PSL_DATA_COLLECTION_COLLECTS_PERSONAL_DATA", "", True)
     answer(index, "PSL_DATA_COLLECTION_ENCRYPTED_IN_TRANSIT", "", True)
 
-    # EZ Trivia has no developer-run account or user-data backend. Local data can
-    # be cleared in-app/uninstalled and Google-managed Play Games data can be
-    # deleted using Google's account controls, but there is not a single global
-    # developer-operated deletion-request mechanism for every declared SDK data
-    # type. Keep this conservative rather than claiming the deletion badge.
-    answer(index, "PSL_DATA_COLLECTION_USER_REQUEST_DELETE", "", False)
+    # EZ Trivia does not create a developer-run account. Optional Google Play
+    # Games authentication remains a Google platform profile, not an EZ Trivia
+    # account system, so the app does not support app-account creation or an
+    # outside account that logs into an EZ Trivia account.
+    select(index, "PSL_SUPPORTED_ACCOUNT_CREATION_METHODS", "PSL_ACM_NONE")
+    answer(index, "PSL_HAS_OUTSIDE_APP_ACCOUNTS", "", False)
+
+    # There is no single developer-operated deletion-request workflow covering
+    # every SDK-owned category declared below. Local progress can be cleared or
+    # removed with the app and Google-managed Play Games data has Google's own
+    # account controls, so we conservatively do not claim the deletion badge.
+    select(index, "PSL_SUPPORT_DATA_DELETION_BY_USER", "DATA_DELETION_NO")
+
+    # Old public sample versions contain this retired scalar. Leave it blank so
+    # it cannot conflict with the current deletion question above.
+    old_delete = index.get(("PSL_DATA_COLLECTION_USER_REQUEST_DELETE", ""))
+    if old_delete is not None:
+        old_delete[V] = ""
 
     for code, (collected, shared, required, collect_purposes, share_purposes) in DECLARATIONS.items():
         select(index, DATA_TYPE_QUESTIONS[code], code)
@@ -244,6 +390,12 @@ def validate(rows: list[dict[str, str]]) -> None:
             f"expected {sorted(expected_codes)}"
         )
 
+    index = index_rows(rows)
+    if index[("PSL_SUPPORTED_ACCOUNT_CREATION_METHODS", "PSL_ACM_NONE")][V] != "TRUE":
+        raise RuntimeError("Account-creation answer was not generated")
+    if index[("PSL_SUPPORT_DATA_DELETION_BY_USER", "DATA_DELETION_NO")][V] != "TRUE":
+        raise RuntimeError("Data-deletion answer was not generated")
+
 
 def submit(csv_text: str, token: str) -> None:
     response = requests.post(
@@ -277,9 +429,10 @@ def main() -> int:
 
     selected = ", ".join(sorted(DECLARATIONS))
     print(f"Template: {TEMPLATE_URL}")
-    print(f"Wrote {OUTPUT.relative_to(ROOT)} with {len(rows)} template rows.")
+    print(f"Wrote {OUTPUT.relative_to(ROOT)} with {len(rows)} declaration rows.")
     print(f"Declared data types ({len(DECLARATIONS)}): {selected}")
-    print("Global answers: data collected/shared=YES, encrypted in transit=YES, deletion-request mechanism=NO")
+    print("Global answers: data collected/shared=YES, encrypted in transit=YES")
+    print("Account answers: EZ Trivia account creation=NONE, outside-app login=NO, deletion-request badge=NO")
 
     if args.submit:
         token = os.environ.get("GOOGLE_PLAY_ACCESS_TOKEN", "").strip()
