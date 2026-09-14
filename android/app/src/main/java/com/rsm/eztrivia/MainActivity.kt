@@ -11,12 +11,16 @@ import com.rsm.eztrivia.ads.AdConsentManager
 import com.rsm.eztrivia.billing.RemoveAdsBillingManager
 import com.rsm.eztrivia.data.PlayerStateStore
 import com.rsm.eztrivia.playgames.PlayGamesManager
+import com.rsm.eztrivia.playgames.PlayGamesSavedStateManager
 import com.rsm.eztrivia.ui.EZTriviaApp
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     lateinit var playGamesManager: PlayGamesManager
+        private set
+
+    lateinit var savedGamesManager: PlayGamesSavedStateManager
         private set
 
     lateinit var removeAdsBillingManager: RemoveAdsBillingManager
@@ -29,10 +33,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        playerStateStore = PlayerStateStore(applicationContext)
         playGamesManager = PlayGamesManager(this)
+        savedGamesManager = PlayGamesSavedStateManager(this, playerStateStore, lifecycleScope)
         removeAdsBillingManager = RemoveAdsBillingManager(this)
         adConsentManager = AdConsentManager(this)
-        playerStateStore = PlayerStateStore(applicationContext)
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -41,6 +46,10 @@ class MainActivity : ComponentActivity() {
                 }.collect { (state, connection) ->
                     if (connection.isAuthenticated) {
                         playGamesManager.sync(state)
+                        // Saved Games requests are debounced/coalesced inside
+                        // the manager, so question-by-question PlayerState
+                        // changes never block gameplay or hammer the service.
+                        savedGamesManager.requestSync()
                     }
                 }
             }
@@ -79,6 +88,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        if (::savedGamesManager.isInitialized) {
+            savedGamesManager.close()
+        }
         if (::removeAdsBillingManager.isInitialized) {
             removeAdsBillingManager.close()
         }

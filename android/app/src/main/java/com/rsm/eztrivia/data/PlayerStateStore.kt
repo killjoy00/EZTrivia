@@ -251,19 +251,35 @@ object PlayerStateReducer {
 }
 
 class PlayerStateStore(context: Context) {
-    private val dataStore = context.applicationContext.playerStateDataStore
+    private val appContext = context.applicationContext
+    private val dataStore = appContext.playerStateDataStore
     private val json = Json {
         encodeDefaults = true
         ignoreUnknownKeys = false
     }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val stateKey = stringPreferencesKey("player_state_v1")
+    private val syncKey = stringPreferencesKey("player_sync_v1")
+
+    // Deliberately stored outside DataStore. The app's backup rules whitelist
+    // only the two DataStore files, so a restored/new device gets a new ID while
+    // the backed-up per-device contribution map remains intact.
+    private val installationId: String = appContext
+        .getSharedPreferences("eztrivia_installation", Context.MODE_PRIVATE)
+        .let { preferences ->
+            preferences.getString("installation_id", null)?.takeIf(String::isNotBlank)
+                ?: UUID.randomUUID().toString().also { generated ->
+                    preferences.edit().putString("installation_id", generated).apply()
+                }
+        }
 
     val state: StateFlow<PlayerState> = dataStore.data
         .catch { error ->
             if (error is IOException) emit(emptyPreferences()) else throw error
         }
-        .map { preferences -> decode(preferences[stateKey]) }
+        .map { preferences ->
+            decodeEnvelope(preferences[stateKey], preferences[syncKey]).playerState
+        }
         .stateIn(scope, SharingStarted.Eagerly, PlayerState())
 
     val current: PlayerState
@@ -274,7 +290,7 @@ class PlayerStateStore(context: Context) {
         .catch { error ->
             if (error is IOException) emit(emptyPreferences()) else throw error
         }
-        .map { preferences -> decode(preferences[stateKey]) }
+        .map { preferences -> decodeEnvelope(preferences[stateKey], preferences[syncKey]).playerState }
         .first()
 
     suspend fun persistedDailyResult(day: Int): DailyResult? {
@@ -283,7 +299,7 @@ class PlayerStateStore(context: Context) {
                 if (error is IOException) emit(emptyPreferences()) else throw error
             }
             .first()
-        return decode(preferences[stateKey]).dailyResult(day)
+        return decodeEnvelope(preferences[stateKey], preferences[syncKey]).playerState.dailyResult(day)
     }
 
     /** Reads disk-backed state before deciding whether an external challenge is replayable. */
@@ -293,7 +309,9 @@ class PlayerStateStore(context: Context) {
                 if (error is IOException) emit(emptyPreferences()) else throw error
             }
             .first()
-        return decode(preferences[stateKey]).friendChallengeResult(code)
+        return decodeEnvelope(preferences[stateKey], preferences[syncKey])
+            .playerState
+            .friendChallengeResult(code)
     }
 
     suspend fun markSeen(
@@ -318,14 +336,25 @@ class PlayerStateStore(context: Context) {
         total: Int,
         points: Int,
     ) {
-        update { current ->
-            PlayerStateReducer.recordCategoryRound(
+        updateWithSync { current, sync ->
+            val nextPlayer = PlayerStateReducer.recordCategoryRound(
                 state = current,
                 category = category,
                 difficulty = difficulty,
                 score = score,
                 total = total,
                 points = points,
+            )
+            val withPoints = PlayerStateSync.addLifetimePoints(
+                syncState = sync,
+                installationId = installationId,
+                category = category.wireName,
+                points = points,
+            )
+            nextPlayer to PlayerStateSync.incrementCompletedRound(
+                syncState = withPoints,
+                installationId = installationId,
+                quickPlay = false,
             )
         }
     }
@@ -337,14 +366,19 @@ class PlayerStateStore(context: Context) {
         outcomes: List<Boolean>,
         categories: Set<TriviaCategory>,
     ) {
-        update { current ->
-            PlayerStateReducer.recordQuickPlay(
+        updateWithSync { current, sync ->
+            val nextPlayer = PlayerStateReducer.recordQuickPlay(
                 state = current,
                 score = score,
                 total = total,
                 points = points,
                 outcomes = outcomes,
                 categories = categories,
+            )
+            nextPlayer to PlayerStateSync.incrementCompletedRound(
+                syncState = sync,
+                installationId = installationId,
+                quickPlay = true,
             )
         }
     }
@@ -353,35 +387,151 @@ class PlayerStateStore(context: Context) {
         result: DailyResult,
         categories: Set<TriviaCategory>,
     ) {
-        update { current -> PlayerStateReducer.recordDaily(current, result, categories) }
+        updateWithSync { current, sync ->
+            val nextPlayer = PlayerStateReducer.recordDaily(current, result, categories)
+            if (nextPlayer == current) {
+                current to sync
+            } else {
+                nextPlayer to PlayerStateSync.incrementCompletedRound(
+                    syncState = sync,
+                    installationId = installationId,
+                    quickPlay = false,
+                )
+            }
+        }
     }
 
     suspend fun recordFriendChallenge(
         result: FriendChallengeResult,
         categories: Set<TriviaCategory>,
     ) {
-        update { current -> PlayerStateReducer.recordFriendChallenge(current, result, categories) }
-    }
-
-    suspend fun clearRecentCategoryHistory() {
-        update(PlayerStateReducer::clearRecentCategoryHistory)
-    }
-
-    private suspend fun update(transform: (PlayerState) -> PlayerState) {
-        dataStore.edit { preferences ->
-            val current = decode(preferences[stateKey])
-            val updated = transform(current)
-            if (updated != current) {
-                preferences[stateKey] = json.encodeToString(updated)
+        updateWithSync { current, sync ->
+            val nextPlayer = PlayerStateReducer.recordFriendChallenge(current, result, categories)
+            if (nextPlayer == current) {
+                current to sync
+            } else {
+                nextPlayer to PlayerStateSync.incrementCompletedRound(
+                    syncState = sync,
+                    installationId = installationId,
+                    quickPlay = false,
+                )
             }
         }
     }
 
-    private fun decode(raw: String?): PlayerState {
+    suspend fun clearRecentCategoryHistory() {
+        val resetAtMillis = System.currentTimeMillis()
+        updateWithSync { current, sync ->
+            PlayerStateReducer.clearRecentCategoryHistory(current) to
+                PlayerStateSync.noteHistoryReset(sync, resetAtMillis)
+        }
+    }
+
+    /**
+     * Returns a disk-backed, normalized snapshot suitable for Saved Games and
+     * persists any one-time migration of legacy scalar totals atomically.
+     */
+    suspend fun cloudEnvelope(): CloudPlayerState {
+        var result = CloudPlayerState(playerState = PlayerState(), syncState = PlayerSyncState())
+        dataStore.edit { preferences ->
+            val rawPlayer = decodePlayer(preferences[stateKey])
+            val rawSync = decodeSync(preferences[syncKey])
+            result = PlayerStateSync.prepareEnvelope(rawPlayer, rawSync)
+            persistIfChanged(preferences, rawPlayer, rawSync, result)
+        }
+        return result
+    }
+
+    /** Merges remote Saved Games data into local storage without losing either side's progress. */
+    suspend fun mergeCloudEnvelope(remote: CloudPlayerState): CloudPlayerState {
+        var result = CloudPlayerState(playerState = PlayerState(), syncState = PlayerSyncState())
+        dataStore.edit { preferences ->
+            val rawPlayer = decodePlayer(preferences[stateKey])
+            val rawSync = decodeSync(preferences[syncKey])
+            val local = PlayerStateSync.prepareEnvelope(rawPlayer, rawSync)
+            result = PlayerStateSync.merge(local, remote)
+            persistIfChanged(preferences, rawPlayer, rawSync, result)
+        }
+        return result
+    }
+
+    fun encodeCloudEnvelope(envelope: CloudPlayerState): ByteArray =
+        json.encodeToString(envelope).toByteArray(Charsets.UTF_8)
+
+    /** Empty bytes represent a newly created cloud slot; non-empty invalid data is rejected. */
+    fun decodeCloudEnvelope(bytes: ByteArray): CloudPlayerState? {
+        if (bytes.isEmpty()) {
+            return PlayerStateSync.prepareEnvelope(PlayerState(), PlayerSyncState())
+        }
+        val decoded = runCatching {
+            json.decodeFromString<CloudPlayerState>(bytes.toString(Charsets.UTF_8))
+        }.getOrNull() ?: return null
+        if (
+            decoded.schemaVersion != 1 ||
+            decoded.playerState.schemaVersion != 1 ||
+            decoded.syncState.schemaVersion != 1
+        ) {
+            return null
+        }
+        return PlayerStateSync.prepareEnvelope(decoded.playerState, decoded.syncState)
+    }
+
+    private suspend fun update(transform: (PlayerState) -> PlayerState) {
+        dataStore.edit { preferences ->
+            val rawPlayer = decodePlayer(preferences[stateKey])
+            val rawSync = decodeSync(preferences[syncKey])
+            val current = PlayerStateSync.prepareEnvelope(rawPlayer, rawSync)
+            val updated = PlayerStateSync.prepareEnvelope(
+                playerState = transform(current.playerState),
+                syncState = current.syncState,
+            )
+            persistIfChanged(preferences, rawPlayer, rawSync, updated)
+        }
+    }
+
+    private suspend fun updateWithSync(
+        transform: (PlayerState, PlayerSyncState) -> Pair<PlayerState, PlayerSyncState>,
+    ) {
+        dataStore.edit { preferences ->
+            val rawPlayer = decodePlayer(preferences[stateKey])
+            val rawSync = decodeSync(preferences[syncKey])
+            val current = PlayerStateSync.prepareEnvelope(rawPlayer, rawSync)
+            val (nextPlayer, nextSync) = transform(current.playerState, current.syncState)
+            val updated = PlayerStateSync.prepareEnvelope(nextPlayer, nextSync)
+            persistIfChanged(preferences, rawPlayer, rawSync, updated)
+        }
+    }
+
+    private fun persistIfChanged(
+        preferences: androidx.datastore.preferences.core.MutablePreferences,
+        rawPlayer: PlayerState,
+        rawSync: PlayerSyncState,
+        updated: CloudPlayerState,
+    ) {
+        if (updated.playerState != rawPlayer) {
+            preferences[stateKey] = json.encodeToString(updated.playerState)
+        }
+        if (updated.syncState != rawSync) {
+            preferences[syncKey] = json.encodeToString(updated.syncState)
+        }
+    }
+
+    private fun decodeEnvelope(playerRaw: String?, syncRaw: String?): CloudPlayerState =
+        PlayerStateSync.prepareEnvelope(decodePlayer(playerRaw), decodeSync(syncRaw))
+
+    private fun decodePlayer(raw: String?): PlayerState {
         if (raw.isNullOrBlank()) return PlayerState()
         return runCatching { json.decodeFromString<PlayerState>(raw) }
             .getOrElse { PlayerState() }
             .takeIf { it.schemaVersion == 1 }
             ?: PlayerState()
+    }
+
+    private fun decodeSync(raw: String?): PlayerSyncState {
+        if (raw.isNullOrBlank()) return PlayerSyncState()
+        return runCatching { json.decodeFromString<PlayerSyncState>(raw) }
+            .getOrElse { PlayerSyncState() }
+            .takeIf { it.schemaVersion == 1 }
+            ?: PlayerSyncState()
     }
 }

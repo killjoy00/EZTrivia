@@ -26,13 +26,13 @@ Come back each day for the Daily Challenge and play the same ten-question set fo
 
 Want a head-to-head round? Create a Friend Challenge and share the link or short code. Your friend gets the exact same questions and answer order.
 
-Track question coverage, recent results, lifetime category points, and achievements. Google Play Games can mirror configured achievements and leaderboard scores when you are signed in, while the core trivia game remains playable without a separate EZ Trivia account.
+Track question coverage, recent results, lifetime category points, and achievements. When Google Play Games is connected and Saved Games is available, EZ Trivia can synchronize private gameplay progress across your Android devices while also mirroring configured achievements and leaderboard scores. Core trivia play does not require a separate EZ Trivia account or a network connection.
 
 EZ Trivia includes 2,341 questions across 16 categories, including history, science, sports, geography, entertainment, flags, and more.
 
 Advertising is limited to a banner on the Play screen. A one-time Remove Ads purchase is available through Google Play.
 
-The description is intentionally conservative: it does not claim Android full-progress cloud sync until Play Games saved-game sync exists.
+This description assumes Google Play Games Saved Games is enabled and validated before production. If Saved Games is not enabled for the production PGS project, remove the cross-device progress-sync sentence before publishing the listing.
 
 **Privacy policy**
 
@@ -77,7 +77,7 @@ The production build has a banner on the top-level Play screen when UMP allows a
 
 ### App access
 
-Core gameplay does not require a separate EZ Trivia login or reviewer credentials. Google Play Games is optional platform authentication for achievements/leaderboards, not a gate on the game.
+Core gameplay does not require a separate EZ Trivia login or reviewer credentials. Google Play Games is optional platform authentication for achievements, leaderboards, and Saved Games progress sync; it is not a gate on the game.
 
 ### Target audience
 
@@ -98,10 +98,12 @@ https://support.google.com/googleplay/android-developer/answer/10787469
 
 ### Known first-party behavior
 
-- Gameplay progress, history, seen-question state, preferences, and the full local PlayerState remain on-device on Android today.
-- EZ Trivia does not operate a separate Android account/profile backend.
-- EZ Trivia ships no first-party analytics or crash-reporting SDK.
+- Gameplay remains local-first on Android. The app stores gameplay progress, history, seen-question state, preferences, lifetime points, and achievement-related facts in local DataStore files.
+- EZ Trivia does not operate a separate Android account/profile backend and does not receive a player's Google Account password.
 - When Play Games authentication is available, the app submits configured achievement progress, category lifetime-point scores, and the current Daily Challenge weighted score to Google Play Games Services.
+- When Google Play Games Saved Games is available, the app reads and writes a private saved-game snapshot through the player's Play Games profile. That snapshot includes gameplay history, completed/correct question-progress facts, seen-question state, lifetime category points, achievement-related progress, and merge bookkeeping used to preserve independent offline progress from multiple devices.
+- The Saved Games snapshot is used for app functionality / player-progress synchronization, not for advertising or developer-run analytics. Gameplay can continue offline when the service is unavailable, with synchronization retried later.
+- EZ Trivia ships no first-party analytics or crash-reporting SDK.
 - Google Play Billing processes the optional one-time Remove Ads purchase. The app caches only the entitlement state locally; payment details are not sent to an EZ Trivia server.
 - Question reporting opens the user's email client with a prefilled draft. Nothing is sent unless the user chooses to send the email.
 
@@ -123,11 +125,11 @@ Because Google's Mobile Ads disclosure explicitly says these data are both **col
 
 ### Google Play Games / Billing review points
 
-The app also uses Google Play Games Services and Google Play Billing. Before submitting Data safety, compare the live Play Console/SDK Index guidance with the actual integration and make sure the form covers platform processing of gamer identity/device data, achievements/scores, and purchase-related data where Google requires disclosure. The app itself does not read the player's name/email or send purchase tokens to an EZ Trivia backend.
+The app also uses Google Play Games Services and Google Play Billing. Before submitting Data safety, compare the live Play Console/SDK Index guidance with the actual integration and make sure the form covers platform processing of gamer identity/device data, achievements/scores, private Saved Games progress, and purchase-related data where Google requires disclosure. The app itself does not read the player's name/email, send purchase tokens to an EZ Trivia backend, or operate a developer-run player-state server.
 
 ### Account deletion
 
-EZ Trivia does not create a developer-run user account. Player-owned local data can be removed by clearing app data/uninstalling; Play Games and purchase records are controlled through the relevant Google account/platform controls. If the Play Console asks about account deletion, answer based on the fact that there is no separate EZ Trivia account rather than treating optional Play Games authentication as an EZ Trivia account system.
+EZ Trivia does not create a developer-run user account. Player-owned local data can be removed by clearing app data/uninstalling; Play Games Saved Games, achievements/leaderboards, and purchase records are controlled through the relevant Google account/platform controls. If the Play Console asks about account deletion, answer based on the fact that there is no separate EZ Trivia account rather than treating optional Play Games authentication as an EZ Trivia account system.
 
 ## Release/compliance checklist
 
@@ -137,7 +139,9 @@ Before moving beyond Internal Testing:
 - [ ] Create a production banner ad unit and configure AdMob Privacy & messaging.
 - [ ] Add repository secrets `ANDROID_ADMOB_APP_ID` and `ANDROID_ADMOB_BANNER_ID`.
 - [ ] Create and activate Google Play one-time product `com.rsm.eztrivia.removeads` with its default purchase option and price.
-- [ ] Install from a Play testing track and validate consent, banner display, purchase, pending purchase, restore, and entitlement revocation/refund behavior.
+- [ ] Enable **Saved Games** for the linked Google Play Games Services project.
+- [ ] Install from a Play testing track on two Android devices using the same Play Games profile; make independent progress offline on both, reconnect, and verify histories, lifetime points, Daily/Friend one-attempt results, question progress, and round counters merge without duplication or loss.
+- [ ] From a Play testing build, validate consent, banner display, purchase, pending purchase, restore, and entitlement revocation/refund behavior.
 - [ ] Complete Main store listing using the copy above.
 - [ ] Upload feature graphic and real Android screenshots.
 - [ ] Complete Ads, App access, Target audience, Content rating, and Data safety forms.
