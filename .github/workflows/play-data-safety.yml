@@ -1,12 +1,6 @@
 name: Google Play Data Safety
 
 on:
-  push:
-    branches:
-      - android-data-safety-impl
-    paths:
-      - Scripts/configure_play_data_safety.py
-      - .github/workflows/play-data-safety.yml
   workflow_dispatch:
 
 permissions:
