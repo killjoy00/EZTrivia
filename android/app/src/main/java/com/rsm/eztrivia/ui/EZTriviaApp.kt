@@ -56,6 +56,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.rsm.eztrivia.MainActivity
+import com.rsm.eztrivia.ads.AndroidAdBanner
 import com.rsm.eztrivia.data.AppSettings
 import com.rsm.eztrivia.data.AppSettingsStore
 import com.rsm.eztrivia.data.PlayerState
@@ -267,17 +269,30 @@ private fun HomeScreen(
     onScores: () -> Unit,
     onSettings: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val mainActivity = context as? MainActivity
+    val adState = mainActivity?.adConsentManager?.state?.collectAsState()?.value
+    val billingState = mainActivity?.billingManager?.state?.collectAsState()?.value
+    val showAd =
+        adState?.canRequestAds == true &&
+            adState.adsInitialized &&
+            billingState?.hasRemovedAds == false
     val catalogQuestionIds = remember(catalog) { catalog.mapTo(mutableSetOf()) { it.id } }
     val answeredCurrentQuestions = playerState.completedQuestionIds.count { it in catalogQuestionIds }
 
     Scaffold(
         bottomBar = {
-            EZTriviaBottomBar(
-                selected = AppSection.PLAY,
-                onPlay = {},
-                onScores = onScores,
-                onSettings = onSettings,
-            )
+            Column {
+                if (showAd) {
+                    AndroidAdBanner()
+                }
+                EZTriviaBottomBar(
+                    selected = AppSection.PLAY,
+                    onPlay = {},
+                    onScores = onScores,
+                    onSettings = onSettings,
+                )
+            }
         },
     ) { innerPadding ->
         Column(
