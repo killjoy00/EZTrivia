@@ -11,6 +11,19 @@ val releaseVersionName = providers.environmentVariable("EZTRIVIA_VERSION_NAME").
 val uploadKeystorePath = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PATH")
 val uploadKeystorePassword = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PASSWORD")
 
+// Google-provided demo IDs are deliberately the fallback for development and
+// Internal Testing until the Android AdMob app/ad unit is created. They cannot
+// generate revenue or invalid live-ad traffic. Production readiness requires
+// replacing both through the release environment.
+val sampleAdMobAppId = "ca-app-pub-3940256099942544~3347511713"
+val sampleAdMobBannerId = "ca-app-pub-3940256099942544/9214589741"
+val configuredAdMobAppId = providers.environmentVariable("ANDROID_ADMOB_APP_ID").orNull
+val configuredAdMobBannerId = providers.environmentVariable("ANDROID_ADMOB_BANNER_ID").orNull
+val resolvedAdMobAppId = configuredAdMobAppId ?: sampleAdMobAppId
+val resolvedAdMobBannerId = configuredAdMobBannerId ?: sampleAdMobBannerId
+val adMobProductionConfigured =
+    !configuredAdMobAppId.isNullOrBlank() && !configuredAdMobBannerId.isNullOrBlank()
+
 android {
     namespace = "com.rsm.eztrivia"
     compileSdk = 36
@@ -23,6 +36,10 @@ android {
         versionName = releaseVersionName ?: "1.0.0-alpha01"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        manifestPlaceholders["admobAppId"] = resolvedAdMobAppId
+        buildConfigField("String", "ADMOB_BANNER_ID", "\"$resolvedAdMobBannerId\"")
+        buildConfigField("boolean", "ADMOB_PRODUCTION_CONFIGURED", adMobProductionConfigured.toString())
     }
 
     val uploadSigningConfig = if (uploadKeystorePath.isPresent && uploadKeystorePassword.isPresent) {
@@ -60,6 +77,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -143,6 +161,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("com.google.android.gms:play-services-games-v2:22.0.0")
+    implementation("com.google.android.gms:play-services-ads:25.4.0")
+    implementation("com.google.android.ump:user-messaging-platform:4.0.0")
+    implementation("com.android.billingclient:billing-ktx:9.1.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
