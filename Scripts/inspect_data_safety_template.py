@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print the current Google Play Data safety CSV rows relevant to EZ Trivia."""
+"""Print the current Google Play Data safety CSV header/top-level rows."""
 
 from __future__ import annotations
 
@@ -22,41 +22,15 @@ response.raise_for_status()
 text = response.content.decode("utf-8-sig")
 rows = list(csv.DictReader(io.StringIO(text)))
 print(f"rows={len(rows)}")
+print(f"headers={list(rows[0].keys()) if rows else []}")
 
-needles = (
-    "data collection and security",
-    "approximate location",
-    "app interactions",
-    "other actions",
-    "diagnostics",
-    "device or other ids",
-    "email address",
-    "user ids",
-    "purchase history",
-    "other financial info",
-    "files and docs",
-    "other user-generated content",
-    "collected, shared, or both",
-    "processed ephemerally",
-    "required for your app",
-    "why is this user data collected",
-    "why is this user data shared",
-    "encrypted in transit",
-    "request that their data is deleted",
-)
-
-for index, row in enumerate(rows, start=2):
-    label = row.get("Human-friendly question label", "") or ""
-    qid = row.get("Question ID (machine readable)", "") or ""
-    rid = row.get("Response ID (machine readable)", "") or ""
-    haystack = f"{label} {qid} {rid}".lower()
-    if any(needle in haystack for needle in needles):
-        print(
-            "ROW",
-            index,
-            repr(qid),
-            repr(rid),
-            repr(row.get("Response value", "")),
-            repr(row.get("Answer requirement", "")),
-            repr(label),
-        )
+for index, row in enumerate(rows[:41], start=2):
+    print(
+        "ROW",
+        index,
+        repr(row.get("Question ID (machine readable)", "")),
+        repr(row.get("Response ID (machine readable)", "")),
+        repr(row.get("Response value", "")),
+        repr(row.get("Answer requirement", "")),
+        repr(row.get("Human-friendly question label", "")),
+    )
