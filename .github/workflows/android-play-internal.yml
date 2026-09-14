@@ -1,0 +1,127 @@
+name: Android Play Internal Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: "Play version code (must be greater than the last uploaded version)"
+        required: true
+        type: string
+      version_name:
+        description: "Player-facing version name (for example 1.0.0-alpha02)"
+        required: true
+        type: string
+      release_notes:
+        description: "English (US) release notes"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-play-internal-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish Internal Testing release
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Validate inputs and signing secrets
+        env:
+          VERSION_CODE: ${{ inputs.version_code }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::version_code must be a positive integer"
+            exit 1
+          fi
+          if [[ -z "$VERSION_NAME" ]]; then
+            echo "::error::version_name cannot be empty"
+            exit 1
+          fi
+          if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" ]]; then
+            echo "::error::Missing Android upload-key repository secrets"
+            exit 1
+          fi
+          if [[ -z "$PLAY_SERVICE_ACCOUNT" ]]; then
+            echo "::error::Missing GOOGLE_PLAY_SERVICE_ACCOUNT_JSON repository secret"
+            exit 1
+          fi
+
+      - name: Materialize upload keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/eztrivia-upload.p12"
+          keytool -list \
+            -keystore "$RUNNER_TEMP/eztrivia-upload.p12" \
+            -storetype PKCS12 \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias upload >/dev/null
+          chmod 600 "$RUNNER_TEMP/eztrivia-upload.p12"
+
+      - name: Run release unit tests
+        working-directory: android
+        run: gradle testReleaseUnitTest --stacktrace
+
+      - name: Build signed release bundle
+        working-directory: android
+        env:
+          ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/eztrivia-upload.p12
+          ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          EZTRIVIA_VERSION_CODE: ${{ inputs.version_code }}
+          EZTRIVIA_VERSION_NAME: ${{ inputs.version_name }}
+        run: gradle bundleRelease --stacktrace
+
+      - name: Verify bundle signature
+        run: jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Prepare Play release notes
+        env:
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/play-notes"
+          printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/play-notes/whatsnew-en-US"
+
+      - name: Publish to Google Play Internal Testing
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.rsm.eztrivia
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
+          releaseName: EZ Trivia ${{ inputs.version_name }} (v${{ inputs.version_code }})
+          whatsNewDirectory: ${{ runner.temp }}/play-notes
+          mappingFile: android/app/build/outputs/mapping/release/mapping.txt
+
+      - name: Archive release outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-play-v${{ inputs.version_code }}
+          path: |
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+          retention-days: 30
