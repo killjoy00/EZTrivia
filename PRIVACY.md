@@ -2,7 +2,7 @@
 
 **Effective date: September 13, 2026**
 
-EZTrivia is a trivia game. This policy explains the information used when you play, sync progress, view ads, report a question, or use platform gaming services.
+EZTrivia is a trivia game. This policy explains the information used when you play, sync progress, view ads, report a question, make an optional purchase, or use platform gaming services.
 
 ## Information EZTrivia uses
 
@@ -11,12 +11,12 @@ EZTrivia is a trivia game. This policy explains the information used when you pl
 - **Google Play Games Services:** On Android, if your Google Play Games profile is available to EZTrivia, Play Games Services handles platform authentication. EZTrivia submits configured achievement progress, category lifetime-point totals, and the current Daily Challenge weighted score to Google Play Games Services. Google processes your Play Games identity and leaderboard/achievement data under Google's applicable privacy terms. EZTrivia does not receive your Google Account password. Full gameplay history and seen-question state are not currently synchronized through Play Games Services.
 - **Question reports:** If you choose **Report this question**, EZTrivia opens your email app with a draft addressed to support. The draft includes the question ID, prompt, selected and correct answers, explanation, difficulty, and app version so the issue can be investigated. Nothing is sent unless you choose to send the email.
 - **Analytics and crash diagnostics:** EZTrivia ships no first-party analytics or crash-reporting SDK and sends no gameplay events to the developer. Platform operators may provide aggregate store analytics or opt-in diagnostics under their own privacy terms.
-- **Purchases:** On iOS, the optional one-time Remove Ads purchase is processed by Apple through StoreKit. EZ Trivia never sees or stores payment details; it records only whether the entitlement is currently held locally on the device. Android billing is not currently enabled.
-- **Advertising:** Google AdMob may process device identifiers, IP-derived approximate location, ad interactions, diagnostics, and other data needed to deliver and measure ads and prevent fraud, consistent with the privacy choices presented in the app where advertising is enabled.
+- **Purchases:** The optional one-time Remove Ads purchase is processed by Apple through StoreKit on iOS and by Google through Google Play Billing on Android. EZTrivia never sees or stores payment card details. The app stores a local entitlement flag so paid users do not briefly see ads at launch, then checks the applicable store when available and updates that local entitlement if needed.
+- **Advertising:** Google AdMob may process device identifiers, IP-derived approximate location, ad interactions, diagnostics, and other data needed to deliver and measure ads and prevent fraud, consistent with the privacy choices presented in the app where advertising is enabled. Once the Remove Ads entitlement is active, EZTrivia stops requesting banner ads.
 
 ## Tracking and consent
 
-EZTrivia does not directly sell personal information. Where advertising is enabled, the app uses Google's User Messaging Platform to present applicable advertising privacy choices.
+EZTrivia does not directly sell personal information. Where advertising is enabled, the app uses Google's User Messaging Platform to present applicable advertising privacy choices before requesting ads. Where required, an Advertising privacy option is available in Settings so those choices can be reviewed later.
 
 ## Platform progress sync
 
@@ -28,7 +28,7 @@ National flag images are bundled with the app. Viewing a flag question does not 
 
 ## Retention and deletion
 
-Recent category-round history can be cleared from the Scores screen. Other gameplay facts are retained locally as player progress. iCloud-synchronized data may remain associated with your iCloud account under Apple's controls. Apple Game Center and Google Play Games leaderboard and achievement data are managed by those platform providers. Advertising data retention is controlled through Google AdMob and its applicable terms.
+Recent category-round history can be cleared from the Scores screen. Other gameplay facts are retained locally as player progress. iCloud-synchronized data may remain associated with your iCloud account under Apple's controls. Apple Game Center and Google Play Games leaderboard and achievement data are managed by those platform providers. Purchase records and entitlement history are managed by Apple or Google under their store controls. Advertising data retention is controlled through Google AdMob and its applicable terms.
 
 ## Children
 
@@ -36,7 +36,7 @@ EZTrivia is not intended to collect personal information from children.
 
 ## Your choices
 
-You can use the app without a separate EZTrivia account, clear recent category-round history inside the app, manage iCloud and Game Center through Apple settings, manage Play Games profile and sign-in behavior through Google Play Games settings, manage available advertising privacy choices in the app where applicable, and delete the app to remove its local data. Requests concerning data processed by Apple or Google should also be directed to those providers.
+You can use the app without a separate EZTrivia account, clear recent category-round history inside the app, manage iCloud and Game Center through Apple settings, manage Play Games profile and sign-in behavior through Google Play Games settings, restore an eligible Remove Ads purchase through the app, manage available advertising privacy choices in the app where applicable, and delete the app to remove its local data. Requests concerning data processed by Apple or Google should also be directed to those providers.
 
 ## Contact and changes
 
