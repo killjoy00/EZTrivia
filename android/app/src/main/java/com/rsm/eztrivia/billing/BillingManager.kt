@@ -112,10 +112,15 @@ class BillingManager(private val activity: Activity) : PurchasesUpdatedListener 
             return
         }
 
-        val productParams = BillingFlowParams.ProductDetailsParams.newBuilder()
+        val productParamsBuilder = BillingFlowParams.ProductDetailsParams.newBuilder()
             .setProductDetails(product)
-            .setOfferToken(offer.offerToken)
-            .build()
+        // Billing 9.1 exposes this as nullable for backward-compatible legacy
+        // one-time products. Modern purchase options supply a token; legacy
+        // products can still launch without one.
+        offer.offerToken?.takeIf { it.isNotBlank() }?.let { token ->
+            productParamsBuilder.setOfferToken(token)
+        }
+        val productParams = productParamsBuilder.build()
         val flowParams = BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(listOf(productParams))
             .build()
