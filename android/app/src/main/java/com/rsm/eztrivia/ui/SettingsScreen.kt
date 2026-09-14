@@ -25,6 +25,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +37,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.rsm.eztrivia.MainActivity
 import com.rsm.eztrivia.data.AppSettings
 import com.rsm.eztrivia.data.AppSettingsPolicy
 import com.rsm.eztrivia.data.AppSettingsStore
@@ -59,6 +61,8 @@ fun SettingsScreen(
     val scheduler = remember(context.applicationContext) {
         DailyReminderScheduler(context.applicationContext)
     }
+    val playGamesManager = (context as? MainActivity)?.playGamesManager
+    val playGamesConnection = playGamesManager?.connection?.collectAsState()?.value
     var permissionRevision by remember { mutableIntStateOf(0) }
     val playedDays = playerState.dailyResultsByDay.keys
     val notificationsAllowed = remember(permissionRevision, settings.streakRemindersEnabled) {
@@ -238,9 +242,72 @@ fun SettingsScreen(
             }
 
             item {
+                SettingsSection(title = "Google Play Games") {
+                    when {
+                        playGamesConnection == null -> Text(
+                            "Play Games is unavailable in this activity.",
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        playGamesConnection.isChecking -> Text(
+                            "Checking your Google Play Games profile…",
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        playGamesConnection.isAuthenticated -> {
+                            Text(
+                                "Connected. Achievements, category lifetime scores, and today's Daily score sync automatically to Google Play Games.",
+                                modifier = Modifier.padding(16.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedButton(
+                                onClick = { playGamesManager.showAchievements() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                            ) {
+                                Text("View Play Games achievements")
+                            }
+                            OutlinedButton(
+                                onClick = { playGamesManager.showLeaderboards() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                            ) {
+                                Text("View Play Games leaderboards")
+                            }
+                        }
+                        else -> {
+                            Text(
+                                "Not connected. Play Games normally signs in automatically; use this only to retry if automatic authentication did not complete.",
+                                modifier = Modifier.padding(16.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedButton(
+                                onClick = { playGamesManager?.signIn() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                            ) {
+                                Text("Connect Google Play Games")
+                            }
+                        }
+                    }
+                    playGamesConnection?.errorMessage?.let { error ->
+                        Text(
+                            error,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+
+            item {
                 SettingsSection(title = "Progress") {
                     Text(
-                        "Scores, Daily and Friend history, lifetime points, seen questions, and achievement progress are stored locally on this device. Google Play Games sync is not enabled yet.",
+                        "Gameplay history, seen questions, and settings remain stored locally on this device. When Play Games is connected, achievements and leaderboard scores are mirrored there; full cross-device gameplay sync is a separate feature.",
                         modifier = Modifier.padding(16.dp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
