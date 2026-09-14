@@ -1,0 +1,27 @@
+name: Enable AdMob API
+
+on:
+  push:
+    branches:
+      - android-launch-console-setup-3
+    paths:
+      - .github/workflows/enable-admob-api.yml
+      - Scripts/enable_admob_api.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  enable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet google-auth requests
+      - name: Enable AdMob API
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: python Scripts/enable_admob_api.py
