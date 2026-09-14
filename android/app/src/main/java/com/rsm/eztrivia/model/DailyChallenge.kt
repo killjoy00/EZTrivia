@@ -112,6 +112,21 @@ object DailyStreak {
         return length
     }
 
+    /** Longest completed Daily run. This is monotonic and safe to sync as achievement progress. */
+    fun longest(playedDays: Set<Int>): Int {
+        if (playedDays.isEmpty()) return 0
+        val ordered = playedDays.sorted()
+        var longest = 0
+        var run = 0
+        var previous: Int? = null
+        for (day in ordered) {
+            run = if (previous != null && day == previous + 1) run + 1 else 1
+            longest = maxOf(longest, run)
+            previous = day
+        }
+        return longest
+    }
+
     fun dayAtRisk(
         playedDays: Set<Int>,
         today: Int,
