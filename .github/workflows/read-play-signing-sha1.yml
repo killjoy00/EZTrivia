@@ -21,7 +21,7 @@ jobs:
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
 
-      - name: Download one Play-generated APK and print signing SHA-1
+      - name: Download one Play-generated APK and print signer report
         env:
           ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
@@ -59,8 +59,16 @@ jobs:
 
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER"
+          REPORT="$RUNNER_TEMP/apksigner.txt"
+          set +e
           "$APKSIGNER" verify \
             --min-sdk-version 26 \
             --max-sdk-version 36 \
             --print-certs \
-            "$APK" | grep -F 'Signer #1 certificate SHA-1 digest:'
+            "$APK" > "$REPORT" 2>&1
+          STATUS=$?
+          set -e
+          cat "$REPORT"
+          if ! grep -iE 'SHA-1|SHA1' "$REPORT"; then
+            exit "$STATUS"
+          fi
