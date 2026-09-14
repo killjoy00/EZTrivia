@@ -41,13 +41,16 @@ class AdConsentManager(private val activity: Activity) {
             activity,
             parameters,
             {
+                // Do not initialize ads from the freshly updated consent state
+                // until UMP has finished the required-form step. When no form is
+                // required this callback returns immediately, so this preserves
+                // the fast path without racing a form that still needs to be shown.
                 UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
                     if (formError != null) {
                         recordError(formError.message)
                     }
                     refreshState()
                 }
-                refreshState()
             },
             { requestError ->
                 recordError(requestError.message)
