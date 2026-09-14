@@ -1,0 +1,117 @@
+name: Verify Digital Asset Links
+
+on:
+  push:
+    branches:
+      - verify-digital-asset-links
+    paths:
+      - .github/workflows/verify-digital-asset-links.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Verify Play signing fingerprints against live assetlinks.json
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import re
+          import urllib.request
+
+          package_name = "com.rsm.eztrivia"
+          version_code = 2
+          assetlinks_url = "https://killjoy00.github.io/.well-known/assetlinks.json"
+          api_url = (
+              "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/"
+              f"{package_name}/generatedApks/{version_code}"
+          )
+
+          def normalize_fingerprint(value: str) -> str:
+              value = value.strip()
+              compact = value.replace(":", "")
+              if re.fullmatch(r"[0-9A-Fa-f]{64}", compact):
+                  return ":".join(compact[i:i+2] for i in range(0, 64, 2)).upper()
+              try:
+                  padded = value + "=" * (-len(value) % 4)
+                  raw = base64.urlsafe_b64decode(padded)
+                  if len(raw) == 32:
+                      return ":".join(f"{byte:02X}" for byte in raw)
+              except Exception:
+                  pass
+              raise RuntimeError(f"Unrecognized SHA-256 fingerprint format: {value!r}")
+
+          req = urllib.request.Request(
+              api_url,
+              headers={"Authorization": f"Bearer {os.environ['GOOGLE_PLAY_ACCESS_TOKEN']}"},
+          )
+          with urllib.request.urlopen(req, timeout=60) as response:
+              payload = json.load(response)
+
+          play_fingerprints = []
+          for item in payload.get("generatedApks", []):
+              raw = item.get("certificateSha256Hash")
+              if raw:
+                  normalized = normalize_fingerprint(raw)
+                  if normalized not in play_fingerprints:
+                      play_fingerprints.append(normalized)
+
+          if not play_fingerprints:
+              raise RuntimeError("Google Play returned no generated APK signing fingerprints")
+
+          with urllib.request.urlopen(assetlinks_url, timeout=60) as response:
+              assetlinks = json.load(response)
+
+          site_fingerprints = []
+          has_relation = False
+          for statement in assetlinks:
+              target = statement.get("target", {})
+              if target.get("namespace") != "android_app" or target.get("package_name") != package_name:
+                  continue
+              if "delegate_permission/common.handle_all_urls" in statement.get("relation", []):
+                  has_relation = True
+              for fingerprint in target.get("sha256_cert_fingerprints", []):
+                  normalized = normalize_fingerprint(fingerprint)
+                  if normalized not in site_fingerprints:
+                      site_fingerprints.append(normalized)
+
+          print(f"Package: {package_name}")
+          print(f"Play version code inspected: {version_code}")
+          print("Google Play signing SHA-256 fingerprints:")
+          for fingerprint in play_fingerprints:
+              print(f"  {fingerprint}")
+          print("Live assetlinks.json SHA-256 fingerprints:")
+          for fingerprint in site_fingerprints:
+              print(f"  {fingerprint}")
+
+          if not has_relation:
+              raise RuntimeError("Live assetlinks.json is missing delegate_permission/common.handle_all_urls")
+
+          missing = [fp for fp in play_fingerprints if fp not in site_fingerprints]
+          if missing:
+              print("Missing from live assetlinks.json:")
+              for fingerprint in missing:
+                  print(f"  {fingerprint}")
+              raise SystemExit(2)
+
+          print("Digital Asset Links verification passed: every Google Play signing fingerprint is published.")
+          PY
