@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.rsm.eztrivia.DailyChallengeActivity
 import com.rsm.eztrivia.FriendChallengeActivity
+import com.rsm.eztrivia.ads.AdBanner
 import com.rsm.eztrivia.data.CategoryRoundResult
 import com.rsm.eztrivia.data.DailyResult
 import com.rsm.eztrivia.data.FriendChallengeResult
@@ -62,41 +63,46 @@ fun EZTriviaBottomBar(
     onSettings: () -> Unit,
 ) {
     val context = LocalContext.current
-    NavigationBar {
-        NavigationBarItem(
-            selected = selected == AppSection.PLAY,
-            onClick = onPlay,
-            icon = { Text("▶", modifier = Modifier.clearAndSetSemantics { }) },
-            label = { Text("Play") },
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = {
-                context.startActivity(Intent(context, DailyChallengeActivity::class.java))
-            },
-            icon = { Text("☀", modifier = Modifier.clearAndSetSemantics { }) },
-            label = { Text("Daily") },
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = {
-                context.startActivity(Intent(context, FriendChallengeActivity::class.java))
-            },
-            icon = { Text("↔", modifier = Modifier.clearAndSetSemantics { }) },
-            label = { Text("Friends") },
-        )
-        NavigationBarItem(
-            selected = selected == AppSection.SCORES,
-            onClick = onScores,
-            icon = { Text("★", modifier = Modifier.clearAndSetSemantics { }) },
-            label = { Text("Scores") },
-        )
-        NavigationBarItem(
-            selected = selected == AppSection.SETTINGS,
-            onClick = onSettings,
-            icon = { Text("⚙", modifier = Modifier.clearAndSetSemantics { }) },
-            label = { Text("Settings") },
-        )
+    Column {
+        if (selected == AppSection.PLAY) {
+            AdBanner()
+        }
+        NavigationBar {
+            NavigationBarItem(
+                selected = selected == AppSection.PLAY,
+                onClick = onPlay,
+                icon = { Text("▶", modifier = Modifier.clearAndSetSemantics { }) },
+                label = { Text("Play") },
+            )
+            NavigationBarItem(
+                selected = false,
+                onClick = {
+                    context.startActivity(Intent(context, DailyChallengeActivity::class.java))
+                },
+                icon = { Text("☀", modifier = Modifier.clearAndSetSemantics { }) },
+                label = { Text("Daily") },
+            )
+            NavigationBarItem(
+                selected = false,
+                onClick = {
+                    context.startActivity(Intent(context, FriendChallengeActivity::class.java))
+                },
+                icon = { Text("↔", modifier = Modifier.clearAndSetSemantics { }) },
+                label = { Text("Friends") },
+            )
+            NavigationBarItem(
+                selected = selected == AppSection.SCORES,
+                onClick = onScores,
+                icon = { Text("★", modifier = Modifier.clearAndSetSemantics { }) },
+                label = { Text("Scores") },
+            )
+            NavigationBarItem(
+                selected = selected == AppSection.SETTINGS,
+                onClick = onSettings,
+                icon = { Text("⚙", modifier = Modifier.clearAndSetSemantics { }) },
+                label = { Text("Settings") },
+            )
+        }
     }
 }
 
