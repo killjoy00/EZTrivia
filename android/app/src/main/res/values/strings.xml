@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">EZ Trivia</string>
+    <string name="game_services_project_id" translatable="false">406580555223</string>
 </resources>
