@@ -9,6 +9,7 @@ on:
       - android/app/src/androidTest/**
       - android/app/src/main/**
       - android/app/build.gradle.kts
+      - Scripts/upload_play_screenshots.py
   workflow_dispatch:
 
 permissions:
@@ -25,9 +26,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.6.0"
+
+      - name: Install Play API auth client
+        run: pip install --quiet google-auth requests
 
       - name: Enable KVM
         run: |
@@ -46,7 +54,12 @@ jobs:
           disable-animations: true
           script: cd android && gradle connectedDebugAndroidTest --stacktrace && cd .. && mkdir -p play-store-screenshots && adb shell ls -la /sdcard/Android/data/com.rsm.eztrivia/files/play-store-screenshots && adb pull /sdcard/Android/data/com.rsm.eztrivia/files/play-store-screenshots/. play-store-screenshots/ && file play-store-screenshots/*.png
 
-      - name: Upload screenshots
+      - name: Upload screenshots to Play listing
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: python Scripts/upload_play_screenshots.py
+
+      - name: Archive screenshots
         uses: actions/upload-artifact@v4
         with:
           name: android-play-store-screenshots
