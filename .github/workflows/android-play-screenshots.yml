@@ -44,14 +44,7 @@ jobs:
           profile: pixel_2
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
-          script: |
-            cd android
-            gradle connectedDebugAndroidTest --stacktrace
-            cd ..
-            mkdir -p play-store-screenshots
-            adb shell ls -la /sdcard/Android/data/com.rsm.eztrivia/files/play-store-screenshots
-            adb pull /sdcard/Android/data/com.rsm.eztrivia/files/play-store-screenshots/. play-store-screenshots/
-            file play-store-screenshots/*.png
+          script: cd android && gradle connectedDebugAndroidTest --stacktrace && cd .. && mkdir -p play-store-screenshots && adb shell ls -la /sdcard/Android/data/com.rsm.eztrivia/files/play-store-screenshots && adb pull /sdcard/Android/data/com.rsm.eztrivia/files/play-store-screenshots/. play-store-screenshots/ && file play-store-screenshots/*.png
 
       - name: Upload screenshots
         uses: actions/upload-artifact@v4
