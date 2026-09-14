@@ -1,14 +1,16 @@
-name: Android Play Store Screenshots
+name: Android Play Store Images
 
 on:
   push:
     branches:
-      - android-play-screenshots
+      - android-play-feature-graphic
     paths:
       - .github/workflows/android-play-screenshots.yml
       - android/app/src/androidTest/**
       - android/app/src/main/**
       - android/app/build.gradle.kts
+      - EZTriviaApp/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+      - Scripts/make_play_feature_graphic.py
       - Scripts/upload_play_screenshots.py
   workflow_dispatch:
 
@@ -16,7 +18,7 @@ permissions:
   contents: read
 
 jobs:
-  screenshots:
+  play-images:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -34,6 +36,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.6.0"
+
+      - name: Install Play image dependencies
+        run: pip install --quiet pillow requests
+
+      - name: Generate feature graphic
+        run: |
+          python Scripts/make_play_feature_graphic.py
+          file play-store-assets/feature-graphic.png
 
       - name: Enable KVM
         run: |
@@ -72,18 +82,17 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
           create_credentials_file: false
 
-      - name: Install screenshot uploader dependency
-        run: pip install --quiet requests
-
-      - name: Upload screenshots to Play listing
+      - name: Upload images to Play listing
         env:
           GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: python Scripts/upload_play_screenshots.py
 
-      - name: Archive screenshots
+      - name: Archive Play listing images
         uses: actions/upload-artifact@v4
         with:
-          name: android-play-store-screenshots
-          path: play-store-screenshots/*.png
+          name: android-play-store-images
+          path: |
+            play-store-screenshots/*.png
+            play-store-assets/feature-graphic.png
           if-no-files-found: error
           retention-days: 30
