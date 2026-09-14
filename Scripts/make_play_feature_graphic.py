@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "EZTriviaApp/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png"
@@ -65,6 +65,72 @@ def fit_text(draw: ImageDraw.ImageDraw, text: str, max_width: int, start_size: i
     return font(min_size, bold=bold)
 
 
+def rounded_icon(source: Image.Image, size: int, radius: int) -> Image.Image:
+    icon = source.convert("RGBA")
+    icon.thumbnail((size, size), Image.Resampling.LANCZOS)
+    mask = Image.new("L", icon.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (0, 0, icon.width - 1, icon.height - 1),
+        radius=radius,
+        fill=255,
+    )
+    mask = ImageChops.multiply(icon.getchannel("A"), mask)
+    icon.putalpha(mask)
+    return icon
+
+
+def feature_chips(
+    draw: ImageDraw.ImageDraw,
+    x: int,
+    y: int,
+    max_width: int,
+) -> None:
+    labels = ("Quick Play", "Daily Challenge", "Friend battles")
+    gap = 10
+    horizontal_padding = 17
+    vertical_padding = 10
+
+    selected_font = None
+    widths: list[int] = []
+    for size in range(19, 14, -1):
+        candidate = font(size, bold=True)
+        candidate_widths = []
+        for label in labels:
+            left, top, right, bottom = draw.textbbox((0, 0), label, font=candidate)
+            candidate_widths.append((right - left) + horizontal_padding * 2)
+        if sum(candidate_widths) + gap * (len(labels) - 1) <= max_width:
+            selected_font = candidate
+            widths = candidate_widths
+            break
+    if selected_font is None:
+        selected_font = font(14, bold=True)
+        widths = []
+        for label in labels:
+            left, top, right, bottom = draw.textbbox((0, 0), label, font=selected_font)
+            widths.append((right - left) + horizontal_padding * 2)
+
+    cursor = x
+    chip_height = 43
+    for label, chip_width in zip(labels, widths):
+        draw.rounded_rectangle(
+            (cursor, y, cursor + chip_width, y + chip_height),
+            radius=chip_height // 2,
+            fill=(14, 8, 65, 72),
+            outline=(255, 255, 255, 38),
+            width=1,
+        )
+        bbox = draw.textbbox((0, 0), label, font=selected_font)
+        text_height = bbox[3] - bbox[1]
+        text_y = y + (chip_height - text_height) // 2 - bbox[1]
+        draw.text(
+            (cursor + horizontal_padding, text_y),
+            label,
+            font=selected_font,
+            fill=WHITE,
+        )
+        cursor += chip_width + gap
+
+
 def main() -> int:
     if not SOURCE.exists():
         raise SystemExit(f"missing source icon: {SOURCE}")
@@ -78,7 +144,7 @@ def main() -> int:
     # Quiet trivia texture: visible enough to add energy, subtle enough to keep
     # the art legible when Play displays it as a small card.
     texture_font = font(72, bold=True)
-    for x, y, alpha in ((24, 38, 25), (215, 395, 20), (900, 44, 24), (818, 350, 18)):
+    for x, y, alpha in ((24, 38, 25), (215, 395, 20), (900, 44, 24), (928, 398, 13)):
         draw.text((x, y), "?", font=texture_font, fill=(255, 255, 255, alpha))
     for x, y, radius, fill in (
         (410, 58, 5, (*GOLD, 115)),
@@ -90,14 +156,12 @@ def main() -> int:
 
     # Place the real shipped icon, not invented UI, so the listing art remains
     # faithful to the app even as gameplay screens evolve.
-    icon = Image.open(SOURCE).convert("RGBA")
-    icon.thumbnail((304, 304), Image.Resampling.LANCZOS)
+    icon = rounded_icon(Image.open(SOURCE), size=304, radius=58)
     icon_x = 72
     icon_y = (HEIGHT - icon.height) // 2
 
     shadow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-    shadow_mask = icon.getchannel("A")
-    soft_mask = shadow_mask.filter(ImageFilter.GaussianBlur(18))
+    soft_mask = icon.getchannel("A").filter(ImageFilter.GaussianBlur(18))
     shadow_patch = Image.new("RGBA", icon.size, (7, 4, 35, 160))
     shadow_patch.putalpha(soft_mask.point(lambda value: int(value * 0.62)))
     shadow.alpha_composite(shadow_patch, (icon_x + 12, icon_y + 20))
@@ -108,9 +172,19 @@ def main() -> int:
     text_x = 430
     max_text_width = WIDTH - text_x - 62
 
-    eyebrow_font = font(22, bold=True)
-    draw.rounded_rectangle((text_x, 79, text_x + 282, 119), radius=20, fill=(255, 255, 255, 25), outline=(255, 255, 255, 46), width=1)
-    draw.text((text_x + 21, 86), "TRIVIA • DAILY • FRIENDS", font=eyebrow_font, fill=SOFT_WHITE)
+    eyebrow = "TRIVIA • DAILY • FRIENDS"
+    eyebrow_font = fit_text(draw, eyebrow, 270, start_size=20, min_size=17, bold=True)
+    eyebrow_bbox = draw.textbbox((0, 0), eyebrow, font=eyebrow_font)
+    eyebrow_width = eyebrow_bbox[2] - eyebrow_bbox[0]
+    pill_width = eyebrow_width + 38
+    draw.rounded_rectangle(
+        (text_x, 79, text_x + pill_width, 119),
+        radius=20,
+        fill=(255, 255, 255, 25),
+        outline=(255, 255, 255, 46),
+        width=1,
+    )
+    draw.text((text_x + 19, 87), eyebrow, font=eyebrow_font, fill=SOFT_WHITE)
 
     title = "EZ Trivia"
     title_font = fit_text(draw, title, max_text_width, start_size=86, min_size=66, bold=True)
@@ -119,24 +193,17 @@ def main() -> int:
     tagline_font = font(39, bold=True)
     draw.text((text_x, 244), "Play. Learn. Compete.", font=tagline_font, fill=(255, 230, 163))
 
+    detail = "2,341 questions • 16 categories • 3 difficulty levels"
     detail_font = fit_text(
         draw,
-        "2,341 questions • 16 categories • 3 difficulty levels",
+        detail,
         max_text_width,
         start_size=24,
         min_size=18,
     )
-    draw.text(
-        (text_x, 309),
-        "2,341 questions • 16 categories • 3 difficulty levels",
-        font=detail_font,
-        fill=SOFT_WHITE,
-    )
+    draw.text((text_x, 309), detail, font=detail_font, fill=SOFT_WHITE)
 
-    # A short underline/callout gives the right side a finished visual anchor.
-    draw.rounded_rectangle((text_x, 365, text_x + 392, 416), radius=25, fill=(14, 8, 65, 72), outline=(255, 255, 255, 34), width=1)
-    callout_font = font(23, bold=True)
-    draw.text((text_x + 22, 377), "Quick Play • Daily Challenge • Friend battles", font=callout_font, fill=WHITE)
+    feature_chips(draw, text_x, 365, max_text_width)
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     final = canvas.convert("RGB")
