@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,7 @@ import com.rsm.eztrivia.reminder.DailyReminderScheduler
 import com.rsm.eztrivia.reminder.NotificationPermission
 import java.text.DateFormat
 import java.util.Calendar
+import java.util.Date
 import kotlinx.coroutines.launch
 
 @Composable
@@ -57,12 +59,15 @@ fun SettingsScreen(
     onScores: () -> Unit,
 ) {
     val context = LocalContext.current
+    val activity = LocalActivity.current as? MainActivity
     val scope = rememberCoroutineScope()
     val scheduler = remember(context.applicationContext) {
         DailyReminderScheduler(context.applicationContext)
     }
-    val playGamesManager = (context as? MainActivity)?.playGamesManager
+    val playGamesManager = activity?.playGamesManager
     val playGamesConnection = playGamesManager?.connection?.collectAsState()?.value
+    val savedGamesManager = activity?.savedGamesManager
+    val savedGamesState = savedGamesManager?.state?.collectAsState()?.value
     var permissionRevision by remember { mutableIntStateOf(0) }
     val playedDays = playerState.dailyResultsByDay.keys
     val notificationsAllowed = remember(permissionRevision, settings.streakRemindersEnabled) {
@@ -260,10 +265,41 @@ fun SettingsScreen(
                         )
                         playGamesConnection.isAuthenticated -> {
                             Text(
-                                "Connected. Achievements, category lifetime scores, and today's Daily score sync automatically to Google Play Games.",
+                                "Connected. Player progress, achievements, category lifetime scores, and today's Daily score sync automatically to Google Play Games.",
                                 modifier = Modifier.padding(16.dp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            if (savedGamesState != null) {
+                                HorizontalDivider()
+                                Text(
+                                    when {
+                                        savedGamesState.isSyncing -> "Progress sync: syncing now…"
+                                        savedGamesState.lastSyncedAtMillis != null ->
+                                            "Progress sync: last completed ${dateTimeLabel(savedGamesState.lastSyncedAtMillis)}"
+                                        else -> "Progress sync: waiting for the first cloud save."
+                                    },
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                savedGamesState.errorMessage?.let { error ->
+                                    Text(
+                                        error,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = { savedGamesManager.syncNow() },
+                                    enabled = !savedGamesState.isSyncing,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                                ) {
+                                    Text("Sync progress now")
+                                }
+                            }
                             OutlinedButton(
                                 onClick = { playGamesManager.showAchievements() },
                                 modifier = Modifier
@@ -311,7 +347,7 @@ fun SettingsScreen(
             item {
                 SettingsSection(title = "Progress") {
                     Text(
-                        "Gameplay history, seen questions, and settings remain stored locally on this device. When Play Games is connected, achievements and leaderboard scores are mirrored there; full cross-device gameplay sync is a separate feature.",
+                        "Gameplay remains stored locally first. When Google Play Games is connected, EZ Trivia also merges gameplay history, question progress, lifetime points, and achievements through Saved Games so independent offline progress from multiple Android devices is preserved instead of using a last-device-wins overwrite.",
                         modifier = Modifier.padding(16.dp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -399,3 +435,6 @@ private fun hourLabel(hour: Int): String {
     }
     return DateFormat.getTimeInstance(DateFormat.SHORT).format(calendar.time)
 }
+
+private fun dateTimeLabel(millis: Long): String =
+    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(millis))
