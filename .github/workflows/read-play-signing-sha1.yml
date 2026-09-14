@@ -57,4 +57,6 @@ jobs:
             "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.rsm.eztrivia/generatedApks/1/downloads/${DOWNLOAD_ID}:download" \
             -o "$APK"
 
-          keytool -printcert -jarfile "$APK" | grep -E '^SHA1:'
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --print-certs "$APK" | grep -F 'Signer #1 certificate SHA-1 digest:'
