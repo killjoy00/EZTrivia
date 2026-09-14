@@ -44,6 +44,8 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Run screenshot instrumentation
+        id: capture
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -52,7 +54,16 @@ jobs:
           profile: pixel_2
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
-          script: cd android && gradle connectedDebugAndroidTest --stacktrace && cd .. && mkdir -p play-store-screenshots && adb shell ls -la /sdcard/Android/data/com.rsm.eztrivia/files/play-store-screenshots && adb pull /sdcard/Android/data/com.rsm.eztrivia/files/play-store-screenshots/. play-store-screenshots/ && file play-store-screenshots/*.png
+          script: cd android; gradle connectedDebugAndroidTest --stacktrace; status=$?; cd ..; if [ "$status" -eq 0 ]; then mkdir -p play-store-screenshots; adb shell ls -la /sdcard/Android/data/com.rsm.eztrivia/files/play-store-screenshots; adb pull /sdcard/Android/data/com.rsm.eztrivia/files/play-store-screenshots/. play-store-screenshots/; file play-store-screenshots/*.png; fi; exit "$status"
+
+      - name: Surface screenshot test failures
+        if: always()
+        run: |
+          find android/app/build/outputs/androidTest-results/connected -type f -name '*.xml' -print -exec cat {} \; 2>/dev/null || true
+
+      - name: Stop on failed screenshot tests
+        if: steps.capture.outcome != 'success'
+        run: exit 1
 
       - name: Upload screenshots to Play listing
         env:
