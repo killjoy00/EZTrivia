@@ -26,6 +26,16 @@ object PlayGamesIds {
         "EZTrivia.local.streak_100" to "CgkI19vb0OoLEAIQEw",
     )
 
+    /** Standard achievements unlock atomically; the rest are configured as 100-step incremental achievements. */
+    val standardAchievementAppIds: Set<String> = setOf(
+        "EZTrivia.achievement.first_round",
+        "EZTrivia.achievement.perfect_easy",
+        "EZTrivia.achievement.perfect_medium",
+        "EZTrivia.achievement.perfect_hard",
+        "EZTrivia.local.quick_play_1",
+        "EZTrivia.local.daily_perfect",
+    )
+
     const val dailyLeaderboard = "CgkI19vb0OoLEAIQFA"
 
     val categoryLeaderboards: Map<TriviaCategory, String> = mapOf(
