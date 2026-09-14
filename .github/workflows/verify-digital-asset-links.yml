@@ -36,6 +36,7 @@ jobs:
           import json
           import os
           import re
+          import time
           import urllib.error
           import urllib.request
 
@@ -124,8 +125,22 @@ jobs:
               if not play_fingerprints:
                   raise RuntimeError("Google Play returned no generated APK signing fingerprints for any discovered version code")
 
-              with urllib.request.urlopen(assetlinks_url, timeout=60) as response:
-                  assetlinks = json.load(response)
+              print(f"Play version code with generated APK metadata: {successful_version}")
+              print("Google Play signing SHA-256 fingerprints:")
+              for fingerprint in play_fingerprints:
+                  print(f"  {fingerprint}")
+
+              assetlinks = None
+              for attempt in range(1, 13):
+                  try:
+                      with urllib.request.urlopen(assetlinks_url, timeout=60) as response:
+                          assetlinks = json.load(response)
+                      break
+                  except urllib.error.HTTPError as exc:
+                      print(f"assetlinks fetch attempt {attempt}: HTTP {exc.code}")
+                      if attempt == 12:
+                          raise
+                      time.sleep(5)
 
               site_fingerprints = []
               has_relation = False
@@ -140,10 +155,6 @@ jobs:
                       if fp not in site_fingerprints:
                           site_fingerprints.append(fp)
 
-              print(f"Play version code with generated APK metadata: {successful_version}")
-              print("Google Play signing SHA-256 fingerprints:")
-              for fingerprint in play_fingerprints:
-                  print(f"  {fingerprint}")
               print("Live assetlinks.json SHA-256 fingerprints:")
               for fingerprint in site_fingerprints:
                   print(f"  {fingerprint}")
