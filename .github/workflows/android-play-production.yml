@@ -21,14 +21,6 @@ on:
         required: true
         default: false
         type: boolean
-  # Temporary branch-only probe. Remove before merge so the final workflow is manual-only.
-  push:
-    branches:
-      - android-production-pgs-guard
-    paths:
-      - Scripts/play_production_candidate.py
-      - Scripts/audit_play_games.py
-      - .github/workflows/android-play-production.yml
 
 permissions:
   contents: read
@@ -58,9 +50,9 @@ jobs:
         id: production
         env:
           GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
-          MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'audit' }}
-          VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '' }}
-          CONFIRM_PRODUCTION: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_production || false }}
+          MODE: ${{ inputs.mode }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          CONFIRM_PRODUCTION: ${{ inputs.confirm_production }}
           OUTPUT: ${{ runner.temp }}/play-production-candidate.json
         shell: bash
         run: |
