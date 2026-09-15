@@ -99,6 +99,63 @@ jobs:
       - name: Assemble release APK (exercises R8)
         run: gradle assembleRelease --stacktrace
 
+      - name: Audit packaged Play manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -f "$apk"
+
+          apkanalyzer="$(command -v apkanalyzer || true)"
+          if [ -z "$apkanalyzer" ]; then
+            apkanalyzer="$(find "$ANDROID_HOME/cmdline-tools" -type f -name apkanalyzer -print -quit 2>/dev/null || true)"
+          fi
+          if [ -z "$apkanalyzer" ] || [ ! -x "$apkanalyzer" ]; then
+            echo "::error::apkanalyzer is unavailable on the Android runner"
+            exit 1
+          fi
+
+          application_id="$($apkanalyzer manifest application-id "$apk")"
+          target_sdk="$($apkanalyzer manifest target-sdk "$apk")"
+          debuggable="$($apkanalyzer manifest debuggable "$apk")"
+          permissions="$($apkanalyzer manifest permissions "$apk")"
+
+          echo "Application ID: $application_id"
+          echo "Target SDK: $target_sdk"
+          echo "Debuggable: $debuggable"
+          printf '%s\n' "$permissions"
+
+          [ "$application_id" = "com.rsm.eztrivia" ] || {
+            echo "::error::Unexpected packaged application ID: $application_id"
+            exit 1
+          }
+          [ "$target_sdk" = "36" ] || {
+            echo "::error::Unexpected packaged target SDK: $target_sdk"
+            exit 1
+          }
+          [ "$debuggable" = "false" ] || {
+            echo "::error::Release APK must not be debuggable"
+            exit 1
+          }
+          grep -Fq 'com.google.android.gms.permission.AD_ID' <<< "$permissions" || {
+            echo "::error::Google Mobile Ads is present but packaged AD_ID permission is missing; Play Advertising ID declaration/release behavior would drift"
+            exit 1
+          }
+          if grep -Eq 'android\.permission\.ACCESS_(FINE|COARSE)_LOCATION' <<< "$permissions"; then
+            echo "::error::Release APK unexpectedly requests Android location permission"
+            exit 1
+          fi
+
+          {
+            echo '## Android packaged manifest audit'
+            echo
+            echo "- Application ID: **$application_id**"
+            echo "- Target SDK: **$target_sdk**"
+            echo "- Release debuggable: **$debuggable**"
+            echo '- Google Play Advertising ID permission: **present**'
+            echo '- Fine/coarse Android location permissions: **absent**'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Bundle release AAB (Play packaging check)
         run: gradle bundleRelease --stacktrace
 
