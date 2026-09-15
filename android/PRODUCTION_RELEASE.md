@@ -35,17 +35,38 @@ As of September 15, 2026, the public Google Play Android Publisher v3 reference 
 
 - Ads declaration;
 - App access;
+- Advertising ID;
 - Target audience and content;
 - IARC Content rating.
 
-Google also documents a newer **App Store Review API** that contains policy declarations for ads, access details, target audience, and similar fields. That API is specifically for third-party app stores participating in Google's third-party app-store program and the apps those stores host. It is not the API for editing EZ Trivia's Google Play Console App content declarations, so it must not be used as a workaround here.
+Google also documents a newer **App Store Review API** that contains policy declarations for ads, access details, Advertising ID, target audience, and similar fields. That API is specifically for third-party app stores participating in Google's third-party app-store program and the apps those stores host. It is not the API for editing EZ Trivia's Google Play Console App content declarations, so it must not be used as a workaround here.
 
-Result: Data Safety remains automated; the four forms above remain Play Console completion/verification steps unless Google adds a supported Google Play-hosted API.
+Result: Data Safety remains automated; the forms above remain Play Console completion/verification steps unless Google adds a supported Google Play-hosted API.
 
 Official references:
 
 - https://developers.google.com/android-publisher/api-ref/rest
 - https://developers.google.com/android-publisher/app-store-review
+
+## Advertising ID evidence and declaration
+
+EZ Trivia targets Android API 36 and depends on Google Mobile Ads SDK `25.4.0`. Google Mobile Ads versions 20.4.0 and newer declare `com.google.android.gms.permission.AD_ID` in the SDK library manifest, so Android's manifest merger places that permission in the packaged app even though EZ Trivia's source `AndroidManifest.xml` does not declare it directly.
+
+This is not theoretical: the release APK produced by Android CI on September 15, 2026 was independently inspected and contains `com.google.android.gms.permission.AD_ID`. The Android CI workflow now repeats that check on every release APK and also asserts that the packaged application ID is `com.rsm.eztrivia`, target SDK is `36`, the release is not debuggable, and no fine/coarse Android location permission is present.
+
+For the Google Play **Advertising ID** declaration, the repository evidence therefore supports:
+
+- **Does the app use advertising ID?** Yes.
+- **Purposes:** Advertising or marketing; Analytics; Fraud prevention, security, and compliance.
+
+Those purposes match Google's current data-disclosure documentation for Google Mobile Ads 25.4.0, which says the SDK automatically collects/shares device and account identifiers (including Android advertising ID) for advertising, analytics, and fraud-prevention purposes. Do not select unrelated purposes such as account management or developer communications merely because the form offers them.
+
+If the app later intentionally disables Android ad ID collection (for example by removing the SDK permission through manifest-merger rules), update the Play Advertising ID declaration and Data Safety reasoning in the same change. The CI packaged-manifest guard is intentionally designed to fail first so that such a change cannot happen silently.
+
+References:
+
+- https://support.google.com/googleplay/android-developer/answer/6048248
+- https://developers.google.com/admob/android/privacy/play-data-disclosure
 
 ## Gates before the Production commit
 
@@ -56,7 +77,7 @@ Do not run `promote` until the exact candidate version has passed the launch gat
 - Play-installed consent/banner/Remove Ads purchase/restore/refund behavior is validated;
 - Saved Games is enabled and the two-device offline conflict/reconnect test passes;
 - Play Games Services runtime testing passes and the PGS configuration is published;
-- Ads, App access, Target audience, and Content rating are complete;
+- Ads, App access, Advertising ID, Target audience, and Content rating are complete;
 - final Production country/device availability is reviewed in Play Console.
 
 The workflow intentionally does not pretend those external/manual gates are machine-verifiable when the relevant public API does not expose them.
