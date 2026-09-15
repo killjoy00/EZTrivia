@@ -63,7 +63,7 @@ For a real launch candidate, first build/upload the new version through `Android
 As of September 15, 2026, the public Google Play Android Publisher v3 reference exposes the Google Play-hosted Data Safety submission endpoint (`applications.dataSafety`) but does not expose Google Play-hosted endpoints for these remaining App content forms:
 
 - Ads declaration;
-- App access;
+- App access / Sign-in details;
 - Advertising ID;
 - Target audience and content;
 - IARC Content rating.
@@ -83,20 +83,31 @@ Core EZ Trivia gameplay does not require an EZ Trivia account, membership, subsc
 
 However, achievements, leaderboards, and Saved Games are authenticated Google Play Games features. While the PGS project is unpublished, those features are restricted to allowlisted PGS testers. That state is **not suitable for final Production review**, because Google's documentation says non-tester accounts can receive OAuth/404 failures against unpublished PGS endpoints.
 
-After PGS is published, the reviewer path is:
+Google's current Play review requirements are stricter than simply saying that core gameplay is open: if **any part** of an app is restricted by login/sign-in/authentication, the developer must provide reusable access information. Google explicitly includes sign-in mechanisms involving other accounts such as **Sign in with Google**. The credentials/instructions must remain valid, reusable, accessible regardless of reviewer location, and must not depend on an expiring one-time code.
 
-1. launch EZ Trivia; no app-specific login is required;
-2. all normal trivia modes, Scores, Settings, Daily Challenge, Friend Challenge, and Remove Ads UI are reachable without an EZ Trivia account;
-3. for optional Play Games features, use the Google Play Games profile configured on the review device;
-4. if automatic Play Games authentication does not complete, open **Settings > Google Play Games > Connect Google Play Games**;
-5. achievements, leaderboards, and Saved Games then use that Play Games identity. EZ Trivia has no separate username/password to provide.
+Therefore, before final Production review:
 
-Google's current review guidance says that if all or part of an app is restricted by authentication, the App access / Sign-in details declaration must provide enough instructions and access resources for review. Because EZ Trivia's restricted features use Google's own Play Games identity rather than a developer-run account, the production declaration should explicitly explain this path. Do not claim that unpublished PGS features are publicly accessible, and do not provide a personal production-user credential as a workaround.
+1. complete PGS runtime testing and publish the PGS project first;
+2. create a dedicated **non-personal** Google account / Play Games profile for review access;
+3. verify that account can authenticate to the published EZ Trivia PGS project and reach achievements, leaderboards, and Saved Games;
+4. enter that account and the English review instructions in **Play Console → App content → Sign-in details**;
+5. do not store or paste those reviewer credentials in GitHub, repository docs, CI logs, or chat.
+
+The reviewer instructions should explain:
+
+- launch EZ Trivia; no EZ Trivia-specific login is required for core gameplay;
+- use the supplied Google/Play Games review account for optional Play Games functionality;
+- if automatic authentication does not complete, open **Settings → Google Play Games → Connect Google Play Games**;
+- achievements, leaderboards, and Saved Games use that Google Play Games identity;
+- all normal trivia modes remain available without a separate EZ Trivia account.
+
+If review occurs before PGS publication for some reason, that dedicated account would also have to be allowlisted as a PGS tester; the preferred launch order is to publish PGS first so final review exercises the same public configuration players will use.
 
 References:
 
 - https://support.google.com/googleplay/android-developer/answer/9859455
 - https://support.google.com/googleplay/android-developer/answer/15748846
+- https://support.google.com/googleplay/android-developer/answer/10788890
 - https://developer.android.com/games/pgs/console/publish
 
 ## Advertising ID evidence and declaration
@@ -128,7 +139,8 @@ Do not run `promote` until the exact candidate version has passed the launch gat
 - Play-installed consent/banner/Remove Ads purchase/restore/refund behavior is validated;
 - Saved Games is enabled and the two-device offline conflict/reconnect test passes;
 - Play Games Services runtime testing passes and the PGS configuration is published;
-- Ads, App access, Advertising ID, Target audience, and Content rating are complete;
+- a reusable non-personal Google/Play Games reviewer account and Sign-in details instructions are entered in Play Console;
+- Ads, Advertising ID, Target audience, and Content rating are complete;
 - final Production country/device availability is reviewed in Play Console.
 
 The workflow intentionally does not pretend those external/manual gates are machine-verifiable when the relevant public API does not expose them. It does, however, block Production when the Play Games Publishing API still shows compiled achievements or leaderboards without published metadata.
