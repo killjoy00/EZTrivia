@@ -1,0 +1,72 @@
+name: Play release lifecycle audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/play-release-lifecycle-audit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PACKAGE_NAME: com.rsm.eztrivia
+      CLOSED_TRACK: production-access
+    steps:
+      - name: Authenticate to Google Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Read live release lifecycle states
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/tracks"
+
+          get_releases() {
+            local track="$1"
+            local output="$2"
+            curl --fail-with-body --silent --show-error \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -H "Accept: application/json" \
+              "${base}/${track}/releases" > "$output"
+          }
+
+          get_releases "$CLOSED_TRACK" "$RUNNER_TEMP/closed-releases.json"
+          get_releases "internal" "$RUNNER_TEMP/internal-releases.json"
+
+          echo "PLAY_RELEASE_LIFECYCLE_BEGIN"
+          jq -r '.releases[]? | "track=\(.track) releaseName=\(.releaseName) versionCodes=\([.activeArtifacts[]?.versionCode] | join(",")) lifecycle=\(.releaseLifecycleState)"' "$RUNNER_TEMP/closed-releases.json"
+          echo "PLAY_RELEASE_LIFECYCLE_END"
+
+          echo "INTERNAL_RELEASE_LIFECYCLE_BEGIN"
+          jq -r '.releases[]? | "track=\(.track) releaseName=\(.releaseName) versionCodes=\([.activeArtifacts[]?.versionCode] | join(",")) lifecycle=\(.releaseLifecycleState)"' "$RUNNER_TEMP/internal-releases.json"
+          echo "INTERNAL_RELEASE_LIFECYCLE_END"
+
+          jq -n \
+            --arg packageName "$PACKAGE_NAME" \
+            --arg closedTrack "$CLOSED_TRACK" \
+            --argjson closed "$(cat "$RUNNER_TEMP/closed-releases.json")" \
+            --argjson internal "$(cat "$RUNNER_TEMP/internal-releases.json")" \
+            '{packageName:$packageName,closedTrack:$closedTrack,closedReleases:$closed.releases,internalReleases:$internal.releases}' \
+            > "$RUNNER_TEMP/play-release-lifecycle.json"
+
+      - name: Archive lifecycle evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-play-release-lifecycle
+          path: ${{ runner.temp }}/play-release-lifecycle.json
+          if-no-files-found: error
+          retention-days: 30
