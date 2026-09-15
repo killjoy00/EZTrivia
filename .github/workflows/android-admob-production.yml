@@ -7,6 +7,11 @@ on:
       - Scripts/configure_admob_android.py
       - android/ADMOB.md
       - android/RELEASE.md
+  push:
+    branches:
+      - android-admob-production
+    paths:
+      - .github/workflows/android-admob-production.yml
   workflow_dispatch:
     inputs:
       create_missing:
@@ -39,7 +44,7 @@ jobs:
           python Scripts/configure_admob_android.py --help >/dev/null
 
   configure:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request'
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -71,11 +76,13 @@ jobs:
       - name: Configure or verify Android AdMob inventory
         env:
           ADMOB_OAUTH_CREDENTIALS_JSON: ${{ secrets.ADMOB_OAUTH_CREDENTIALS_JSON }}
-          ADMOB_PUBLISHER_ID: ${{ inputs.publisher_id }}
+          INPUT_PUBLISHER_ID: ${{ inputs.publisher_id }}
+          INPUT_CREATE_MISSING: ${{ inputs.create_missing }}
         run: |
           set -euo pipefail
-          args=(--publisher-id "$ADMOB_PUBLISHER_ID" --output "$RUNNER_TEMP/eztrivia-admob.json")
-          if [[ "${{ inputs.create_missing }}" == "true" ]]; then
+          publisher_id="${INPUT_PUBLISHER_ID:-pub-1217971050094766}"
+          args=(--publisher-id "$publisher_id" --output "$RUNNER_TEMP/eztrivia-admob.json")
+          if [[ "$GITHUB_EVENT_NAME" == "push" || "$INPUT_CREATE_MISSING" == "true" ]]; then
             args+=(--create)
           fi
           python Scripts/configure_admob_android.py "${args[@]}"
