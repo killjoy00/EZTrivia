@@ -117,8 +117,13 @@ def main() -> None:
             "Play rejected the store basics edit during validation",
         )
         require(
-            session.post(f"{app_base}/edits/{edit_id}:commit", json={}, timeout=60),
-            "Could not commit Play store basics edit",
+            session.post(
+                f"{app_base}/edits/{edit_id}:commit",
+                params={"changesInReviewBehavior": "ERROR_IF_IN_REVIEW"},
+                json={},
+                timeout=60,
+            ),
+            "Could not commit Play store basics edit without disturbing an existing review",
         )
         committed = True
         edit_id = None
