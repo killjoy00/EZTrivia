@@ -69,7 +69,16 @@ jobs:
             exit 1
           fi
           if [[ -z "$ADMOB_APP_ID" || -z "$ADMOB_BANNER_ID" ]]; then
-            echo "::warning::Android AdMob secrets are not set; this Internal Testing build will use Google's sample ad IDs and must not be promoted to production"
+            echo "::error::Missing ANDROID_ADMOB_APP_ID / ANDROID_ADMOB_BANNER_ID. Signed Play builds must use production AdMob inventory; see android/ADMOB.md"
+            exit 1
+          fi
+          if ! [[ "$ADMOB_APP_ID" =~ ^ca-app-pub-1217971050094766~[0-9]+$ ]]; then
+            echo "::error::ANDROID_ADMOB_APP_ID is not an Android app ID for the expected EZ Trivia publisher"
+            exit 1
+          fi
+          if ! [[ "$ADMOB_BANNER_ID" =~ ^ca-app-pub-1217971050094766/[0-9]+$ ]]; then
+            echo "::error::ANDROID_ADMOB_BANNER_ID is not a banner ad-unit ID for the expected EZ Trivia publisher"
+            exit 1
           fi
 
       - name: Materialize upload keystore

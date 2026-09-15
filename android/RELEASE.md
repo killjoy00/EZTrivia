@@ -19,10 +19,12 @@ The Gradle release build accepts release inputs through environment variables:
 - `ANDROID_ADMOB_BANNER_ID` — Android banner ad-unit ID (`ca-app-pub-.../...`)
 
 When the signing variables are absent, the release build stays unsigned. That is
-the mode used by ordinary CI. When the AdMob variables are absent, the build
-uses Google's official sample Android app/banner IDs so CI can compile, shrink,
-and package the advertising code without committing production credentials.
-Production releases must provide the Android-specific real IDs.
+the mode used by ordinary CI. When the AdMob variables are absent, a direct
+Gradle build uses Google's official sample Android app/banner IDs so CI can
+compile, shrink, and package the advertising code without production inventory.
+The signed GitHub Play workflow is stricter: it refuses to publish a Play build
+unless both production AdMob IDs are present and belong to the expected EZ
+Trivia publisher.
 
 ## 2. Build the signed Play bundle
 
@@ -57,41 +59,52 @@ Use **Play App Signing** in Play Console. The upload key authenticates the bundl
 you upload; Google holds and uses the separate app-signing key that signs APKs
 delivered to players.
 
-After the first bundle is accepted, Play Console exposes the app-signing
-certificate fingerprint. That fingerprint is also required for verified Friend
-Challenge app links.
+The Play app-signing certificate used by the current Internal Testing build has
+already been retrieved from generated APK metadata and verified against the live
+Digital Asset Links statement. See `android/DIGITAL_ASSET_LINKS.md`.
 
 ## 4. Android ads and consent
 
-Create a separate **Android** EZ Trivia app in AdMob for package
-`com.rsm.eztrivia`; do not reuse the iOS AdMob app ID. Create a banner ad unit
-and store both resulting IDs as repository secrets:
+Android uses publisher `pub-1217971050094766`, which is also published in the
+root `https://killjoy00.github.io/app-ads.txt` seller record. It needs its own
+AdMob app entry and Banner unit; do not reuse the iOS app/ad-unit IDs.
+
+AdMob API inventory management cannot use the Play service account. Google
+requires OAuth from an authenticated AdMob user. The repository therefore has a
+manual **Android AdMob Production** workflow plus
+`Scripts/configure_admob_android.py`. After the one-time OAuth secret described
+in `android/ADMOB.md` is installed, the workflow can discover the Android app
+and Banner unit and attempts to create them if absent. Google's app/ad-unit
+create methods are limited-access, so a 403 means the missing inventory must be
+created once in the AdMob UI and the workflow re-run for verification.
+
+Store the resulting public SDK identifiers as Actions secrets:
 
 - `ANDROID_ADMOB_APP_ID`
 - `ANDROID_ADMOB_BANNER_ID`
 
 The app requests advertising consent through Google's User Messaging Platform
-before making its first ad request. Configure the applicable Privacy & messaging
-message in AdMob before production testing. The banner is suppressed whenever
-UMP says ads cannot yet be requested and after the Remove Ads entitlement is
-owned.
+before making its first ad request. Configure and **publish** the applicable
+Privacy & messaging message in AdMob before production testing. The banner is
+suppressed whenever UMP says ads cannot yet be requested and after the Remove
+Ads entitlement is owned.
 
-The GitHub Internal Testing workflow passes these secrets into Gradle when they
-exist. A build without them is deliberately a sample-ad build and must not be
-promoted to production.
+The signed Internal Testing workflow now requires both production AdMob secrets
+and validates that their publisher prefix matches EZ Trivia. Ordinary unsigned
+CI still uses Google's sample IDs. See `android/ADMOB.md` for the full account,
+OAuth, UMP, and runtime checklist.
 
 ## 5. Google Play Billing — Remove Ads
 
-Create and activate a one-time Google Play product with this exact product ID:
+The active one-time Google Play product uses this exact product ID:
 
     com.rsm.eztrivia.removeads
 
-It should behave as a non-consumable entitlement: the app never consumes the
-purchase. Configure its default purchase option, localized title/description,
-and price in Play Console. The Android client queries Google Play for current
-ownership, acknowledges completed purchases, supports pending purchases, and
-provides a restore/recheck action. A successful ownership query is authoritative,
-so a refund or revocation removes the cached entitlement again.
+It behaves as a non-consumable entitlement: the app never consumes the
+purchase. The Android client queries Google Play for current ownership,
+acknowledges completed purchases, supports pending purchases, and provides a
+restore/recheck action. A successful ownership query is authoritative, so a
+refund or revocation removes the cached entitlement again.
 
 Billing should be tested with a license tester using an app installed from a
 Google Play testing track; a locally sideloaded build is not a valid end-to-end
@@ -142,39 +155,19 @@ not ship until Saved Games is enabled and this two-device test passes.
 ## 7. App Links for Friend Challenge URLs
 
 `AndroidManifest.xml` declares `android:autoVerify="true"` on the
-`https://killjoy00.github.io/EZTrivia/challenge.html` intent filter, so a
-challenge link shared from an iOS player can open the Android app directly.
+`https://killjoy00.github.io/EZTrivia/challenge.html` intent filter.
 
-Verification only succeeds once the **domain** publishes a Digital Asset Links
-file naming this app's signing certificate. Note the path: it is served from the
-domain root, not from this project's `/EZTrivia/` Pages path, so it belongs in
-the `killjoy00.github.io` repository, not this one.
+The root-domain Digital Asset Links statement is live and verified at:
 
     https://killjoy00.github.io/.well-known/assetlinks.json
 
-Contents:
+It names package `com.rsm.eztrivia`, relation
+`delegate_permission/common.handle_all_urls`, and the Google Play app-signing
+SHA-256 certificate. `android/DIGITAL_ASSET_LINKS.md` records the fingerprint and
+the automated verification run. Re-run the manual verifier after any app-signing
+key rotation, package/domain change, or assetlinks edit.
 
-```json
-[
-  {
-    "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.rsm.eztrivia",
-      "sha256_cert_fingerprints": ["PASTE_SHA256_FINGERPRINT_HERE"]
-    }
-  }
-]
-```
-
-Use the **app signing certificate** fingerprint, not the upload certificate:
-Play Console → your app → Test and release → Setup → App signing → *SHA-256
-certificate fingerprint*. Colons included, uppercase hex.
-
-Until that file is live with the right fingerprint, the link still works — it
-just opens in a browser. Nothing regresses in the meantime.
-
-To check verification on a device once it is published:
+To check verification on a device:
 
     adb shell pm get-app-links com.rsm.eztrivia
 
@@ -205,6 +198,9 @@ Saved Games merge contract without requiring live Play Games credentials.
 - Conflict-safe Google Play Games Saved Games client integration and local merge
   bookkeeping; Play Console Saved Games enablement and real two-device runtime
   validation still remain before production.
-- Android AdMob/UMP code path and Google Play Billing Remove Ads code path; the
-  real AdMob IDs, UMP message, and Play product still require console setup and
-  runtime validation before production submission.
+- Android AdMob/UMP code path and Google Play Billing Remove Ads code path.
+- The Google Play Remove Ads product is active; runtime purchase/restore/refund
+  validation still remains.
+- AdMob inventory automation and a production-ID release guard are present; the
+  authenticated AdMob inventory run, published Privacy & messaging configuration,
+  and Play-installed ad/entitlement runtime test remain before production.
