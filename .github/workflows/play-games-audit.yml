@@ -1,0 +1,59 @@
+name: Google Play Games configuration audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - play-games-audit
+    paths:
+      - .github/workflows/play-games-audit.yml
+      - Scripts/audit_play_games.py
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Play APIs
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Audit Play Games resources
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          PLAY_GAMES_AUDIT_OUTPUT: ${{ runner.temp }}/play-games-audit.json
+        run: python Scripts/audit_play_games.py
+
+      - name: Summarize audit
+        env:
+          AUDIT_PATH: ${{ runner.temp }}/play-games-audit.json
+        run: |
+          set -euo pipefail
+          {
+            echo '## Google Play Games configuration audit'
+            echo
+            echo "- Achievements: **$(jq -r '.achievements.count' "$AUDIT_PATH") / $(jq -r '.achievements.expectedCount' "$AUDIT_PATH") expected**"
+            echo "- Achievement published/draft metadata: **$(jq -r '.achievements.publishedMetadataCount' "$AUDIT_PATH") / $(jq -r '.achievements.draftMetadataCount' "$AUDIT_PATH")**"
+            echo "- Leaderboards: **$(jq -r '.leaderboards.count' "$AUDIT_PATH") / $(jq -r '.leaderboards.expectedCount' "$AUDIT_PATH") expected**"
+            echo "- Leaderboard published/draft metadata: **$(jq -r '.leaderboards.publishedMetadataCount' "$AUDIT_PATH") / $(jq -r '.leaderboards.draftMetadataCount' "$AUDIT_PATH")**"
+            echo
+            echo '_Saved Games enablement is not exposed by this Publishing API and still requires Console/runtime verification._'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-play-games-audit
+          path: ${{ runner.temp }}/play-games-audit.json
+          if-no-files-found: error
+          retention-days: 30
