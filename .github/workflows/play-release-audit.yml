@@ -2,6 +2,10 @@ name: Google Play release audit
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/play-release-audit.yml"
 
 permissions:
   contents: read
@@ -22,7 +26,7 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
           create_credentials_file: false
 
-      - name: Audit live Play state
+      - name: Audit live Play state and review state
         env:
           ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
           PACKAGE_NAME: com.rsm.eztrivia
@@ -65,41 +69,66 @@ jobs:
             curl -L -sS -o /dev/null -w '%{http_code}' "$url"
           }
 
+          new_edit() {
+            curl --fail-with-body -sS \
+              -X POST \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{}' \
+              "${base}/edits"
+          }
+
+          delete_edit() {
+            local id="$1"
+            curl -sS -X DELETE \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              "${base}/edits/${id}" >/dev/null || true
+          }
+
           api_get "${base}/oneTimeProducts/${PRODUCT_ID}" > "$work/product.json"
           product_state="$(jq -r '[.purchaseOptions[]? | select(.purchaseOptionId == "buy")][0].state // empty' "$work/product.json")"
           us_price="$(jq -r '[.purchaseOptions[]? | select(.purchaseOptionId == "buy")][0].regionalPricingAndAvailabilityConfigs[]? | select(.regionCode == "US") | .price | ((.units // "0") + "." + (((.nanos // 0) / 10000000 | floor) | tostring | if length == 1 then "0" + . else . end))' "$work/product.json")"
           product_region_count="$(jq '[.purchaseOptions[]? | select(.purchaseOptionId == "buy")][0].regionalPricingAndAvailabilityConfigs // [] | map(select(.availability == "AVAILABLE")) | length' "$work/product.json")"
 
-          curl --fail-with-body -sS \
-            -X POST \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{}' \
-            "${base}/edits" > "$work/edit.json"
-          edit_id="$(jq -r '.id' "$work/edit.json")"
+          # First snapshot. No changes are made to the edit.
+          edit_json="$(new_edit)"
+          edit_id="$(jq -r '.id' <<<"$edit_json")"
           test -n "$edit_id" && test "$edit_id" != "null"
 
-          api_get "${base}/edits/${edit_id}/tracks" > "$work/tracks.json"
+          api_get "${base}/edits/${edit_id}/tracks" > "$work/tracks-before.json"
           api_get "${base}/edits/${edit_id}/bundles" > "$work/bundles.json"
           api_get "${base}/edits/${edit_id}/listings" > "$work/listings.json"
           api_get "${base}/edits/${edit_id}/details" > "$work/details.json"
 
           internal_http="$(http_get "$work/internal.json" "${base}/edits/${edit_id}/tracks/internal")"
           production_http="$(http_get "$work/production.json" "${base}/edits/${edit_id}/tracks/production")"
+          alpha_http="$(http_get "$work/alpha.json" "${base}/edits/${edit_id}/tracks/alpha")"
+          beta_http="$(http_get "$work/beta.json" "${base}/edits/${edit_id}/tracks/beta")"
           [ "$internal_http" = "200" ] || echo '{}' > "$work/internal.json"
           [ "$production_http" = "200" ] || echo '{}' > "$work/production.json"
+          [ "$alpha_http" = "200" ] || echo '{}' > "$work/alpha.json"
+          [ "$beta_http" = "200" ] || echo '{}' > "$work/beta.json"
+
+          echo "PLAY_TRACK_SNAPSHOT_BEFORE_BEGIN"
+          jq -r '.tracks[]? as $track | ($track.releases // [])[]? | "track=\($track.track) versionCodes=\((.versionCodes // []) | join(",")) releaseName=\(.name // "") releaseStatus=\(.status // "")"' "$work/tracks-before.json"
+          echo "PLAY_TRACK_SNAPSHOT_BEFORE_END"
 
           listing_http="$(http_get "$work/listing-en-US.json" "${base}/edits/${edit_id}/listings/en-US")"
           [ "$listing_http" = "200" ] || echo '{}' > "$work/listing-en-US.json"
 
           bundle_count="$(jq '(.bundles // []) | length' "$work/bundles.json")"
-          max_bundle_version="$(jq -r '[.bundles[]?.versionCode] | max // 0' "$work/bundles.json")"
-          track_names="$(jq -r '[.tracks[]?.track] | sort | join(",")' "$work/tracks.json")"
+          max_bundle_version="$(jq -r '[.bundles[]?.versionCode | tonumber] | max // 0' "$work/bundles.json")"
+          target_version="$(printf '%s' "$max_bundle_version")"
+          track_names="$(jq -r '[.tracks[]?.track] | sort | join(",")' "$work/tracks-before.json")"
           internal_release_count="$(jq '(.releases // []) | length' "$work/internal.json")"
           internal_completed_versions="$(jq -r '[.releases[]? | select(.status == "completed") | .versionCodes[]?] | unique | sort_by(tonumber) | join(",")' "$work/internal.json")"
           internal_all_versions="$(jq -r '[.releases[]?.versionCodes[]?] | unique | sort_by(tonumber) | join(",")' "$work/internal.json")"
           production_release_count="$(jq '(.releases // []) | length' "$work/production.json")"
           production_completed_versions="$(jq -r '[.releases[]? | select(.status == "completed") | .versionCodes[]?] | unique | sort_by(tonumber) | join(",")' "$work/production.json")"
+
+          target_track="$(jq -r --arg version "$target_version" '[.tracks[]? | select(.track != "internal" and .track != "production") | select(any(.releases[]?.versionCodes[]?; . == $version)) | .track] | first // ""' "$work/tracks-before.json")"
+          target_release_name="$(jq -r --arg version "$target_version" '[.tracks[]? | select(.track != "internal" and .track != "production") | .releases[]? | select(any(.versionCodes[]?; . == $version)) | .name // ""] | first // ""' "$work/tracks-before.json")"
+          target_release_status="$(jq -r --arg version "$target_version" '[.tracks[]? | select(.track != "internal" and .track != "production") | .releases[]? | select(any(.versionCodes[]?; . == $version)) | .status // ""] | first // "absent"' "$work/tracks-before.json")"
 
           listing_locale_count="$(jq '(.listings // []) | length' "$work/listings.json")"
           live_title="$(jq -r '.title // ""' "$work/listing-en-US.json")"
@@ -156,6 +185,46 @@ jobs:
           app_ads_http="$(public_http 'https://killjoy00.github.io/app-ads.txt')"
           assetlinks_http="$(public_http 'https://killjoy00.github.io/.well-known/assetlinks.json')"
 
+          # Close the read-only snapshot edit before the review probe.
+          delete_edit "$edit_id"
+          edit_id=""
+
+          # Safe review-state probe. The edit is empty and the explicit behavior
+          # prevents the API from cancelling an existing review.
+          probe_json="$(new_edit)"
+          probe_id="$(jq -r '.id' <<<"$probe_json")"
+          probe_code="$(curl -sS -o "$work/review-probe.json" -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            "${base}/edits/${probe_id}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW")"
+
+          if [ "$probe_code" = "200" ]; then
+            review_state="not_in_review"
+          elif [ "$probe_code" = "400" ] && jq -e '.error.details[]? | select(.reason == "CHANGES_ALREADY_IN_REVIEW")' "$work/review-probe.json" >/dev/null; then
+            review_state="in_review"
+            delete_edit "$probe_id"
+          else
+            echo "::error::Unexpected review-state probe response HTTP ${probe_code}"
+            cat "$work/review-probe.json"
+            delete_edit "$probe_id"
+            exit 1
+          fi
+
+          # Verify release state again after the probe using a fresh read-only edit.
+          verify_json="$(new_edit)"
+          edit_id="$(jq -r '.id' <<<"$verify_json")"
+          api_get "${base}/edits/${edit_id}/tracks" > "$work/tracks-after.json"
+
+          echo "PLAY_TRACK_SNAPSHOT_AFTER_BEGIN"
+          jq -r '.tracks[]? as $track | ($track.releases // [])[]? | "track=\($track.track) versionCodes=\((.versionCodes // []) | join(",")) releaseName=\(.name // "") releaseStatus=\(.status // "")"' "$work/tracks-after.json"
+          echo "PLAY_TRACK_SNAPSHOT_AFTER_END"
+
+          verified_target_track="$(jq -r --arg version "$target_version" '[.tracks[]? | select(.track != "internal" and .track != "production") | select(any(.releases[]?.versionCodes[]?; . == $version)) | .track] | first // ""' "$work/tracks-after.json")"
+          verified_release_name="$(jq -r --arg version "$target_version" '[.tracks[]? | select(.track != "internal" and .track != "production") | .releases[]? | select(any(.versionCodes[]?; . == $version)) | .name // ""] | first // ""' "$work/tracks-after.json")"
+          verified_release_status="$(jq -r --arg version "$target_version" '[.tracks[]? | select(.track != "internal" and .track != "production") | .releases[]? | select(any(.versionCodes[]?; . == $version)) | .status // ""] | first // "absent"' "$work/tracks-after.json")"
+
           jq -n \
             --arg packageName "$PACKAGE_NAME" \
             --argjson bundleCount "$bundle_count" \
@@ -168,6 +237,16 @@ jobs:
             --arg productionTrackHttp "$production_http" \
             --argjson productionReleaseCount "$production_release_count" \
             --arg productionCompletedVersions "$production_completed_versions" \
+            --arg alphaTrackHttp "$alpha_http" \
+            --arg betaTrackHttp "$beta_http" \
+            --arg targetTrack "$target_track" \
+            --arg targetVersionCode "$target_version" \
+            --arg releaseName "$target_release_name" \
+            --arg releaseStatus "$target_release_status" \
+            --arg reviewState "$review_state" \
+            --arg verifiedTargetTrack "$verified_target_track" \
+            --arg verifiedReleaseName "$verified_release_name" \
+            --arg verifiedReleaseStatus "$verified_release_status" \
             --arg listingHttp "$listing_http" \
             --argjson listingLocaleCount "$listing_locale_count" \
             --arg listingTitle "$live_title" \
@@ -194,10 +273,15 @@ jobs:
             --arg supportHttp "$support_http" \
             --arg appAdsTxtHttp "$app_ads_http" \
             --arg assetlinksHttp "$assetlinks_http" \
+            --argjson tracksBefore "$(cat "$work/tracks-before.json")" \
+            --argjson tracksAfter "$(cat "$work/tracks-after.json")" \
             '{
               packageName:$packageName,
               bundles:{count:$bundleCount,maxVersionCode:$maxBundleVersion},
-              tracks:{names:$trackNames,internal:{http:$internalTrackHttp,releaseCount:$internalReleaseCount,allVersionCodes:$internalAllVersions,completedVersionCodes:$internalCompletedVersions},production:{http:$productionTrackHttp,releaseCount:$productionReleaseCount,completedVersionCodes:$productionCompletedVersions}},
+              tracks:{names:$trackNames,internal:{http:$internalTrackHttp,releaseCount:$internalReleaseCount,allVersionCodes:$internalAllVersions,completedVersionCodes:$internalCompletedVersions},production:{http:$productionTrackHttp,releaseCount:$productionReleaseCount,completedVersionCodes:$productionCompletedVersions},alpha:{http:$alphaTrackHttp},beta:{http:$betaTrackHttp}},
+              reviewAudit:{targetTrack:$targetTrack,targetVersionCode:$targetVersionCode,releaseName:$releaseName,releaseStatus:$releaseStatus,reviewState:$reviewState,verifiedTargetTrack:$verifiedTargetTrack,verifiedReleaseName:$verifiedReleaseName,verifiedReleaseStatus:$verifiedReleaseStatus},
+              liveTracksBefore:$tracksBefore.tracks,
+              liveTracksAfter:$tracksAfter.tracks,
               listing:{http:$listingHttp,localeCount:$listingLocaleCount,title:$listingTitle,shortDescription:$listingShortDescription,fullDescriptionLength:$listingFullDescriptionLength,defaultLanguage:$defaultLanguage,contactWebsite:$contactWebsite,contactEmail:$contactEmail},
               images:{icon:$iconCount,featureGraphic:$featureGraphicCount,phoneScreenshots:$phoneScreenshotCount,sevenInchScreenshots:$sevenInchScreenshotCount,tenInchScreenshots:$tenInchScreenshotCount},
               removeAds:{state:$removeAdsState,usPrice:$removeAdsUsPrice,availableRegionCount:$removeAdsAvailableRegionCount},
@@ -205,6 +289,16 @@ jobs:
               countries:{internal:{count:$internalCountryCount,restOfWorld:$internalRestOfWorld,syncWithProduction:$internalSyncWithProduction},production:{count:$productionCountryCount,restOfWorld:$productionRestOfWorld}},
               publicUrls:{privacyPolicyHttp:$privacyPolicyHttp,supportHttp:$supportHttp,appAdsTxtHttp:$appAdsTxtHttp,assetlinksHttp:$assetlinksHttp}
             }' > "$work/audit.json"
+
+          echo "PLAY_REVIEW_AUDIT_BEGIN"
+          echo "packageName=${PACKAGE_NAME}"
+          echo "track=${verified_target_track:-none}"
+          echo "versionCode=${target_version}"
+          echo "releaseName=${verified_release_name:-none}"
+          echo "releaseStatus=${target_release_status}"
+          echo "reviewState=${review_state}"
+          echo "verifiedReleaseStatus=${verified_release_status}"
+          echo "PLAY_REVIEW_AUDIT_END"
 
           cat "$work/audit.json"
 
@@ -214,6 +308,9 @@ jobs:
             echo "- Highest accepted bundle versionCode: **${max_bundle_version}**"
             echo "- Internal completed versionCodes: **${internal_completed_versions:-none}**"
             echo "- Production release count: **${production_release_count}**"
+            echo "- Closed/non-production target track for v${target_version}: **${verified_target_track:-none}**"
+            echo "- Target release: **${verified_release_name:-none}** / **${verified_release_status}**"
+            echo "- Review state: **${review_state}**"
             echo "- en-US listing title: **${live_title:-missing}**"
             echo "- Store icon / feature graphic / phone screenshots: **${icon_count} / ${feature_count} / ${phone_count}**"
             echo "- Contact website: **${contact_website:-missing}**"
