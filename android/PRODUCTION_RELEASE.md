@@ -10,7 +10,7 @@ The manual-only **Android Play Production Promotion** workflow uses the existing
 
 It has three modes:
 
-- `audit`: read current bundles and Internal/Production tracks and report whether a candidate is eligible. It never changes a track.
+- `audit`: read current bundles, Internal/Production tracks, and Play Games publication metadata and report whether a candidate is eligible. It never changes a track or publishes Play Games resources.
 - `validate`: stage the exact intended Production track update inside a disposable Play edit, call `edits.validate`, and delete the edit without committing it.
 - `promote`: perform the same guards and validation, then commit the edit only when `confirm_production` is explicitly true.
 
@@ -23,9 +23,38 @@ The guard refuses to promote a version unless all of the following are true:
 - Production does not already contain that version;
 - there is no draft, halted, or in-progress Production release that the workflow could accidentally overwrite;
 - Production does not already contain a higher version;
-- the version is at least `versionCode 3`.
+- the version is at least `versionCode 3`;
+- all 19 compiled Play Games achievements expose published metadata;
+- all 17 compiled Play Games leaderboards expose published metadata.
 
 The minimum version rule is intentional. The currently accepted Internal `versionCode 2` predates the repository hardening that makes signed Play builds fail unless `ANDROID_ADMOB_APP_ID` and `ANDROID_ADMOB_BANNER_ID` exist and belong to publisher `pub-1217971050094766`. Therefore versionCode 2 is **not** treated as a safe Production candidate by automation. Do not burn a new versionCode until the production AdMob IDs exist and a new Internal build is actually needed.
+
+The Play Games publication rule is also intentional. Google states that an unpublished Play Games Services project only works for allowlisted testers; other accounts can receive OAuth/404 failures at platform authentication. EZ Trivia therefore keeps the safe order:
+
+1. test Play Games + Saved Games on Play-installed Internal builds;
+2. publish the Play Games Services configuration;
+3. verify the Production audit reports 19/19 achievements and 17/17 leaderboards published;
+4. only then validate/promote the Android app to Production.
+
+The Production workflow **does not publish PGS automatically**. This preserves the project rule that runtime testing comes first.
+
+### Play Games publication API boundary
+
+The documented Google Play Games Services Publishing API currently exposes configuration resources for achievements, leaderboards, and their images. Its public reference does **not** expose an application/game-level method that publishes all draft game changes. Google's current “Test and publish your game” instructions direct developers to the Play Games Services **Publishing** page in Play Console and to click **Publish** there.
+
+Therefore the current supported split is:
+
+- automate and audit achievement/leaderboard configuration through the PGS Publishing API;
+- complete runtime testing first;
+- perform the actual game-level PGS publication in Play Console;
+- rerun the automated audit afterward and require 19/19 + 17/17 published before app Production validation/promotion.
+
+Do not invent or call an undocumented publication endpoint merely to avoid that one Console action.
+
+References:
+
+- https://developer.android.com/games/services/publishing/api
+- https://developer.android.com/games/pgs/console/publish
 
 For a real launch candidate, first build/upload the new version through `Android Play Internal Release`, which now enforces production AdMob inventory. Complete Play-installed runtime QA on that exact version. Then run Production Promotion in `audit`, then `validate`, and only then `promote` when the remaining launch gates are complete.
 
@@ -34,7 +63,7 @@ For a real launch candidate, first build/upload the new version through `Android
 As of September 15, 2026, the public Google Play Android Publisher v3 reference exposes the Google Play-hosted Data Safety submission endpoint (`applications.dataSafety`) but does not expose Google Play-hosted endpoints for these remaining App content forms:
 
 - Ads declaration;
-- App access;
+- App access / Sign-in details;
 - Advertising ID;
 - Target audience and content;
 - IARC Content rating.
@@ -47,6 +76,39 @@ Official references:
 
 - https://developers.google.com/android-publisher/api-ref/rest
 - https://developers.google.com/android-publisher/app-store-review
+
+## App access / reviewer path
+
+Core EZ Trivia gameplay does not require an EZ Trivia account, membership, subscription, location gate, or developer-issued login. Google Play Games is optional and the local/offline game remains usable if Play Games authentication is unavailable.
+
+However, achievements, leaderboards, and Saved Games are authenticated Google Play Games features. While the PGS project is unpublished, those features are restricted to allowlisted PGS testers. That state is **not suitable for final Production review**, because Google's documentation says non-tester accounts can receive OAuth/404 failures against unpublished PGS endpoints.
+
+Google's current Play review requirements are stricter than simply saying that core gameplay is open: if **any part** of an app is restricted by login/sign-in/authentication, the developer must provide reusable access information. Google explicitly includes sign-in mechanisms involving other accounts such as **Sign in with Google**. The credentials/instructions must remain valid, reusable, accessible regardless of reviewer location, and must not depend on an expiring one-time code.
+
+Therefore, before final Production review:
+
+1. complete PGS runtime testing and publish the PGS project first;
+2. create a dedicated **non-personal** Google account / Play Games profile for review access;
+3. verify that account can authenticate to the published EZ Trivia PGS project and reach achievements, leaderboards, and Saved Games;
+4. enter that account and the English review instructions in **Play Console → App content → Sign-in details**;
+5. do not store or paste those reviewer credentials in GitHub, repository docs, CI logs, or chat.
+
+The reviewer instructions should explain:
+
+- launch EZ Trivia; no EZ Trivia-specific login is required for core gameplay;
+- use the supplied Google/Play Games review account for optional Play Games functionality;
+- if automatic authentication does not complete, open **Settings → Google Play Games → Connect Google Play Games**;
+- achievements, leaderboards, and Saved Games use that Google Play Games identity;
+- all normal trivia modes remain available without a separate EZ Trivia account.
+
+If review occurs before PGS publication for some reason, that dedicated account would also have to be allowlisted as a PGS tester; the preferred launch order is to publish PGS first so final review exercises the same public configuration players will use.
+
+References:
+
+- https://support.google.com/googleplay/android-developer/answer/9859455
+- https://support.google.com/googleplay/android-developer/answer/15748846
+- https://support.google.com/googleplay/android-developer/answer/10788890
+- https://developer.android.com/games/pgs/console/publish
 
 ## Advertising ID evidence and declaration
 
@@ -77,7 +139,8 @@ Do not run `promote` until the exact candidate version has passed the launch gat
 - Play-installed consent/banner/Remove Ads purchase/restore/refund behavior is validated;
 - Saved Games is enabled and the two-device offline conflict/reconnect test passes;
 - Play Games Services runtime testing passes and the PGS configuration is published;
-- Ads, App access, Advertising ID, Target audience, and Content rating are complete;
+- a reusable non-personal Google/Play Games reviewer account and Sign-in details instructions are entered in Play Console;
+- Ads, Advertising ID, Target audience, and Content rating are complete;
 - final Production country/device availability is reviewed in Play Console.
 
-The workflow intentionally does not pretend those external/manual gates are machine-verifiable when the relevant public API does not expose them.
+The workflow intentionally does not pretend those external/manual gates are machine-verifiable when the relevant public API does not expose them. It does, however, block Production when the Play Games Publishing API still shows compiled achievements or leaderboards without published metadata.

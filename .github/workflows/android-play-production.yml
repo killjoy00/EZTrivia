@@ -89,6 +89,8 @@ jobs:
             echo "- Candidate versionCode: **$(jq -r '.candidateVersionCode' "$OUTPUT")**"
             echo "- Highest completed Internal versionCode: **$(jq -r '.highestInternalCompletedVersionCode' "$OUTPUT")**"
             echo "- Production versionCodes: **$(jq -r '(.productionVersionCodes | map(tostring) | join(",")) // ""' "$OUTPUT")**"
+            echo "- PGS achievements published: **$(jq -r '.playGames.achievements.publishedMetadataCount' "$OUTPUT") / $(jq -r '.playGames.achievements.expectedCount' "$OUTPUT")**"
+            echo "- PGS leaderboards published: **$(jq -r '.playGames.leaderboards.publishedMetadataCount' "$OUTPUT") / $(jq -r '.playGames.leaderboards.expectedCount' "$OUTPUT")**"
             echo "- Promotable by automated guard: **$(jq -r '.promotable' "$OUTPUT")**"
             echo "- Play edit validated: **$(jq -r '.validated' "$OUTPUT")**"
             echo "- Production commit performed: **$(jq -r '.committed' "$OUTPUT")**"
