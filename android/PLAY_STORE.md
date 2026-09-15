@@ -100,15 +100,37 @@ The production build has a banner on the top-level Play screen when UMP allows a
 
 ### App access
 
-Core gameplay does not require a separate EZ Trivia login or reviewer credentials. Google Play Games is optional platform authentication for achievements, leaderboards, and Saved Games progress sync; it is not a gate on the game.
+Core gameplay does not require a separate EZ Trivia login, membership, subscription, or developer-issued reviewer credential. Google Play Games is optional platform authentication for achievements, leaderboards, and Saved Games progress sync; it is not a gate on the game.
+
+While the Play Games Services project remains unpublished, however, those optional PGS features are restricted to allowlisted testers and non-test accounts can fail authentication. Do **not** submit that state as though every reviewer can exercise Play Games. Complete the Internal runtime tests and publish PGS first.
+
+After PGS publication, the reviewer path is straightforward: launch the app normally, use all core trivia functionality without an EZ Trivia account, and use the Google Play Games profile already configured on the review device for the optional platform features. If automatic authentication does not complete, use **Settings → Google Play Games → Connect Google Play Games**. The App access / Sign-in details declaration should explain this path explicitly; EZ Trivia has no separate username/password to provide.
+
+See `android/PRODUCTION_RELEASE.md` for the PGS publication guard and review-order details.
+
+### Advertising ID
+
+**Uses advertising ID: Yes.**
+
+Android CI verifies that the packaged release APK contains `com.google.android.gms.permission.AD_ID`, contributed by Google Mobile Ads 25.4.0. The declaration supported by the current SDK behavior is:
+
+- Advertising or marketing;
+- Analytics;
+- Fraud prevention, security, and compliance.
+
+Do not mark Advertising ID as unused merely because the permission is supplied by the SDK's merged manifest rather than written directly in EZ Trivia's source manifest.
 
 ### Target audience
 
-The product and privacy policy do not position EZ Trivia as a children's app. Before production submission, select only the age groups the product is actually intended to target and make sure the advertising configuration matches that choice. Do not select younger age groups just to broaden reach; doing so can trigger Families requirements.
+The product and privacy policy do not position EZ Trivia as a children's app. The current Android monetization path contains Advertising ID and does not implement a neutral age screen. Google notes that the 13–15 and 16–17 target groups may still be considered children in some locales, and apps that target children have additional Families/AAID/ads requirements.
+
+Therefore do not select any under-18 target group merely to broaden distribution. If the intended product audience is adults, **18 and over** is the clean declaration for the current technical design. If the product is intentionally meant to target teens, treat that as an engineering/compliance change first: design the appropriate age handling and Families-compatible advertising/data behavior, then revisit this declaration.
+
+Selecting 18+ as the target audience is separate from enabling Google's optional **Restrict Minor Access** feature; only enable that additional restriction if the product decision is to block known minors from access.
 
 ### Content rating
 
-Complete the IARC questionnaire from the actual question catalog and game behavior. Do not copy an assumed rating from iOS. Trivia content spans many general-knowledge topics, so answer the questionnaire from the content rather than from the visual style of the app.
+Use the reviewed evidence in `android/CONTENT_RATING.md`, generated from the complete shipped 2,341-question catalog. The current evidence does **not** support a blanket all-No questionnaire: it includes text/referred-to violence, a non-detailed drug reference, factual alcohol references, a non-detailed sex reference, and a textual nude-art reference. It does not contain visual/interactive violence, detailed sexual activity, drug mechanics, gambling/cash payouts, or native freeform UGC exchange.
 
 ### News / health / government / financial / dating categories
 
@@ -164,10 +186,10 @@ Before moving beyond Internal Testing:
 - [ ] Install from a Play testing track on two Android devices using the same Play Games profile; make independent progress offline on both, reconnect, and verify histories, lifetime points, Daily/Friend one-attempt results, question progress, and round counters merge without duplication or loss.
 - [ ] From a Play testing build, validate consent, banner display, purchase, pending purchase, restore, and entitlement revocation/refund behavior.
 - [x] Publish the en-US Main store listing copy, developer contact website/email, 512 × 512 store icon, feature graphic, and real Android phone screenshots.
-- [ ] Complete Ads, App access, Target audience, and Content rating forms.
+- [ ] Complete Ads, App access, Advertising ID, Target audience, and Content rating forms.
 - [x] Submit the Data safety declaration through the Android Publisher API and archive the accepted CSV.
 - [x] Confirm the published privacy-policy and support URLs load publicly after the Data Safety-aligned privacy update.
-- [ ] Publish/finish testing Google Play Games Services resources when runtime validation is complete.
+- [ ] Publish Play Games Services after runtime validation, then rerun the automated audit and require 19/19 achievements + 17/17 leaderboards published.
 - [x] Publish and verify root-domain Digital Asset Links for Friend Challenge links.
 - [ ] Confirm final Production countries/regions and device availability in Play Console; the current Android Publisher country-availability endpoints are not reliable enough to use as proof.
 - [ ] Run the signed Internal Testing release workflow with production AdMob secrets before any production promotion.
