@@ -98,13 +98,23 @@ The country-availability endpoints were not reliable enough to treat as authorit
 
 The production build has a banner on the top-level Play screen when UMP allows an ad request and the player does not own Remove Ads. Do not mark the app ad-free merely because a user can buy the Remove Ads entitlement.
 
-### App access
+### App access / Sign-in details
 
-Core gameplay does not require a separate EZ Trivia login, membership, subscription, or developer-issued reviewer credential. Google Play Games is optional platform authentication for achievements, leaderboards, and Saved Games progress sync; it is not a gate on the game.
+Core gameplay does not require a separate EZ Trivia login, membership, subscription, or developer-issued account. Google Play Games is optional platform authentication for achievements, leaderboards, and Saved Games progress sync; it is not a gate on the game.
 
-While the Play Games Services project remains unpublished, however, those optional PGS features are restricted to allowlisted testers and non-test accounts can fail authentication. Do **not** submit that state as though every reviewer can exercise Play Games. Complete the Internal runtime tests and publish PGS first.
+That does **not** mean the Play review form can be left without access details. Google's current review requirements say that if any part of the app is restricted by authentication—including another-account flows such as **Sign in with Google**—the developer must provide reusable review access information.
 
-After PGS publication, the reviewer path is straightforward: launch the app normally, use all core trivia functionality without an EZ Trivia account, and use the Google Play Games profile already configured on the review device for the optional platform features. If automatic authentication does not complete, use **Settings → Google Play Games → Connect Google Play Games**. The App access / Sign-in details declaration should explain this path explicitly; EZ Trivia has no separate username/password to provide.
+Before final Production submission:
+
+- complete PGS runtime testing and publish the PGS project;
+- create a dedicated non-personal Google account / Play Games profile for Google Play review;
+- verify it can use EZ Trivia achievements, leaderboards, and Saved Games;
+- enter the account plus clear English instructions under **Play Console → App content → Sign-in details**;
+- keep those credentials out of GitHub, source files, CI logs, and chat.
+
+Reviewer instructions should say that core trivia needs no EZ Trivia account, and that optional Play Games features use the supplied Google account. If automatic authentication does not complete, use **Settings → Google Play Games → Connect Google Play Games**.
+
+While PGS is still unpublished, any review/test account must additionally be allowlisted for PGS or covered by an enabled testing track. The preferred final-review order is to publish PGS first so the reviewer tests the public PGS configuration.
 
 See `android/PRODUCTION_RELEASE.md` for the PGS publication guard and review-order details.
 
@@ -151,7 +161,7 @@ The submitted global/account answers are:
 The declaration includes these nine data types:
 
 | Play Data safety type | Collected | Shared | Required / optional | Main reasons |
-| --- | --- | --- | --- | --- |
+| --- | --- | --- | --- |
 | Approximate location | Yes | Yes | Required for ad-supported path | App functionality, analytics, fraud/security, advertising |
 | Page views and taps in app | Yes | Yes | Required for ad-supported path | Analytics, fraud/security, advertising |
 | Diagnostics | Yes | Yes | Required for ad-supported path | App functionality, analytics, fraud/security, advertising |
@@ -186,7 +196,8 @@ Before moving beyond Internal Testing:
 - [ ] Install from a Play testing track on two Android devices using the same Play Games profile; make independent progress offline on both, reconnect, and verify histories, lifetime points, Daily/Friend one-attempt results, question progress, and round counters merge without duplication or loss.
 - [ ] From a Play testing build, validate consent, banner display, purchase, pending purchase, restore, and entitlement revocation/refund behavior.
 - [x] Publish the en-US Main store listing copy, developer contact website/email, 512 × 512 store icon, feature graphic, and real Android phone screenshots.
-- [ ] Complete Ads, App access, Advertising ID, Target audience, and Content rating forms.
+- [ ] Complete Ads, App access / Sign-in details, Advertising ID, Target audience, and Content rating forms.
+- [ ] Create a dedicated reusable Google/Play Games reviewer account and enter it only in Play Console Sign-in details (not the repository).
 - [x] Submit the Data safety declaration through the Android Publisher API and archive the accepted CSV.
 - [x] Confirm the published privacy-policy and support URLs load publicly after the Data Safety-aligned privacy update.
 - [ ] Publish Play Games Services after runtime validation, then rerun the automated audit and require 19/19 achievements + 17/17 leaderboards published.
