@@ -2,14 +2,6 @@ name: Sync Play Store basics
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - play-release-audit
-    paths:
-      - .github/workflows/play-sync-store-basics.yml
-      - Scripts/make_play_store_icon.py
-      - Scripts/sync_play_store_basics.py
-      - EZTriviaApp/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
 
 permissions:
   contents: read
