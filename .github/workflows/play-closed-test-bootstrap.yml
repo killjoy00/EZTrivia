@@ -1,0 +1,123 @@
+name: Play closed test bootstrap
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/play-closed-test-bootstrap.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PACKAGE_NAME: com.rsm.eztrivia
+      TRACK_NAME: production-access
+      VERSION_CODE: "2"
+      RELEASE_NAME: EZ Trivia 1.0.0-alpha02 closed test
+    steps:
+      - name: Authenticate to Google Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Create closed-test draft from accepted v2
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}"
+          auth=(-H "Authorization: Bearer ${ACCESS_TOKEN}" -H "Content-Type: application/json")
+          edit_id=""
+
+          cleanup() {
+            if [ -n "$edit_id" ]; then
+              curl --silent --show-error -X DELETE "${base}/edits/${edit_id}" "${auth[@]}" >/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          edit_json="$(curl --fail-with-body --silent --show-error -X POST "${base}/edits" "${auth[@]}" -d '{}')"
+          edit_id="$(jq -r '.id' <<<"$edit_json")"
+
+          bundles_json="$(curl --fail-with-body --silent --show-error "${base}/edits/${edit_id}/bundles" "${auth[@]}")"
+          jq -e --arg version "$VERSION_CODE" 'any(.bundles[]?; (.versionCode | tostring) == $version)' <<<"$bundles_json" >/dev/null || {
+            echo "::error::Accepted versionCode ${VERSION_CODE} is not present in Google Play bundles; refusing to create a release."
+            exit 1
+          }
+
+          track_url="${base}/edits/${edit_id}/tracks/${TRACK_NAME}"
+          track_code="$(curl --silent --show-error -o "$RUNNER_TEMP/track-before.json" -w '%{http_code}' "$track_url" "${auth[@]}")"
+
+          if [ "$track_code" = "404" ]; then
+            jq -n --arg track "$TRACK_NAME" '{track:$track,type:"CLOSED_TESTING",formFactor:"DEFAULT"}' > "$RUNNER_TEMP/create-track.json"
+            create_code="$(curl --silent --show-error -o "$RUNNER_TEMP/create-track-response.json" -w '%{http_code}' \
+              -X POST "${base}/edits/${edit_id}/tracks" "${auth[@]}" --data-binary @"$RUNNER_TEMP/create-track.json")"
+            if [ "$create_code" != "200" ]; then
+              cat "$RUNNER_TEMP/create-track-response.json"
+              echo "::error::Closed track creation failed with HTTP ${create_code}"
+              exit 1
+            fi
+          elif [ "$track_code" = "200" ]; then
+            if jq -e '(.releases // []) | length > 0' "$RUNNER_TEMP/track-before.json" >/dev/null; then
+              echo "::error::Track ${TRACK_NAME} already contains a release. Refusing to overwrite it. Run the Play release audit instead."
+              cat "$RUNNER_TEMP/track-before.json"
+              exit 1
+            fi
+          else
+            cat "$RUNNER_TEMP/track-before.json"
+            echo "::error::Unexpected GET track response HTTP ${track_code}"
+            exit 1
+          fi
+
+          jq -n \
+            --arg version "$VERSION_CODE" \
+            --arg name "$RELEASE_NAME" \
+            '{releases:[{name:$name,versionCodes:[$version],status:"draft",releaseNotes:[{language:"en-US",text:"Closed test for Google Play production-access qualification using the already accepted Android build."}]}]}' \
+            > "$RUNNER_TEMP/update-track.json"
+
+          update_code="$(curl --silent --show-error -o "$RUNNER_TEMP/update-track-response.json" -w '%{http_code}' \
+            -X PUT "$track_url" "${auth[@]}" --data-binary @"$RUNNER_TEMP/update-track.json")"
+          if [ "$update_code" != "200" ]; then
+            cat "$RUNNER_TEMP/update-track-response.json"
+            echo "::error::Closed-track draft update failed with HTTP ${update_code}"
+            exit 1
+          fi
+
+          # Never cancel another review. If one started concurrently, fail closed.
+          commit_code="$(curl --silent --show-error -o "$RUNNER_TEMP/commit-response.json" -w '%{http_code}' \
+            -X POST "${base}/edits/${edit_id}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW" "${auth[@]}" -d '{}')"
+          if [ "$commit_code" != "200" ]; then
+            cat "$RUNNER_TEMP/commit-response.json"
+            if [ "$commit_code" = "400" ] && jq -e '.error.details[]? | select(.reason == "CHANGES_ALREADY_IN_REVIEW")' "$RUNNER_TEMP/commit-response.json" >/dev/null; then
+              echo "::error::Another Play review started before commit. Nothing was cancelled; closed-test bootstrap stopped safely."
+            else
+              echo "::error::Play edit commit failed with HTTP ${commit_code}"
+            fi
+            exit 1
+          fi
+          edit_id=""
+
+          verify_edit="$(curl --fail-with-body --silent --show-error -X POST "${base}/edits" "${auth[@]}" -d '{}')"
+          edit_id="$(jq -r '.id' <<<"$verify_edit")"
+          verify_json="$(curl --fail-with-body --silent --show-error "${base}/edits/${edit_id}/tracks/${TRACK_NAME}" "${auth[@]}")"
+
+          jq -e --arg version "$VERSION_CODE" 'any(.releases[]?; any(.versionCodes[]?; . == $version))' <<<"$verify_json" >/dev/null
+          release_name="$(jq -r --arg version "$VERSION_CODE" '[.releases[]? | select(any(.versionCodes[]?; . == $version)) | .name // ""] | first // ""' <<<"$verify_json")"
+          release_status="$(jq -r --arg version "$VERSION_CODE" '[.releases[]? | select(any(.versionCodes[]?; . == $version)) | .status // ""] | first // "absent"' <<<"$verify_json")"
+
+          echo "CLOSED_TEST_BOOTSTRAP_BEGIN"
+          echo "track=${TRACK_NAME}"
+          echo "versionCode=${VERSION_CODE}"
+          echo "releaseName=${release_name}"
+          echo "releaseStatus=${release_status}"
+          echo "CLOSED_TEST_BOOTSTRAP_END"
