@@ -55,6 +55,8 @@ Required assets:
 
 The automated Play-image workflow now generates and uploads one 1024 × 500 feature graphic plus five 1080 × 1920 en-US phone screenshots, then verifies those images in a fresh Play edit.
 
+The Play Store basics workflow generates a deterministic 512 × 512 opaque RGB store icon from the shipped 1024 × 1024 app icon and publishes it together with the developer contact website/email. It independently re-reads Play after commit to verify all three values.
+
 Current phone screenshot sequence:
 
 1. **Play** — top-level Play screen showing Quick Play plus the category/difficulty entry points.
@@ -67,6 +69,26 @@ Use actual in-game UI. Do not put features in screenshots that are not present i
 
 Current Google screenshot/feature-graphic requirements:
 https://support.google.com/googleplay/android-developer/answer/9866151
+
+## Live Play release audit
+
+The reusable manual `Google Play release audit` workflow uses the existing Android Publisher service account and creates a disposable edit snapshot to inspect live Play state without committing release changes. It archives a non-secret JSON report for release evidence.
+
+The September 15, 2026 audit established:
+
+- accepted bundle count: **1**;
+- highest accepted `versionCode`: **2**;
+- Internal track: one completed release containing **versionCode 2**;
+- Production track: **0 releases**;
+- en-US listing: one locale, title `EZ Trivia`, expected short description, and a populated full description;
+- developer contact website: `https://killjoy00.github.io/EZTrivia/support.html`;
+- developer contact email: `killjoy00@yahoo.com`;
+- Play assets: **1 store icon, 1 feature graphic, 5 phone screenshots**;
+- Remove Ads: **ACTIVE**, US price **$0.99**, available in **173 regions** in the API audit;
+- public privacy policy, support page, `app-ads.txt`, and Digital Asset Links all returned HTTP **200**;
+- Play's tester endpoint reported zero Google Groups, which does **not** prove there are no testers because that API does not expose Play Console email-list membership.
+
+The country-availability endpoints were not reliable enough to treat as authoritative in this audit: Internal returned HTTP 400 and Production returned HTTP 204. Confirm final Production country/device availability in Play Console before launch rather than inferring it from those responses.
 
 ## App content declarations
 
@@ -141,13 +163,13 @@ Before moving beyond Internal Testing:
 - [ ] Enable **Saved Games** for the linked Google Play Games Services project.
 - [ ] Install from a Play testing track on two Android devices using the same Play Games profile; make independent progress offline on both, reconnect, and verify histories, lifetime points, Daily/Friend one-attempt results, question progress, and round counters merge without duplication or loss.
 - [ ] From a Play testing build, validate consent, banner display, purchase, pending purchase, restore, and entitlement revocation/refund behavior.
-- [ ] Complete Main store listing using the copy above.
-- [x] Upload feature graphic and real Android phone screenshots.
+- [x] Publish the en-US Main store listing copy, developer contact website/email, 512 × 512 store icon, feature graphic, and real Android phone screenshots.
 - [ ] Complete Ads, App access, Target audience, and Content rating forms.
 - [x] Submit the Data safety declaration through the Android Publisher API and archive the accepted CSV.
-- [ ] Confirm the published privacy-policy URL loads publicly and matches the submitted Data safety answers after the privacy update is deployed.
+- [x] Confirm the published privacy-policy and support URLs load publicly after the Data Safety-aligned privacy update.
 - [ ] Publish/finish testing Google Play Games Services resources when runtime validation is complete.
-- [ ] Publish root-domain Digital Asset Links for verified Friend Challenge links.
+- [x] Publish and verify root-domain Digital Asset Links for Friend Challenge links.
+- [ ] Confirm final Production countries/regions and device availability in Play Console; the current Android Publisher country-availability endpoints are not reliable enough to use as proof.
 - [ ] Run the signed Internal Testing release workflow with production AdMob secrets before any production promotion.
 
 The project already targets API 36, which satisfies the Google Play target-API requirement in effect for new apps/updates beginning August 31, 2026.
