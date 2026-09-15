@@ -9,6 +9,11 @@ already accepted by Google Play and present in a completed Internal release.
 asks Google Play to validate it, and then deletes the edit without committing.
 `promote` performs the same checks and commits only when the caller also sets
 CONFIRM_PRODUCTION=true.
+
+Production readiness also includes the live Play Games Services Publishing API
+state. EZ Trivia intentionally refuses to validate/promote while any compiled
+achievement or leaderboard exists only as draft metadata, because unpublished
+PGS projects reject non-tester accounts at platform authentication time.
 """
 
 from __future__ import annotations
@@ -21,6 +26,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+import audit_play_games
 
 PACKAGE_NAME = "com.rsm.eztrivia"
 API_ROOT = "https://androidpublisher.googleapis.com/androidpublisher/v3"
@@ -93,6 +100,29 @@ def find_release(releases: list[dict[str, Any]], candidate: int) -> dict[str, An
     return next((release for release in releases if candidate in version_codes(release)), None)
 
 
+def audit_play_games_publication(token: str) -> dict[str, Any]:
+    achievement_ids, leaderboard_ids = audit_play_games.parse_expected_ids()
+    achievements = audit_play_games.list_all("achievements", token)
+    leaderboards = audit_play_games.list_all("leaderboards", token)
+    achievement_summary = audit_play_games.summarize(achievements, achievement_ids)
+    leaderboard_summary = audit_play_games.summarize(leaderboards, leaderboard_ids)
+
+    return {
+        "applicationId": audit_play_games.APPLICATION_ID,
+        "achievements": achievement_summary,
+        "leaderboards": leaderboard_summary,
+        "allCompiledResourcesPublished": (
+            achievement_summary["publishedMetadataCount"] == achievement_summary["expectedCount"]
+            and leaderboard_summary["publishedMetadataCount"] == leaderboard_summary["expectedCount"]
+            and not achievement_summary["missingExpectedIds"]
+            and not achievement_summary["unexpectedLiveIds"]
+            and not leaderboard_summary["missingExpectedIds"]
+            and not leaderboard_summary["unexpectedLiveIds"]
+        ),
+        "savedGamesEnablementAuditableViaPublishingApi": False,
+    }
+
+
 def write_output(path: Path, result: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -127,6 +157,7 @@ def main() -> int:
         bundles = api_request(token, f"{edit_base}/bundles").get("bundles", []) or []
         internal = api_request(token, f"{edit_base}/tracks/internal", allow_404=True)
         production = api_request(token, f"{edit_base}/tracks/production", allow_404=True)
+        play_games = audit_play_games_publication(token)
 
         bundle_versions = sorted(
             int(bundle["versionCode"])
@@ -187,6 +218,17 @@ def main() -> int:
             blockers.append(
                 f"Production already contains a higher versionCode ({max(production_versions)}) than candidate {candidate}."
             )
+
+        achievement_summary = play_games["achievements"]
+        leaderboard_summary = play_games["leaderboards"]
+        if not play_games["allCompiledResourcesPublished"]:
+            blockers.append(
+                "Google Play Games Services is not production-published for every compiled resource: "
+                f"achievements {achievement_summary['publishedMetadataCount']}/{achievement_summary['expectedCount']} published, "
+                f"leaderboards {leaderboard_summary['publishedMetadataCount']}/{leaderboard_summary['expectedCount']} published. "
+                "Complete runtime PGS/Saved Games testing first, then publish PGS before Production validation/promotion."
+            )
+
         if args.mode == "promote" and os.environ.get("CONFIRM_PRODUCTION", "").lower() != "true":
             blockers.append("promote mode requires CONFIRM_PRODUCTION=true.")
 
@@ -201,6 +243,7 @@ def main() -> int:
             "candidateInternalRelease": candidate_release,
             "productionVersionCodes": production_versions,
             "productionReleases": production_releases,
+            "playGames": play_games,
             "blockers": blockers,
             "promotable": not blockers,
             "validated": False,
