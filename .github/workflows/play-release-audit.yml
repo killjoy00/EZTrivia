@@ -2,11 +2,6 @@ name: Google Play release audit
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - play-release-audit
-    paths:
-      - .github/workflows/play-release-audit.yml
 
 permissions:
   contents: read
@@ -70,13 +65,11 @@ jobs:
             curl -L -sS -o /dev/null -w '%{http_code}' "$url"
           }
 
-          # Monetization: permanent Remove Ads product.
           api_get "${base}/oneTimeProducts/${PRODUCT_ID}" > "$work/product.json"
           product_state="$(jq -r '[.purchaseOptions[]? | select(.purchaseOptionId == "buy")][0].state // empty' "$work/product.json")"
           us_price="$(jq -r '[.purchaseOptions[]? | select(.purchaseOptionId == "buy")][0].regionalPricingAndAvailabilityConfigs[]? | select(.regionCode == "US") | .price | ((.units // "0") + "." + (((.nanos // 0) / 10000000 | floor) | tostring | if length == 1 then "0" + . else . end))' "$work/product.json")"
           product_region_count="$(jq '[.purchaseOptions[]? | select(.purchaseOptionId == "buy")][0].regionalPricingAndAvailabilityConfigs // [] | map(select(.availability == "AVAILABLE")) | length' "$work/product.json")"
 
-          # Create a read-only edit snapshot for release/listing/distribution resources.
           curl --fail-with-body -sS \
             -X POST \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
@@ -222,7 +215,9 @@ jobs:
             echo "- Internal completed versionCodes: **${internal_completed_versions:-none}**"
             echo "- Production release count: **${production_release_count}**"
             echo "- en-US listing title: **${live_title:-missing}**"
-            echo "- Feature graphic / phone screenshots: **${feature_count} / ${phone_count}**"
+            echo "- Store icon / feature graphic / phone screenshots: **${icon_count} / ${feature_count} / ${phone_count}**"
+            echo "- Contact website: **${contact_website:-missing}**"
+            echo "- Contact email: **${contact_email:-missing}**"
             echo "- Remove Ads: **${product_state:-missing}**, US **\$${us_price:-unknown}**, ${product_region_count} available regions"
             echo "- Public privacy/support/app-ads.txt/assetlinks HTTP: **${privacy_http}/${support_http}/${app_ads_http}/${assetlinks_http}**"
             echo
