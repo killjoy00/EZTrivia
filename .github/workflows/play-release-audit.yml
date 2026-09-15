@@ -1,0 +1,238 @@
+name: Google Play release audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - play-release-audit
+    paths:
+      - .github/workflows/play-release-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Audit live Play state
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          PACKAGE_NAME: com.rsm.eztrivia
+          PRODUCT_ID: com.rsm.eztrivia.removeads
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}"
+          work="$RUNNER_TEMP/play-audit"
+          mkdir -p "$work"
+          edit_id=""
+
+          cleanup() {
+            if [ -n "$edit_id" ]; then
+              curl -sS -X DELETE \
+                -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                "${base}/edits/${edit_id}" >/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          api_get() {
+            curl --fail-with-body -sS \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -H "Accept: application/json" \
+              "$1"
+          }
+
+          http_get() {
+            output="$1"
+            url="$2"
+            curl -sS -o "$output" -w '%{http_code}' \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -H "Accept: application/json" \
+              "$url"
+          }
+
+          public_http() {
+            url="$1"
+            curl -L -sS -o /dev/null -w '%{http_code}' "$url"
+          }
+
+          # Monetization: permanent Remove Ads product.
+          api_get "${base}/oneTimeProducts/${PRODUCT_ID}" > "$work/product.json"
+          product_state="$(jq -r '[.purchaseOptions[]? | select(.purchaseOptionId == "buy")][0].state // empty' "$work/product.json")"
+          us_price="$(jq -r '[.purchaseOptions[]? | select(.purchaseOptionId == "buy")][0].regionalPricingAndAvailabilityConfigs[]? | select(.regionCode == "US") | .price | ((.units // "0") + "." + (((.nanos // 0) / 10000000 | floor) | tostring | if length == 1 then "0" + . else . end))' "$work/product.json")"
+          product_region_count="$(jq '[.purchaseOptions[]? | select(.purchaseOptionId == "buy")][0].regionalPricingAndAvailabilityConfigs // [] | map(select(.availability == "AVAILABLE")) | length' "$work/product.json")"
+
+          # Create a read-only edit snapshot for release/listing/distribution resources.
+          curl --fail-with-body -sS \
+            -X POST \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            "${base}/edits" > "$work/edit.json"
+          edit_id="$(jq -r '.id' "$work/edit.json")"
+          test -n "$edit_id" && test "$edit_id" != "null"
+
+          api_get "${base}/edits/${edit_id}/tracks" > "$work/tracks.json"
+          api_get "${base}/edits/${edit_id}/bundles" > "$work/bundles.json"
+          api_get "${base}/edits/${edit_id}/listings" > "$work/listings.json"
+          api_get "${base}/edits/${edit_id}/details" > "$work/details.json"
+
+          internal_http="$(http_get "$work/internal.json" "${base}/edits/${edit_id}/tracks/internal")"
+          production_http="$(http_get "$work/production.json" "${base}/edits/${edit_id}/tracks/production")"
+          [ "$internal_http" = "200" ] || echo '{}' > "$work/internal.json"
+          [ "$production_http" = "200" ] || echo '{}' > "$work/production.json"
+
+          listing_http="$(http_get "$work/listing-en-US.json" "${base}/edits/${edit_id}/listings/en-US")"
+          [ "$listing_http" = "200" ] || echo '{}' > "$work/listing-en-US.json"
+
+          bundle_count="$(jq '(.bundles // []) | length' "$work/bundles.json")"
+          max_bundle_version="$(jq -r '[.bundles[]?.versionCode] | max // 0' "$work/bundles.json")"
+          track_names="$(jq -r '[.tracks[]?.track] | sort | join(",")' "$work/tracks.json")"
+          internal_release_count="$(jq '(.releases // []) | length' "$work/internal.json")"
+          internal_completed_versions="$(jq -r '[.releases[]? | select(.status == "completed") | .versionCodes[]?] | unique | sort_by(tonumber) | join(",")' "$work/internal.json")"
+          internal_all_versions="$(jq -r '[.releases[]?.versionCodes[]?] | unique | sort_by(tonumber) | join(",")' "$work/internal.json")"
+          production_release_count="$(jq '(.releases // []) | length' "$work/production.json")"
+          production_completed_versions="$(jq -r '[.releases[]? | select(.status == "completed") | .versionCodes[]?] | unique | sort_by(tonumber) | join(",")' "$work/production.json")"
+
+          listing_locale_count="$(jq '(.listings // []) | length' "$work/listings.json")"
+          live_title="$(jq -r '.title // ""' "$work/listing-en-US.json")"
+          live_short="$(jq -r '.shortDescription // ""' "$work/listing-en-US.json")"
+          live_full_length="$(jq -r '.fullDescription // "" | length' "$work/listing-en-US.json")"
+          default_language="$(jq -r '.defaultLanguage // ""' "$work/details.json")"
+          contact_website="$(jq -r '.contactWebsite // ""' "$work/details.json")"
+          contact_email="$(jq -r '.contactEmail // ""' "$work/details.json")"
+
+          count_images() {
+            image_type="$1"
+            code="$(http_get "$work/${image_type}.json" "${base}/edits/${edit_id}/listings/en-US/${image_type}")"
+            if [ "$code" = "200" ]; then
+              jq '(.images // []) | length' "$work/${image_type}.json"
+            else
+              echo "unavailable-http-${code}"
+            fi
+          }
+          icon_count="$(count_images icon)"
+          feature_count="$(count_images featureGraphic)"
+          phone_count="$(count_images phoneScreenshots)"
+          seven_count="$(count_images sevenInchScreenshots)"
+          ten_count="$(count_images tenInchScreenshots)"
+
+          testers_http="$(http_get "$work/testers.json" "${base}/edits/${edit_id}/testers/internal")"
+          if [ "$testers_http" = "200" ]; then
+            tester_google_group_count="$(jq '(.googleGroups // []) | length' "$work/testers.json")"
+          else
+            tester_google_group_count="unavailable-http-${testers_http}"
+          fi
+
+          internal_country_http="$(http_get "$work/internal-countries.json" "${base}/edits/${edit_id}/countryAvailability/internal")"
+          if [ "$internal_country_http" = "200" ]; then
+            internal_country_count="$(jq '(.countries // []) | length' "$work/internal-countries.json")"
+            internal_rest_of_world="$(jq -r '.restOfWorld // false' "$work/internal-countries.json")"
+            internal_sync_production="$(jq -r '.syncWithProduction // false' "$work/internal-countries.json")"
+          else
+            internal_country_count="unavailable-http-${internal_country_http}"
+            internal_rest_of_world="unknown"
+            internal_sync_production="unknown"
+          fi
+
+          production_country_http="$(http_get "$work/production-countries.json" "${base}/edits/${edit_id}/countryAvailability/production")"
+          if [ "$production_country_http" = "200" ]; then
+            production_country_count="$(jq '(.countries // []) | length' "$work/production-countries.json")"
+            production_rest_of_world="$(jq -r '.restOfWorld // false' "$work/production-countries.json")"
+          else
+            production_country_count="unavailable-http-${production_country_http}"
+            production_rest_of_world="unknown"
+          fi
+
+          privacy_http="$(public_http 'https://killjoy00.github.io/EZTrivia/privacy.html')"
+          support_http="$(public_http 'https://killjoy00.github.io/EZTrivia/support.html')"
+          app_ads_http="$(public_http 'https://killjoy00.github.io/app-ads.txt')"
+          assetlinks_http="$(public_http 'https://killjoy00.github.io/.well-known/assetlinks.json')"
+
+          jq -n \
+            --arg packageName "$PACKAGE_NAME" \
+            --argjson bundleCount "$bundle_count" \
+            --arg maxBundleVersion "$max_bundle_version" \
+            --arg trackNames "$track_names" \
+            --arg internalTrackHttp "$internal_http" \
+            --argjson internalReleaseCount "$internal_release_count" \
+            --arg internalAllVersions "$internal_all_versions" \
+            --arg internalCompletedVersions "$internal_completed_versions" \
+            --arg productionTrackHttp "$production_http" \
+            --argjson productionReleaseCount "$production_release_count" \
+            --arg productionCompletedVersions "$production_completed_versions" \
+            --arg listingHttp "$listing_http" \
+            --argjson listingLocaleCount "$listing_locale_count" \
+            --arg listingTitle "$live_title" \
+            --arg listingShortDescription "$live_short" \
+            --argjson listingFullDescriptionLength "$live_full_length" \
+            --arg defaultLanguage "$default_language" \
+            --arg contactWebsite "$contact_website" \
+            --arg contactEmail "$contact_email" \
+            --arg iconCount "$icon_count" \
+            --arg featureGraphicCount "$feature_count" \
+            --arg phoneScreenshotCount "$phone_count" \
+            --arg sevenInchScreenshotCount "$seven_count" \
+            --arg tenInchScreenshotCount "$ten_count" \
+            --arg removeAdsState "$product_state" \
+            --arg removeAdsUsPrice "$us_price" \
+            --argjson removeAdsAvailableRegionCount "$product_region_count" \
+            --arg internalTesterGoogleGroupCount "$tester_google_group_count" \
+            --arg internalCountryCount "$internal_country_count" \
+            --arg internalRestOfWorld "$internal_rest_of_world" \
+            --arg internalSyncWithProduction "$internal_sync_production" \
+            --arg productionCountryCount "$production_country_count" \
+            --arg productionRestOfWorld "$production_rest_of_world" \
+            --arg privacyPolicyHttp "$privacy_http" \
+            --arg supportHttp "$support_http" \
+            --arg appAdsTxtHttp "$app_ads_http" \
+            --arg assetlinksHttp "$assetlinks_http" \
+            '{
+              packageName:$packageName,
+              bundles:{count:$bundleCount,maxVersionCode:$maxBundleVersion},
+              tracks:{names:$trackNames,internal:{http:$internalTrackHttp,releaseCount:$internalReleaseCount,allVersionCodes:$internalAllVersions,completedVersionCodes:$internalCompletedVersions},production:{http:$productionTrackHttp,releaseCount:$productionReleaseCount,completedVersionCodes:$productionCompletedVersions}},
+              listing:{http:$listingHttp,localeCount:$listingLocaleCount,title:$listingTitle,shortDescription:$listingShortDescription,fullDescriptionLength:$listingFullDescriptionLength,defaultLanguage:$defaultLanguage,contactWebsite:$contactWebsite,contactEmail:$contactEmail},
+              images:{icon:$iconCount,featureGraphic:$featureGraphicCount,phoneScreenshots:$phoneScreenshotCount,sevenInchScreenshots:$sevenInchScreenshotCount,tenInchScreenshots:$tenInchScreenshotCount},
+              removeAds:{state:$removeAdsState,usPrice:$removeAdsUsPrice,availableRegionCount:$removeAdsAvailableRegionCount},
+              testers:{internalGoogleGroupCount:$internalTesterGoogleGroupCount},
+              countries:{internal:{count:$internalCountryCount,restOfWorld:$internalRestOfWorld,syncWithProduction:$internalSyncWithProduction},production:{count:$productionCountryCount,restOfWorld:$productionRestOfWorld}},
+              publicUrls:{privacyPolicyHttp:$privacyPolicyHttp,supportHttp:$supportHttp,appAdsTxtHttp:$appAdsTxtHttp,assetlinksHttp:$assetlinksHttp}
+            }' > "$work/audit.json"
+
+          cat "$work/audit.json"
+
+          {
+            echo '## Google Play release audit'
+            echo
+            echo "- Highest accepted bundle versionCode: **${max_bundle_version}**"
+            echo "- Internal completed versionCodes: **${internal_completed_versions:-none}**"
+            echo "- Production release count: **${production_release_count}**"
+            echo "- en-US listing title: **${live_title:-missing}**"
+            echo "- Feature graphic / phone screenshots: **${feature_count} / ${phone_count}**"
+            echo "- Remove Ads: **${product_state:-missing}**, US **\$${us_price:-unknown}**, ${product_region_count} available regions"
+            echo "- Public privacy/support/app-ads.txt/assetlinks HTTP: **${privacy_http}/${support_http}/${app_ads_http}/${assetlinks_http}**"
+            echo
+            echo '_Tester API only reports Google Groups; it does not prove email-list tester membership._'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-google-play-release-audit
+          path: ${{ runner.temp }}/play-audit/audit.json
+          if-no-files-found: error
+          retention-days: 30
