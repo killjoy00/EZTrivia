@@ -2,14 +2,6 @@ name: Android Content Rating Audit
 
 on:
   workflow_dispatch:
-  # Temporary branch-only probe. Remove before merge so final workflow is manual-only.
-  push:
-    branches:
-      - android-content-rating-audit
-    paths:
-      - QuestionReview.csv
-      - Scripts/audit_android_content_rating.py
-      - .github/workflows/android-content-rating-audit.yml
 
 permissions:
   contents: read
