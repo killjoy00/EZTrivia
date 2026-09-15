@@ -21,6 +21,14 @@ on:
         required: true
         default: false
         type: boolean
+  # Temporary branch-only probe. Remove before merge so the final workflow is manual-only.
+  push:
+    branches:
+      - android-production-pgs-guard
+    paths:
+      - Scripts/play_production_candidate.py
+      - Scripts/audit_play_games.py
+      - .github/workflows/android-play-production.yml
 
 permissions:
   contents: read
@@ -50,9 +58,9 @@ jobs:
         id: production
         env:
           GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
-          MODE: ${{ inputs.mode }}
-          VERSION_CODE: ${{ inputs.version_code }}
-          CONFIRM_PRODUCTION: ${{ inputs.confirm_production }}
+          MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'audit' }}
+          VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '' }}
+          CONFIRM_PRODUCTION: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_production || false }}
           OUTPUT: ${{ runner.temp }}/play-production-candidate.json
         shell: bash
         run: |
@@ -89,6 +97,8 @@ jobs:
             echo "- Candidate versionCode: **$(jq -r '.candidateVersionCode' "$OUTPUT")**"
             echo "- Highest completed Internal versionCode: **$(jq -r '.highestInternalCompletedVersionCode' "$OUTPUT")**"
             echo "- Production versionCodes: **$(jq -r '(.productionVersionCodes | map(tostring) | join(",")) // ""' "$OUTPUT")**"
+            echo "- PGS achievements published: **$(jq -r '.playGames.achievements.publishedMetadataCount' "$OUTPUT") / $(jq -r '.playGames.achievements.expectedCount' "$OUTPUT")**"
+            echo "- PGS leaderboards published: **$(jq -r '.playGames.leaderboards.publishedMetadataCount' "$OUTPUT") / $(jq -r '.playGames.leaderboards.expectedCount' "$OUTPUT")**"
             echo "- Promotable by automated guard: **$(jq -r '.promotable' "$OUTPUT")**"
             echo "- Play edit validated: **$(jq -r '.validated' "$OUTPUT")**"
             echo "- Production commit performed: **$(jq -r '.committed' "$OUTPUT")**"
