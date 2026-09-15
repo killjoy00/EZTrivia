@@ -2,12 +2,6 @@ name: Google Play Games configuration audit
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - play-games-audit
-    paths:
-      - .github/workflows/play-games-audit.yml
-      - Scripts/audit_play_games.py
 
 permissions:
   contents: read
