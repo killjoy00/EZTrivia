@@ -154,10 +154,11 @@ def main() -> None:
         require(
             session.post(
                 f"{app_base}/edits/{edit_id}:commit",
+                params={"changesInReviewBehavior": "ERROR_IF_IN_REVIEW"},
                 json={},
                 timeout=60,
             ),
-            "Could not commit Play listing image edit",
+            "Could not commit Play listing image edit without disturbing an existing review",
         )
         committed = True
         edit_id = None
