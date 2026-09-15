@@ -38,6 +38,24 @@ The Play Games publication rule is also intentional. Google states that an unpub
 
 The Production workflow **does not publish PGS automatically**. This preserves the project rule that runtime testing comes first.
 
+### Play Games publication API boundary
+
+The documented Google Play Games Services Publishing API currently exposes configuration resources for achievements, leaderboards, and their images. Its public reference does **not** expose an application/game-level method that publishes all draft game changes. Google's current “Test and publish your game” instructions direct developers to the Play Games Services **Publishing** page in Play Console and to click **Publish** there.
+
+Therefore the current supported split is:
+
+- automate and audit achievement/leaderboard configuration through the PGS Publishing API;
+- complete runtime testing first;
+- perform the actual game-level PGS publication in Play Console;
+- rerun the automated audit afterward and require 19/19 + 17/17 published before app Production validation/promotion.
+
+Do not invent or call an undocumented publication endpoint merely to avoid that one Console action.
+
+References:
+
+- https://developer.android.com/games/services/publishing/api
+- https://developer.android.com/games/pgs/console/publish
+
 For a real launch candidate, first build/upload the new version through `Android Play Internal Release`, which now enforces production AdMob inventory. Complete Play-installed runtime QA on that exact version. Then run Production Promotion in `audit`, then `validate`, and only then `promote` when the remaining launch gates are complete.
 
 ## Google Play App content API audit
