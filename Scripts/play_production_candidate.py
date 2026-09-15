@@ -279,7 +279,12 @@ def main() -> int:
         if args.mode == "validate":
             return 0
 
-        api_request(token, f"{edit_base}:commit", method="POST", payload={})
+        api_request(
+            token,
+            f"{edit_base}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW",
+            method="POST",
+            payload={},
+        )
         committed = True
         result["committed"] = True
         write_output(output, result)
