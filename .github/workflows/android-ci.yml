@@ -159,6 +159,72 @@ jobs:
       - name: Bundle release AAB (Play packaging check)
         run: gradle bundleRelease --stacktrace
 
+      # Building a release APK is not enough: R8/configuration errors can compile
+      # successfully and then crash on the first Activity launch. Sign the exact
+      # minified APK with an ephemeral CI-only key so an emulator can execute it.
+      - name: Sign release APK for runtime smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          keytool -genkeypair \
+            -keystore "$RUNNER_TEMP/eztrivia-smoke.jks" \
+            -storepass android \
+            -keypass android \
+            -alias smoke \
+            -dname "CN=EZ Trivia CI,O=EZ Trivia,C=US" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 30
+
+          apksigner="$(command -v apksigner || true)"
+          if [ -z "$apksigner" ]; then
+            apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          fi
+          test -x "$apksigner"
+          "$apksigner" sign \
+            --ks "$RUNNER_TEMP/eztrivia-smoke.jks" \
+            --ks-key-alias smoke \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --out "$RUNNER_TEMP/eztrivia-release-smoke.apk" \
+            app/build/outputs/apk/release/app-release-unsigned.apk
+          "$apksigner" verify "$RUNNER_TEMP/eztrivia-release-smoke.apk"
+
+      - name: Launch minified release APK
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          script: |
+            set -euo pipefail
+            adb install -r "$RUNNER_TEMP/eztrivia-release-smoke.apk"
+            adb logcat -c
+            adb shell am start -W -n com.rsm.eztrivia/.MainActivity
+            sleep 10
+
+            pid="$(adb shell pidof com.rsm.eztrivia | tr -d '\r')"
+            if [ -z "$pid" ]; then
+              echo "EZ Trivia process died during release startup"
+              adb logcat -d -v threadtime
+              exit 1
+            fi
+
+            if ! adb shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
+              echo "MainActivity is not present after release startup"
+              adb logcat -d -v threadtime
+              exit 1
+            fi
+
+            if adb logcat -d -v threadtime | grep -A80 -B20 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia' > "$RUNNER_TEMP/eztrivia-fatal.log"; then
+              cat "$RUNNER_TEMP/eztrivia-fatal.log"
+              echo "Release startup emitted a fatal exception"
+              exit 1
+            fi
+
+            echo "Release startup smoke test passed; process $pid is alive."
+
       - name: Upload CI Android artifacts
         uses: actions/upload-artifact@v4
         with:
