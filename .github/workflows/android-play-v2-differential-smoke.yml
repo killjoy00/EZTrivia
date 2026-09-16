@@ -108,82 +108,216 @@ jobs:
           test -s "$RUNNER_TEMP/v2-unprotected.apk"
           shasum -a 256 "$RUNNER_TEMP/v2-unprotected.apk"
 
+      - name: Install Android emulator image
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install \
+            'build-tools;37.0.0' \
+            platform-tools \
+            'platforms;android-35' \
+            emulator \
+            'system-images;android-35;google_apis_playstore;x86_64' >/dev/null
+          echo no | avdmanager create avd \
+            --force \
+            --name eztrivia-v2 \
+            --package 'system-images;android-35;google_apis_playstore;x86_64' \
+            --device pixel_6 >/dev/null
+
       - name: Run exact protected/unprotected startup comparison
-        uses: ReactiveCircus/android-emulator-runner@v2
+        id: compare
+        shell: bash
+        run: |
+          set -u
+          sdk_root="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+          emulator_bin="$sdk_root/emulator/emulator"
+          emulator_log="$RUNNER_TEMP/emulator.log"
+          status_file="$RUNNER_TEMP/comparison-status.txt"
+
+          "$emulator_bin" \
+            -avd eztrivia-v2 \
+            -port 5554 \
+            -no-window \
+            -noaudio \
+            -no-boot-anim \
+            -no-snapshot \
+            -gpu swiftshader_indirect \
+            >"$emulator_log" 2>&1 &
+          emulator_pid=$!
+
+          cleanup() {
+            adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
+            kill "$emulator_pid" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          adb start-server >/dev/null 2>&1 || true
+          booted=0
+          for attempt in $(seq 1 320); do
+            state="$(adb -s emulator-5554 get-state 2>/dev/null || true)"
+            boot="$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+            if [ "$state" = "device" ] && [ "$boot" = "1" ]; then
+              booted=1
+              break
+            fi
+            if ! kill -0 "$emulator_pid" >/dev/null 2>&1; then
+              echo "::error::Android emulator exited before boot completed."
+              tail -n 300 "$emulator_log" || true
+              echo "INFRASTRUCTURE_FAIL" > "$status_file"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          if [ "$booted" -ne 1 ]; then
+            echo "::error::Android emulator did not complete boot."
+            tail -n 300 "$emulator_log" || true
+            echo "INFRASTRUCTURE_FAIL" > "$status_file"
+            exit 0
+          fi
+
+          # The Play Store image can report boot_completed before PackageManager
+          # and ActivityManager are fully settled. Give them a short grace period
+          # and prove ADB remains healthy before installing either APK.
+          sleep 12
+          ready=0
+          for attempt in $(seq 1 30); do
+            if adb -s emulator-5554 shell pm path com.android.vending >/dev/null 2>&1 && \
+               adb -s emulator-5554 shell cmd package list packages >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::Emulator booted but Android services never became ready."
+            tail -n 300 "$emulator_log" || true
+            echo "INFRASTRUCTURE_FAIL" > "$status_file"
+            exit 0
+          fi
+
+          adbdev() {
+            adb -s emulator-5554 "$@"
+          }
+
+          capture_result() {
+            label="$1"
+            log="$RUNNER_TEMP/${label}.logcat"
+            sleep 10
+            adbdev logcat -d -v threadtime > "$log"
+            pid="$(adbdev shell pidof com.rsm.eztrivia 2>/dev/null | tr -d '\r' || true)"
+
+            if grep -q -E 'Process: com\.rsm\.eztrivia' "$log" || \
+               grep -q -E 'Unable to (instantiate|create|start).*(com\.pairip|com\.rsm\.eztrivia)' "$log"; then
+              grep -A180 -B80 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*(com\.pairip|com\.rsm\.eztrivia)' \
+                "$log" > "$RUNNER_TEMP/${label}.fatal" || true
+              echo "${label}=FATAL"
+              cat "$RUNNER_TEMP/${label}.fatal"
+              return 1
+            fi
+
+            if [ -z "$pid" ]; then
+              echo "${label}=PROCESS_DIED"
+              tail -n 700 "$log"
+              return 1
+            fi
+
+            if ! adbdev shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
+              echo "${label}=PROCESS_ALIVE_MAIN_ACTIVITY_NOT_PRESENT pid=${pid}"
+              grep -E 'pairip|LicenseClient|LicenseCheck|AndroidRuntime|ActivityTaskManager|com\.rsm\.eztrivia' "$log" | tail -n 300 || true
+              return 2
+            fi
+
+            echo "${label}=ALIVE pid=${pid}"
+            return 0
+          }
+
+          echo '=== EXACT V2 WITHOUT AUTOMATIC PROTECTION ==='
+          if ! adbdev install -r "$RUNNER_TEMP/v2-unprotected.apk"; then
+            echo "UNPROTECTED_INSTALL_FAIL" > "$status_file"
+            exit 0
+          fi
+          adbdev logcat -c
+          adbdev shell am start -W -n com.rsm.eztrivia/.MainActivity > "$RUNNER_TEMP/unprotected-start.txt" 2>&1 || true
+          cat "$RUNNER_TEMP/unprotected-start.txt"
+          if capture_result unprotected; then unprotected_status=PASS; else unprotected_status=FAIL; fi
+          adbdev uninstall com.rsm.eztrivia >/dev/null 2>&1 || true
+          sleep 2
+
+          echo '=== EXACT GOOGLE-PROTECTED V2 ==='
+          if ! adbdev install -r -i com.android.vending "$RUNNER_TEMP/v2-protected.apk"; then
+            echo "PROTECTED_INSTALL_FAIL" > "$status_file"
+            exit 0
+          fi
+          adbdev logcat -c
+          adbdev shell am start -W -n com.rsm.eztrivia/.MainActivity > "$RUNNER_TEMP/protected-start.txt" 2>&1 || true
+          cat "$RUNNER_TEMP/protected-start.txt"
+          if capture_result protected; then protected_status=PASS; else protected_status=FAIL; fi
+
+          echo "unprotected_status=${unprotected_status}"
+          echo "protected_status=${protected_status}"
+          printf 'UNPROTECTED=%s\nPROTECTED=%s\n' "$unprotected_status" "$protected_status" > "$status_file"
+
+          {
+            echo '## Exact v2 protected/unprotected differential'
+            echo
+            echo "- Exact uploaded v2 without Automatic Protection: **${unprotected_status}**"
+            echo "- Exact Google-protected v2: **${protected_status}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive exact-v2 startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          api-level: 35
-          arch: x86_64
-          target: google_apis_playstore
-          profile: pixel_6
-          script: |
-            set -eu
+          name: eztrivia-v2-startup-differential
+          path: |
+            ${{ runner.temp }}/comparison-status.txt
+            ${{ runner.temp }}/emulator.log
+            ${{ runner.temp }}/*-start.txt
+            ${{ runner.temp }}/*.logcat
+            ${{ runner.temp }}/*.fatal
+          if-no-files-found: warn
+          retention-days: 7
 
-            capture_result() {
-              label="$1"
-              log="$RUNNER_TEMP/${label}.logcat"
-              sleep 10
-              adb logcat -d -v threadtime > "$log"
-              pid="$(adb shell pidof com.rsm.eztrivia | tr -d '\r')"
+      - name: Evaluate exact-v2 startup comparison
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          status_file="$RUNNER_TEMP/comparison-status.txt"
+          if [ ! -s "$status_file" ]; then
+            echo "::error::Comparison produced no status file."
+            exit 10
+          fi
+          cat "$status_file"
 
-              app_crash=0
-              if grep -q -E 'Process: com\.rsm\.eztrivia' "$log" || \
-                 grep -q -E 'Unable to (instantiate|create|start).*(com\.pairip|com\.rsm\.eztrivia)' "$log"; then
-                app_crash=1
-                grep -A160 -B60 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*(com\.pairip|com\.rsm\.eztrivia)' \
-                  "$log" > "$RUNNER_TEMP/${label}.fatal" || true
-                echo "${label}=FATAL"
-                cat "$RUNNER_TEMP/${label}.fatal"
-                return 1
-              fi
+          if grep -Fqx 'INFRASTRUCTURE_FAIL' "$status_file"; then
+            echo "::error::Emulator infrastructure failed before app comparison."
+            exit 11
+          fi
+          if grep -Fqx 'UNPROTECTED_INSTALL_FAIL' "$status_file"; then
+            echo "::error::The exact unprotected v2 APK could not be installed."
+            exit 12
+          fi
+          if grep -Fqx 'PROTECTED_INSTALL_FAIL' "$status_file"; then
+            echo "::error::The exact protected v2 APK could not be installed."
+            exit 13
+          fi
 
-              if [ -z "$pid" ]; then
-                echo "${label}=PROCESS_DIED"
-                tail -n 700 "$log"
-                return 1
-              fi
-
-              if ! adb shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
-                echo "${label}=PROCESS_ALIVE_MAIN_ACTIVITY_NOT_PRESENT pid=${pid}"
-                tail -n 300 "$log"
-                return 2
-              fi
-
-              echo "${label}=ALIVE pid=${pid}"
-              return 0
-            }
-
-            echo '=== EXACT V2 WITHOUT AUTOMATIC PROTECTION ==='
-            adb install -r "$RUNNER_TEMP/v2-unprotected.apk"
-            adb logcat -c
-            adb shell am start -W -n com.rsm.eztrivia/.MainActivity || true
-            if capture_result unprotected; then unprotected_status=PASS; else unprotected_status=FAIL; fi
-            adb uninstall com.rsm.eztrivia || true
-
-            echo '=== EXACT GOOGLE-PROTECTED V2 ==='
-            adb install -r -i com.android.vending "$RUNNER_TEMP/v2-protected.apk"
-            adb logcat -c
-            adb shell am start -W -n com.rsm.eztrivia/.MainActivity || true
-            if capture_result protected; then protected_status=PASS; else protected_status=FAIL; fi
-
-            echo "unprotected_status=${unprotected_status}"
-            echo "protected_status=${protected_status}"
-            {
-              echo '## Exact v2 protected/unprotected differential'
-              echo
-              echo "- Exact uploaded v2 without Automatic Protection: **${unprotected_status}**"
-              echo "- Exact Google-protected v2: **${protected_status}**"
-            } >> "$GITHUB_STEP_SUMMARY"
-
-            if [ "$unprotected_status" = PASS ] && [ "$protected_status" = FAIL ]; then
-              echo 'The protected distribution path is the startup-breaking difference in this test environment.'
-              exit 2
-            fi
-            if [ "$unprotected_status" = FAIL ]; then
-              echo 'The underlying exact v2 app also fails without Automatic Protection.'
-              exit 3
-            fi
-            if [ "$protected_status" = FAIL ]; then
-              echo 'The protected build failed without a clean unprotected pass.'
-              exit 4
-            fi
+          unprotected="$(sed -n 's/^UNPROTECTED=//p' "$status_file")"
+          protected="$(sed -n 's/^PROTECTED=//p' "$status_file")"
+          if [ "$unprotected" = PASS ] && [ "$protected" = PASS ]; then
             echo 'Both exact v2 variants launched in this environment.'
+            exit 0
+          fi
+          if [ "$unprotected" = PASS ] && [ "$protected" = FAIL ]; then
+            echo 'The protected distribution path is the startup-breaking difference in this environment.'
+            exit 2
+          fi
+          if [ "$unprotected" = FAIL ]; then
+            echo 'The underlying exact v2 app also fails without Automatic Protection.'
+            exit 3
+          fi
+          echo 'Unexpected comparison result.'
+          exit 4
