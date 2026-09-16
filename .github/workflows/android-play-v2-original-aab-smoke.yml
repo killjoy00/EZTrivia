@@ -1,9 +1,6 @@
 name: Android Play v2 original AAB smoke
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/android-play-v2-original-aab-smoke.yml"
   workflow_dispatch:
 
 permissions:
