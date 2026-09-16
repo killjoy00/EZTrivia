@@ -87,7 +87,7 @@ jobs:
         with:
           api-level: 35
           arch: x86_64
-          target: google_apis
+          target: google_apis_playstore
           profile: pixel_6
           script: |
             set -euo pipefail
@@ -106,7 +106,7 @@ jobs:
             pid="$(adb shell pidof com.rsm.eztrivia | tr -d '\r')"
 
             fatal=0
-            if grep -A100 -B30 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to start activity.*com\.rsm\.eztrivia' "$RUNNER_TEMP/play-v2-logcat.txt" > "$RUNNER_TEMP/play-v2-fatal.txt"; then
+            if grep -A100 -B30 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to start activity.*com\.rsm\.eztrivia|Unable to instantiate application.*com\.pairip' "$RUNNER_TEMP/play-v2-logcat.txt" > "$RUNNER_TEMP/play-v2-fatal.txt"; then
               fatal=1
               cat "$RUNNER_TEMP/play-v2-fatal.txt"
             fi
