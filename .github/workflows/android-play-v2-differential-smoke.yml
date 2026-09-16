@@ -108,32 +108,70 @@ jobs:
           test -s "$RUNNER_TEMP/v2-unprotected.apk"
           shasum -a 256 "$RUNNER_TEMP/v2-unprotected.apk"
 
-      - name: Install Android emulator image
+      - name: Resolve Android SDK tools and install emulator image
         shell: bash
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install \
+          sdk_root="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+          sdkmanager_bin="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          avdmanager_bin="$sdk_root/cmdline-tools/latest/bin/avdmanager"
+
+          if [ ! -x "$sdkmanager_bin" ]; then
+            sdkmanager_bin="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager -perm -111 2>/dev/null | head -1)"
+          fi
+          if [ ! -x "$avdmanager_bin" ]; then
+            avdmanager_bin="$(find "$sdk_root/cmdline-tools" -type f -name avdmanager -perm -111 2>/dev/null | head -1)"
+          fi
+
+          if [ -z "$sdkmanager_bin" ] || [ ! -x "$sdkmanager_bin" ]; then
+            echo "::error::Could not resolve sdkmanager under $sdk_root."
+            find "$sdk_root" -maxdepth 4 -type f -name sdkmanager -print 2>/dev/null || true
+            exit 1
+          fi
+          if [ -z "$avdmanager_bin" ] || [ ! -x "$avdmanager_bin" ]; then
+            echo "::error::Could not resolve avdmanager under $sdk_root."
+            find "$sdk_root" -maxdepth 4 -type f -name avdmanager -print 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Using sdkmanager: $sdkmanager_bin"
+          echo "Using avdmanager: $avdmanager_bin"
+          printf 'SDK_ROOT=%s\nSDKMANAGER_BIN=%s\nAVDMANAGER_BIN=%s\n' \
+            "$sdk_root" "$sdkmanager_bin" "$avdmanager_bin" >> "$GITHUB_ENV"
+
+          yes | "$sdkmanager_bin" --licenses >/dev/null || true
+          "$sdkmanager_bin" --install \
             'build-tools;37.0.0' \
             platform-tools \
             'platforms;android-35' \
             emulator \
             'system-images;android-35;google_apis_playstore;x86_64' >/dev/null
-          echo no | avdmanager create avd \
+
+          echo no | "$avdmanager_bin" create avd \
             --force \
             --name eztrivia-v2 \
             --package 'system-images;android-35;google_apis_playstore;x86_64' \
             --device pixel_6 >/dev/null
+
+          test -x "$sdk_root/platform-tools/adb"
+          test -x "$sdk_root/emulator/emulator"
 
       - name: Run exact protected/unprotected startup comparison
         id: compare
         shell: bash
         run: |
           set -u
-          sdk_root="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+          sdk_root="${SDK_ROOT:-${ANDROID_HOME:-$HOME/Library/Android/sdk}}"
+          adb_bin="$sdk_root/platform-tools/adb"
           emulator_bin="$sdk_root/emulator/emulator"
           emulator_log="$RUNNER_TEMP/emulator.log"
           status_file="$RUNNER_TEMP/comparison-status.txt"
+
+          if [ ! -x "$adb_bin" ] || [ ! -x "$emulator_bin" ]; then
+            echo "::error::Resolved Android SDK is missing adb or emulator."
+            echo "INFRASTRUCTURE_FAIL" > "$status_file"
+            exit 0
+          fi
 
           "$emulator_bin" \
             -avd eztrivia-v2 \
@@ -147,16 +185,16 @@ jobs:
           emulator_pid=$!
 
           cleanup() {
-            adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
+            "$adb_bin" -s emulator-5554 emu kill >/dev/null 2>&1 || true
             kill "$emulator_pid" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
 
-          adb start-server >/dev/null 2>&1 || true
+          "$adb_bin" start-server >/dev/null 2>&1 || true
           booted=0
           for attempt in $(seq 1 320); do
-            state="$(adb -s emulator-5554 get-state 2>/dev/null || true)"
-            boot="$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+            state="$("$adb_bin" -s emulator-5554 get-state 2>/dev/null || true)"
+            boot="$("$adb_bin" -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
             if [ "$state" = "device" ] && [ "$boot" = "1" ]; then
               booted=1
               break
@@ -177,14 +215,11 @@ jobs:
             exit 0
           fi
 
-          # The Play Store image can report boot_completed before PackageManager
-          # and ActivityManager are fully settled. Give them a short grace period
-          # and prove ADB remains healthy before installing either APK.
           sleep 12
           ready=0
           for attempt in $(seq 1 30); do
-            if adb -s emulator-5554 shell pm path com.android.vending >/dev/null 2>&1 && \
-               adb -s emulator-5554 shell cmd package list packages >/dev/null 2>&1; then
+            if "$adb_bin" -s emulator-5554 shell pm path com.android.vending >/dev/null 2>&1 && \
+               "$adb_bin" -s emulator-5554 shell cmd package list packages >/dev/null 2>&1; then
               ready=1
               break
             fi
@@ -198,7 +233,7 @@ jobs:
           fi
 
           adbdev() {
-            adb -s emulator-5554 "$@"
+            "$adb_bin" -s emulator-5554 "$@"
           }
 
           capture_result() {
