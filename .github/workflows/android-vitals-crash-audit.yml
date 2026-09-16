@@ -1,9 +1,6 @@
 name: Android Vitals crash audit
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/android-vitals-crash-audit.yml"
   workflow_dispatch:
 
 permissions:
@@ -134,9 +131,6 @@ jobs:
             exit 0
           fi
 
-          # ErrorReport.reportText is sanitized by Google before it is returned.
-          # Print it so a release crash can be diagnosed without changing any
-          # Google Play release, tester, track, or review state.
           jq -r '
             .errorReports[] |
             "=== ANDROID VITALS CRASH ===\n" +
