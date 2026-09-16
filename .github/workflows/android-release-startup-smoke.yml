@@ -54,7 +54,7 @@ jobs:
     name: Launch minified v3 release candidate
     needs: build
     runs-on: macos-26-intel
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - uses: actions/setup-java@v4
@@ -152,7 +152,7 @@ jobs:
               "$seconds" "$@"
           }
 
-          adb_cmd() {
+          adb_bounded() {
             local seconds="$1"
             shift
             deadline "$seconds" "$adb_bin" -s emulator-5554 "$@"
@@ -165,24 +165,29 @@ jobs:
             -noaudio \
             -no-boot-anim \
             -no-snapshot \
+            -no-metrics \
             -gpu swiftshader_indirect \
             >"$emulator_log" 2>&1 &
           emulator_pid=$!
 
           cleanup() {
-            adb_cmd 10 emu kill >/dev/null 2>&1 || true
+            "$adb_bin" -s emulator-5554 emu kill >/dev/null 2>&1 || true
             kill "$emulator_pid" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
 
-          deadline 10 "$adb_bin" start-server >/dev/null 2>&1 || true
+          "$adb_bin" start-server >/dev/null 2>&1 || true
 
+          # This is the same boot sequence that successfully reproduced the exact
+          # versionCode 2 crash on this runner/image. Do not wrap boot probes in
+          # per-command alarms; that can consume the boot window on slow ADB probes.
           booted=0
-          for attempt in $(seq 1 180); do
-            state="$(adb_cmd 5 get-state 2>/dev/null || true)"
-            boot="$(adb_cmd 5 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+          for attempt in $(seq 1 320); do
+            state="$("$adb_bin" -s emulator-5554 get-state 2>/dev/null || true)"
+            boot="$("$adb_bin" -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
             if [ "$state" = "device" ] && [ "$boot" = "1" ]; then
               booted=1
+              echo "Emulator boot completed on probe ${attempt}."
               break
             fi
             if ! kill -0 "$emulator_pid" >/dev/null 2>&1; then
@@ -190,47 +195,43 @@ jobs:
               tail -n 300 "$emulator_log" || true
               exit 10
             fi
-            if [ $((attempt % 30)) -eq 0 ]; then
-              deadline 10 "$adb_bin" kill-server >/dev/null 2>&1 || true
-              deadline 10 "$adb_bin" start-server >/dev/null 2>&1 || true
-            fi
             sleep 2
           done
           if [ "$booted" -ne 1 ]; then
-            echo "::error::Android emulator did not boot within six minutes."
+            echo "::error::Android emulator did not complete boot within the proven 320-probe window."
             tail -n 300 "$emulator_log" || true
             exit 11
           fi
 
+          sleep 12
           ready=0
-          for attempt in $(seq 1 45); do
-            if adb_cmd 8 shell service check package 2>/dev/null | grep -q 'found' && \
-               adb_cmd 8 shell pm path com.google.android.gms >/dev/null 2>&1 && \
-               adb_cmd 8 shell cmd package list packages >/dev/null 2>&1; then
+          for attempt in $(seq 1 30); do
+            if "$adb_bin" -s emulator-5554 shell pm path com.android.vending >/dev/null 2>&1 && \
+               "$adb_bin" -s emulator-5554 shell cmd package list packages >/dev/null 2>&1; then
               ready=1
               break
             fi
             sleep 2
           done
           if [ "$ready" -ne 1 ]; then
-            echo "::error::Emulator booted but package services were not ready within 90 seconds."
+            echo "::error::Emulator booted but Android services never became ready."
             tail -n 300 "$emulator_log" || true
             exit 12
           fi
 
-          adb_cmd 10 shell settings put global package_verifier_enable 0 >/dev/null 2>&1 || true
-          adb_cmd 10 shell settings put global verifier_verify_adb_installs 0 >/dev/null 2>&1 || true
-          adb_cmd 10 shell input keyevent 82 >/dev/null 2>&1 || true
-          adb_cmd 10 shell wm dismiss-keyguard >/dev/null 2>&1 || true
+          adb_bounded 10 shell settings put global package_verifier_enable 0 >/dev/null 2>&1 || true
+          adb_bounded 10 shell settings put global verifier_verify_adb_installs 0 >/dev/null 2>&1 || true
+          adb_bounded 10 shell input keyevent 82 >/dev/null 2>&1 || true
+          adb_bounded 10 shell wm dismiss-keyguard >/dev/null 2>&1 || true
 
           : > "$install_log"
           installed=0
 
-          adb_cmd 20 shell pm uninstall com.rsm.eztrivia >> "$install_log" 2>&1 || true
-          adb_cmd 20 shell rm -f "$device_apk" >> "$install_log" 2>&1 || true
+          adb_bounded 20 shell pm uninstall com.rsm.eztrivia >> "$install_log" 2>&1 || true
+          adb_bounded 20 shell rm -f "$device_apk" >> "$install_log" 2>&1 || true
 
           echo 'Push APK to emulator' | tee -a "$install_log"
-          if ! adb_cmd 60 push "$RUNNER_TEMP/v3-smoke.apk" "$device_apk" >> "$install_log" 2>&1; then
+          if ! adb_bounded 60 push "$RUNNER_TEMP/v3-smoke.apk" "$device_apk" >> "$install_log" 2>&1; then
             echo "::error::Failed to push v3 APK to emulator within 60 seconds."
             cat "$install_log"
             exit 13
@@ -238,36 +239,36 @@ jobs:
 
           for attempt in 1 2; do
             echo "Device-side install attempt ${attempt}" | tee -a "$install_log"
-            if adb_cmd 75 shell pm install -r "$device_apk" >> "$install_log" 2>&1; then
-              if adb_cmd 15 shell pm path com.rsm.eztrivia >> "$install_log" 2>&1; then
+            if adb_bounded 90 shell pm install -r "$device_apk" >> "$install_log" 2>&1; then
+              if adb_bounded 15 shell pm path com.rsm.eztrivia >> "$install_log" 2>&1; then
                 installed=1
                 break
               fi
             fi
-            adb_cmd 20 shell pm uninstall com.rsm.eztrivia >> "$install_log" 2>&1 || true
+            adb_bounded 20 shell pm uninstall com.rsm.eztrivia >> "$install_log" 2>&1 || true
             sleep 3
           done
 
           cat "$install_log"
           if [ "$installed" -ne 1 ]; then
             echo "::error::v3 APK could not be installed after two bounded device-side attempts."
-            adb_cmd 20 shell df -h /data >> "$install_log" 2>&1 || true
-            adb_cmd 20 shell dumpsys package installer >> "$install_log" 2>&1 || true
+            adb_bounded 20 shell df -h /data >> "$install_log" 2>&1 || true
+            adb_bounded 20 shell dumpsys package installer >> "$install_log" 2>&1 || true
             cat "$install_log"
             exit 14
           fi
 
-          adb_cmd 10 logcat -c || true
-          adb_cmd 30 shell am start -W -n com.rsm.eztrivia/.MainActivity > "$RUNNER_TEMP/start.txt" 2>&1 || true
+          adb_bounded 10 logcat -c || true
+          adb_bounded 30 shell am start -W -n com.rsm.eztrivia/.MainActivity > "$RUNNER_TEMP/start.txt" 2>&1 || true
           cat "$RUNNER_TEMP/start.txt"
           sleep 12
 
-          if ! adb_cmd 30 logcat -d -v threadtime > "$RUNNER_TEMP/v3-logcat.txt"; then
+          if ! adb_bounded 30 logcat -d -v threadtime > "$RUNNER_TEMP/v3-logcat.txt"; then
             echo "::error::Could not collect startup logcat within 30 seconds."
             exit 15
           fi
 
-          pid="$(adb_cmd 10 shell pidof com.rsm.eztrivia 2>/dev/null | tr -d '\r' || true)"
+          pid="$(adb_bounded 10 shell pidof com.rsm.eztrivia 2>/dev/null | tr -d '\r' || true)"
           if grep -q -E 'Process: com\.rsm\.eztrivia' "$RUNNER_TEMP/v3-logcat.txt" || \
              grep -q -E 'Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$RUNNER_TEMP/v3-logcat.txt"; then
             echo "::error::v3 release candidate crashed during startup."
@@ -280,7 +281,7 @@ jobs:
             tail -n 700 "$RUNNER_TEMP/v3-logcat.txt"
             exit 21
           fi
-          if ! adb_cmd 20 shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
+          if ! adb_bounded 20 shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
             echo "::error::v3 process survived but MainActivity is not active."
             tail -n 700 "$RUNNER_TEMP/v3-logcat.txt"
             exit 22
