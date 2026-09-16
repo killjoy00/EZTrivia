@@ -60,7 +60,7 @@ jobs:
             -L \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
             -H "Accept: application/octet-stream" \
-            "${base}/downloads/${download_id}:download" \
+            "${base}/downloads/${download_id}:download?alt=media" \
             -o "$apk"
 
           test -s "$apk"
