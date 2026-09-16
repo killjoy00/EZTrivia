@@ -12,7 +12,7 @@ permissions:
 jobs:
   smoke:
     name: Launch exact Play-generated v2 APK
-    runs-on: ubuntu-latest
+    runs-on: macos-15
     timeout-minutes: 20
     env:
       PACKAGE_NAME: com.rsm.eztrivia
@@ -64,7 +64,8 @@ jobs:
             -o "$apk"
 
           test -s "$apk"
-          echo "Downloaded exact Play-generated v2 APK ($(stat -c%s "$apk") bytes)."
+          bytes="$(wc -c < "$apk" | tr -d ' ')"
+          echo "Downloaded exact Play-generated v2 APK (${bytes} bytes)."
 
           {
             echo "## Exact Google Play v2 binary"
@@ -86,13 +87,13 @@ jobs:
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
           api-level: 35
-          arch: x86_64
+          arch: arm64-v8a
           target: google_apis_playstore
           profile: pixel_6
           script: |
             set -eu
             apk="$RUNNER_TEMP/eztrivia-play-v2.apk"
-            adb install -r "$apk"
+            adb install -r -i com.android.vending "$apk"
             adb logcat -c
 
             set +e
@@ -106,7 +107,7 @@ jobs:
             pid="$(adb shell pidof com.rsm.eztrivia | tr -d '\r')"
 
             fatal=0
-            if grep -A100 -B30 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to start activity.*com\.rsm\.eztrivia|Unable to instantiate application.*com\.pairip' "$RUNNER_TEMP/play-v2-logcat.txt" > "$RUNNER_TEMP/play-v2-fatal.txt"; then
+            if grep -A140 -B50 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to start activity.*com\.rsm\.eztrivia|Unable to instantiate application.*com\.pairip|com\.pairip' "$RUNNER_TEMP/play-v2-logcat.txt" > "$RUNNER_TEMP/play-v2-fatal.txt"; then
               fatal=1
               cat "$RUNNER_TEMP/play-v2-fatal.txt"
             fi
@@ -114,14 +115,14 @@ jobs:
             if [ "$launch_status" -ne 0 ] || [ -z "$pid" ] || [ "$fatal" -ne 0 ]; then
               echo "::error::Exact Google Play v2 failed its startup smoke test."
               if [ "$fatal" -eq 0 ]; then
-                tail -n 500 "$RUNNER_TEMP/play-v2-logcat.txt"
+                tail -n 600 "$RUNNER_TEMP/play-v2-logcat.txt"
               fi
               exit 1
             fi
 
             if ! adb shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
               echo "::error::Exact Google Play v2 process is alive but MainActivity is not active."
-              tail -n 500 "$RUNNER_TEMP/play-v2-logcat.txt"
+              tail -n 600 "$RUNNER_TEMP/play-v2-logcat.txt"
               exit 1
             fi
 
