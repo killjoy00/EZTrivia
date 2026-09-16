@@ -25,6 +25,8 @@ jobs:
       VERSION_NAME: 1.0.0-alpha03
       RELEASE_NAME: EZ Trivia 1.0.0-alpha03 closed test
       RELEASE_NOTES: Fixes an Android startup crash in the release build and improves release validation.
+      TEST_ADMOB_APP_ID: ca-app-pub-3940256099942544~3347511713
+      TEST_ADMOB_BANNER_ID: ca-app-pub-3940256099942544/6300978111
 
     steps:
       - uses: actions/checkout@v4
@@ -38,23 +40,19 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
-      - name: Validate signing and production configuration
+      - name: Validate signing and Play credentials
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
           PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          ADMOB_APP_ID: ${{ secrets.ANDROID_ADMOB_APP_ID }}
-          ADMOB_BANNER_ID: ${{ secrets.ANDROID_ADMOB_BANNER_ID }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$KEYSTORE_BASE64"
           test -n "$KEYSTORE_PASSWORD"
           test -n "$PLAY_SERVICE_ACCOUNT"
-          test -n "$ADMOB_APP_ID"
-          test -n "$ADMOB_BANNER_ID"
-          [[ "$ADMOB_APP_ID" =~ ^ca-app-pub-1217971050094766~[0-9]+$ ]]
-          [[ "$ADMOB_BANNER_ID" =~ ^ca-app-pub-1217971050094766/[0-9]+$ ]]
+          echo "Closed-test v3 intentionally uses Google's official Android demo AdMob IDs."
+          echo "A later Production candidate must use the real Android AdMob app/banner IDs."
 
       - name: Authenticate to Google Play Developer API
         id: auth
@@ -113,13 +111,13 @@ jobs:
         working-directory: android
         run: gradle testDebugUnitTest --stacktrace
 
-      - name: Build signed production-configured v3 bundle
+      - name: Build signed test-only v3 bundle
         working-directory: android
         env:
           ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/eztrivia-upload.p12
           ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
-          ANDROID_ADMOB_APP_ID: ${{ secrets.ANDROID_ADMOB_APP_ID }}
-          ANDROID_ADMOB_BANNER_ID: ${{ secrets.ANDROID_ADMOB_BANNER_ID }}
+          ANDROID_ADMOB_APP_ID: ${{ env.TEST_ADMOB_APP_ID }}
+          ANDROID_ADMOB_BANNER_ID: ${{ env.TEST_ADMOB_BANNER_ID }}
           EZTRIVIA_VERSION_CODE: ${{ env.VERSION_CODE }}
           EZTRIVIA_VERSION_NAME: ${{ env.VERSION_NAME }}
         run: |
