@@ -99,6 +99,53 @@ jobs:
       - name: Assemble release APK (exercises R8)
         run: gradle assembleRelease --stacktrace
 
+      - name: Verify R8 keeps reflective WorkManager constructors
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapping="app/build/outputs/mapping/release/mapping.txt"
+          test -s "$mapping"
+
+          python3 - "$mapping" <<'PY'
+          import sys
+          from pathlib import Path
+
+          mapping = Path(sys.argv[1]).read_text(errors="replace").splitlines()
+          required = [
+              "androidx.work.impl.WorkDatabase_Impl",
+              "androidx.work.OverwritingInputMerger",
+              "androidx.work.ArrayCreatingInputMerger",
+          ]
+
+          blocks = {}
+          current = None
+          for line in mapping:
+              if line and not line[0].isspace() and " -> " in line and line.endswith(":"):
+                  current = line.split(" -> ", 1)[0]
+                  blocks[current] = []
+              elif current is not None and line[:1].isspace():
+                  blocks[current].append(line.strip())
+
+          failures = []
+          for class_name in required:
+              members = blocks.get(class_name)
+              if members is None:
+                  failures.append(f"{class_name}: class missing from release mapping")
+                  continue
+              if not any("<init>" in member for member in members):
+                  failures.append(f"{class_name}: constructor stripped by R8")
+
+          if failures:
+              print("Release reflection audit failed:")
+              for failure in failures:
+                  print(f" - {failure}")
+              raise SystemExit(1)
+
+          print("Release reflection audit passed:")
+          for class_name in required:
+              print(f" - {class_name}: constructor retained")
+          PY
+
       - name: Audit packaged Play manifest
         shell: bash
         run: |
