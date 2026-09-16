@@ -1,5 +1,6 @@
 name: Play release lifecycle audit
 
+# Live-state audit trigger marker. Safe: this workflow is read-only against Google Play.
 on:
   workflow_dispatch:
   push:
