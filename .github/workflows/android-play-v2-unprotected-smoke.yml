@@ -1,9 +1,6 @@
 name: Android Play v2 unprotected smoke test
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/android-play-v2-unprotected-smoke.yml"
   workflow_dispatch:
 
 permissions:
