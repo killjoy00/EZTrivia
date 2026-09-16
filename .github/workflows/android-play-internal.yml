@@ -28,6 +28,9 @@ jobs:
     name: Build and publish Internal Testing release
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    env:
+      ANDROID_ADMOB_APP_ID: ca-app-pub-1217971050094766~1085041409
+      ANDROID_ADMOB_BANNER_ID: ca-app-pub-1217971050094766/1190439457
 
     steps:
       - uses: actions/checkout@v4
@@ -41,15 +44,13 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
-      - name: Validate inputs and signing secrets
+      - name: Validate inputs, signing secrets, and production AdMob IDs
         env:
           VERSION_CODE: ${{ inputs.version_code }}
           VERSION_NAME: ${{ inputs.version_name }}
           KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
           PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          ADMOB_APP_ID: ${{ secrets.ANDROID_ADMOB_APP_ID }}
-          ADMOB_BANNER_ID: ${{ secrets.ANDROID_ADMOB_BANNER_ID }}
         run: |
           set -euo pipefail
           if ! [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]]; then
@@ -68,15 +69,11 @@ jobs:
             echo "::error::Missing GOOGLE_PLAY_SERVICE_ACCOUNT_JSON repository secret"
             exit 1
           fi
-          if [[ -z "$ADMOB_APP_ID" || -z "$ADMOB_BANNER_ID" ]]; then
-            echo "::error::Missing ANDROID_ADMOB_APP_ID / ANDROID_ADMOB_BANNER_ID. Signed Play builds must use production AdMob inventory; see android/ADMOB.md"
-            exit 1
-          fi
-          if ! [[ "$ADMOB_APP_ID" =~ ^ca-app-pub-1217971050094766~[0-9]+$ ]]; then
+          if ! [[ "$ANDROID_ADMOB_APP_ID" =~ ^ca-app-pub-1217971050094766~[0-9]+$ ]]; then
             echo "::error::ANDROID_ADMOB_APP_ID is not an Android app ID for the expected EZ Trivia publisher"
             exit 1
           fi
-          if ! [[ "$ADMOB_BANNER_ID" =~ ^ca-app-pub-1217971050094766/[0-9]+$ ]]; then
+          if ! [[ "$ANDROID_ADMOB_BANNER_ID" =~ ^ca-app-pub-1217971050094766/[0-9]+$ ]]; then
             echo "::error::ANDROID_ADMOB_BANNER_ID is not a banner ad-unit ID for the expected EZ Trivia publisher"
             exit 1
           fi
@@ -104,8 +101,6 @@ jobs:
         env:
           ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/eztrivia-upload.p12
           ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
-          ANDROID_ADMOB_APP_ID: ${{ secrets.ANDROID_ADMOB_APP_ID }}
-          ANDROID_ADMOB_BANNER_ID: ${{ secrets.ANDROID_ADMOB_BANNER_ID }}
           EZTRIVIA_VERSION_CODE: ${{ inputs.version_code }}
           EZTRIVIA_VERSION_NAME: ${{ inputs.version_name }}
         run: gradle bundleRelease --stacktrace
