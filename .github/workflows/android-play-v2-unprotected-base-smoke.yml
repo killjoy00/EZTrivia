@@ -76,7 +76,7 @@ jobs:
           target: google_apis_playstore
           profile: pixel_6
           script: |
-            set -euo pipefail
+            set -eu
             apk="$RUNNER_TEMP/eztrivia-v2-unprotected-base.apk"
             adb install -r "$apk"
             adb logcat -c
