@@ -7,19 +7,25 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
   compare:
-    name: Compare protected vs unprotected v2 startup
+    name: Compare exact protected vs unprotected v2 startup
     runs-on: macos-15
     timeout-minutes: 20
     env:
       PACKAGE_NAME: com.rsm.eztrivia
       VERSION_CODE: "2"
-      VARIANT_ID: "4"
+      V2_ARTIFACT_ID: "10356030348"
 
     steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Authenticate to Google Play Developer API
         id: auth
         uses: google-github-actions/auth@v3
@@ -29,7 +35,7 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
           create_credentials_file: false
 
-      - name: Download Google-generated v2 binaries
+      - name: Download exact Google-protected v2 APK
         env:
           ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         shell: bash
@@ -37,42 +43,76 @@ jobs:
           set -euo pipefail
           base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/generatedApks/${VERSION_CODE}"
           metadata="$RUNNER_TEMP/generated-apks-v2.json"
-
           curl --fail-with-body --silent --show-error \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
             -H "Accept: application/json" \
             "$base" > "$metadata"
 
           protected_id="$(jq -r '[.generatedApks[]?.generatedUniversalApk.downloadId // empty] | first // ""' "$metadata")"
-          unprotected_id="$(jq -r --argjson variant "$VARIANT_ID" '
-            [.generatedApks[0].unprotectedGeneratedSplitApks[] |
-              select((.variantId == $variant) and (.moduleName == "base") and ((.splitId // "") == "")) |
-              .downloadId] | first // ""
-          ' "$metadata")"
           test -n "$protected_id"
-          test -n "$unprotected_id"
-
           curl --fail-with-body --silent --show-error -L \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
             -H "Accept: application/octet-stream" \
             "${base}/downloads/${protected_id}:download?alt=media" \
             -o "$RUNNER_TEMP/v2-protected.apk"
-
-          curl --fail-with-body --silent --show-error -L \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -H "Accept: application/octet-stream" \
-            "${base}/downloads/${unprotected_id}:download?alt=media" \
-            -o "$RUNNER_TEMP/v2-unprotected-base.apk"
-
           test -s "$RUNNER_TEMP/v2-protected.apk"
-          test -s "$RUNNER_TEMP/v2-unprotected-base.apk"
-          shasum -a 256 "$RUNNER_TEMP/v2-protected.apk" "$RUNNER_TEMP/v2-unprotected-base.apk"
+          shasum -a 256 "$RUNNER_TEMP/v2-protected.apk"
 
-      - name: Run differential startup test
+      - name: Download exact original v2 AAB
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/v2-original.zip"
+          curl --fail-with-body --silent --show-error -L \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${V2_ARTIFACT_ID}/zip" \
+            -o "$zip"
+          mkdir -p "$RUNNER_TEMP/v2-original"
+          unzip -q "$zip" -d "$RUNNER_TEMP/v2-original"
+          aab="$RUNNER_TEMP/v2-original/bundle/release/app-release.aab"
+          test -s "$aab"
+          shasum -a 256 "$aab"
+
+      - name: Build exact v2 without Automatic Protection
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error -L \
+            "https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar" \
+            -o "$RUNNER_TEMP/bundletool.jar"
+
+          keytool -genkeypair \
+            -keystore "$RUNNER_TEMP/v2-smoke.jks" \
+            -storepass android \
+            -keypass android \
+            -alias smoke \
+            -dname "CN=EZ Trivia v2 Differential,O=EZ Trivia,C=US" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 30
+
+          java -jar "$RUNNER_TEMP/bundletool.jar" build-apks \
+            --bundle="$RUNNER_TEMP/v2-original/bundle/release/app-release.aab" \
+            --output="$RUNNER_TEMP/v2-unprotected.apks" \
+            --mode=universal \
+            --ks="$RUNNER_TEMP/v2-smoke.jks" \
+            --ks-key-alias=smoke \
+            --ks-pass=pass:android \
+            --key-pass=pass:android \
+            --overwrite
+          unzip -p "$RUNNER_TEMP/v2-unprotected.apks" universal.apk > "$RUNNER_TEMP/v2-unprotected.apk"
+          test -s "$RUNNER_TEMP/v2-unprotected.apk"
+          shasum -a 256 "$RUNNER_TEMP/v2-unprotected.apk"
+
+      - name: Run exact protected/unprotected startup comparison
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
           api-level: 35
-          arch: x86_64
+          arch: arm64-v8a
           target: google_apis_playstore
           profile: pixel_6
           script: |
@@ -81,31 +121,31 @@ jobs:
             capture_result() {
               label="$1"
               log="$RUNNER_TEMP/${label}.logcat"
-              sleep 8
+              sleep 10
               adb logcat -d -v threadtime > "$log"
               pid="$(adb shell pidof com.rsm.eztrivia | tr -d '\r')"
-              if grep -A120 -B40 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*com\.(pairip|rsm\.eztrivia)' "$log" > "$RUNNER_TEMP/${label}.fatal"; then
+              if grep -A160 -B60 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*com\.(pairip|rsm\.eztrivia)|com\.pairip' "$log" > "$RUNNER_TEMP/${label}.fatal"; then
                 echo "${label}=FATAL"
                 cat "$RUNNER_TEMP/${label}.fatal"
                 return 1
               fi
               if [ -z "$pid" ]; then
                 echo "${label}=PROCESS_DIED"
-                tail -n 500 "$log"
+                tail -n 700 "$log"
                 return 1
               fi
               echo "${label}=ALIVE pid=${pid}"
               return 0
             }
 
-            echo '=== UNPROTECTED V2 ==='
-            adb install -r "$RUNNER_TEMP/v2-unprotected-base.apk"
+            echo '=== EXACT V2 WITHOUT AUTOMATIC PROTECTION ==='
+            adb install -r "$RUNNER_TEMP/v2-unprotected.apk"
             adb logcat -c
             adb shell am start -W -n com.rsm.eztrivia/.MainActivity || true
             if capture_result unprotected; then unprotected_status=PASS; else unprotected_status=FAIL; fi
             adb uninstall com.rsm.eztrivia || true
 
-            echo '=== PROTECTED V2 ==='
+            echo '=== EXACT GOOGLE-PROTECTED V2 ==='
             adb install -r -i com.android.vending "$RUNNER_TEMP/v2-protected.apk"
             adb logcat -c
             adb shell am start -W -n com.rsm.eztrivia/.MainActivity || true
@@ -114,22 +154,22 @@ jobs:
             echo "unprotected_status=${unprotected_status}"
             echo "protected_status=${protected_status}"
             {
-              echo '## v2 protected/unprotected differential'
+              echo '## Exact v2 protected/unprotected differential'
               echo
-              echo "- Unprotected Google-generated v2: **${unprotected_status}**"
-              echo "- Protected Google-generated v2: **${protected_status}**"
+              echo "- Exact uploaded v2 without Automatic Protection: **${unprotected_status}**"
+              echo "- Exact Google-protected v2: **${protected_status}**"
             } >> "$GITHUB_STEP_SUMMARY"
 
             if [ "$unprotected_status" = PASS ] && [ "$protected_status" = FAIL ]; then
-              echo 'Automatic Protection isolated as the startup-breaking difference.'
+              echo 'Automatic Protection is the startup-breaking difference in this test environment.'
               exit 2
             fi
             if [ "$unprotected_status" = FAIL ]; then
-              echo 'Underlying app also fails without Automatic Protection.'
+              echo 'The underlying exact v2 app also fails without Automatic Protection.'
               exit 3
             fi
             if [ "$protected_status" = FAIL ]; then
-              echo 'Protected build failed while unprotected status was not a clean pass.'
+              echo 'The protected build failed without a clean unprotected pass.'
               exit 4
             fi
-            echo 'Both variants launched in this environment.'
+            echo 'Both exact v2 variants launched in this environment.'
