@@ -1,0 +1,135 @@
+name: Android Play v2 differential smoke
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/android-play-v2-differential-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: Compare protected vs unprotected v2 startup
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      PACKAGE_NAME: com.rsm.eztrivia
+      VERSION_CODE: "2"
+      VARIANT_ID: "4"
+
+    steps:
+      - name: Authenticate to Google Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Download Google-generated v2 binaries
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/generatedApks/${VERSION_CODE}"
+          metadata="$RUNNER_TEMP/generated-apks-v2.json"
+
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Accept: application/json" \
+            "$base" > "$metadata"
+
+          protected_id="$(jq -r '[.generatedApks[]?.generatedUniversalApk.downloadId // empty] | first // ""' "$metadata")"
+          unprotected_id="$(jq -r --argjson variant "$VARIANT_ID" '
+            [.generatedApks[0].unprotectedGeneratedSplitApks[] |
+              select((.variantId == $variant) and (.moduleName == "base") and ((.splitId // "") == "")) |
+              .downloadId] | first // ""
+          ' "$metadata")"
+          test -n "$protected_id"
+          test -n "$unprotected_id"
+
+          curl --fail-with-body --silent --show-error -L \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            "${base}/downloads/${protected_id}:download?alt=media" \
+            -o "$RUNNER_TEMP/v2-protected.apk"
+
+          curl --fail-with-body --silent --show-error -L \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            "${base}/downloads/${unprotected_id}:download?alt=media" \
+            -o "$RUNNER_TEMP/v2-unprotected-base.apk"
+
+          test -s "$RUNNER_TEMP/v2-protected.apk"
+          test -s "$RUNNER_TEMP/v2-unprotected-base.apk"
+          shasum -a 256 "$RUNNER_TEMP/v2-protected.apk" "$RUNNER_TEMP/v2-unprotected-base.apk"
+
+      - name: Run differential startup test
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis_playstore
+          profile: pixel_6
+          script: |
+            set -eu
+
+            capture_result() {
+              label="$1"
+              log="$RUNNER_TEMP/${label}.logcat"
+              sleep 8
+              adb logcat -d -v threadtime > "$log"
+              pid="$(adb shell pidof com.rsm.eztrivia | tr -d '\r')"
+              if grep -A120 -B40 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*com\.(pairip|rsm\.eztrivia)' "$log" > "$RUNNER_TEMP/${label}.fatal"; then
+                echo "${label}=FATAL"
+                cat "$RUNNER_TEMP/${label}.fatal"
+                return 1
+              fi
+              if [ -z "$pid" ]; then
+                echo "${label}=PROCESS_DIED"
+                tail -n 500 "$log"
+                return 1
+              fi
+              echo "${label}=ALIVE pid=${pid}"
+              return 0
+            }
+
+            echo '=== UNPROTECTED V2 ==='
+            adb install -r "$RUNNER_TEMP/v2-unprotected-base.apk"
+            adb logcat -c
+            adb shell am start -W -n com.rsm.eztrivia/.MainActivity || true
+            if capture_result unprotected; then unprotected_status=PASS; else unprotected_status=FAIL; fi
+            adb uninstall com.rsm.eztrivia || true
+
+            echo '=== PROTECTED V2 ==='
+            adb install -r -i com.android.vending "$RUNNER_TEMP/v2-protected.apk"
+            adb logcat -c
+            adb shell am start -W -n com.rsm.eztrivia/.MainActivity || true
+            if capture_result protected; then protected_status=PASS; else protected_status=FAIL; fi
+
+            echo "unprotected_status=${unprotected_status}"
+            echo "protected_status=${protected_status}"
+            {
+              echo '## v2 protected/unprotected differential'
+              echo
+              echo "- Unprotected Google-generated v2: **${unprotected_status}**"
+              echo "- Protected Google-generated v2: **${protected_status}**"
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            if [ "$unprotected_status" = PASS ] && [ "$protected_status" = FAIL ]; then
+              echo 'Automatic Protection isolated as the startup-breaking difference.'
+              exit 2
+            fi
+            if [ "$unprotected_status" = FAIL ]; then
+              echo 'Underlying app also fails without Automatic Protection.'
+              exit 3
+            fi
+            if [ "$protected_status" = FAIL ]; then
+              echo 'Protected build failed while unprotected status was not a clean pass.'
+              exit 4
+            fi
+            echo 'Both variants launched in this environment.'
