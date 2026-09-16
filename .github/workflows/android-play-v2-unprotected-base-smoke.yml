@@ -1,0 +1,105 @@
+name: Android Play v2 unprotected base smoke
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/android-play-v2-unprotected-base-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Launch unprotected v2 base APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PACKAGE_NAME: com.rsm.eztrivia
+      VERSION_CODE: "2"
+      VARIANT_ID: "4"
+
+    steps:
+      - name: Authenticate to Google Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Download unprotected v2 base APK
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/generatedApks/${VERSION_CODE}"
+          metadata="$RUNNER_TEMP/generated-apks-v2.json"
+          apk="$RUNNER_TEMP/eztrivia-v2-unprotected-base.apk"
+
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Accept: application/json" \
+            "$base" > "$metadata"
+
+          download_id="$(jq -r --argjson variant "$VARIANT_ID" '
+            [.generatedApks[0].unprotectedGeneratedSplitApks[] |
+              select((.variantId == $variant) and (.moduleName == "base") and ((.splitId // "") == "")) |
+              .downloadId] | first // ""
+          ' "$metadata")"
+          test -n "$download_id"
+
+          curl --fail-with-body --silent --show-error \
+            -L \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            "${base}/downloads/${download_id}:download?alt=media" \
+            -o "$apk"
+          test -s "$apk"
+          echo "Downloaded unprotected base APK ($(stat -c%s "$apk") bytes)."
+
+      - name: Archive unprotected base APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-play-v2-unprotected-base
+          path: ${{ runner.temp }}/eztrivia-v2-unprotected-base.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Launch unprotected v2 base APK
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          script: |
+            set -euo pipefail
+            apk="$RUNNER_TEMP/eztrivia-v2-unprotected-base.apk"
+            adb install -r "$apk"
+            adb logcat -c
+
+            set +e
+            launch_output="$(adb shell am start -W -n com.rsm.eztrivia/.MainActivity 2>&1)"
+            launch_status=$?
+            set -e
+            printf '%s\n' "$launch_output"
+
+            sleep 10
+            adb logcat -d -v threadtime > "$RUNNER_TEMP/unprotected-base-logcat.txt"
+            pid="$(adb shell pidof com.rsm.eztrivia | tr -d '\r')"
+            fatal=0
+            if grep -A100 -B30 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$RUNNER_TEMP/unprotected-base-logcat.txt" > "$RUNNER_TEMP/unprotected-base-fatal.txt"; then
+              fatal=1
+              cat "$RUNNER_TEMP/unprotected-base-fatal.txt"
+            fi
+
+            if [ "$launch_status" -ne 0 ] || [ -z "$pid" ] || [ "$fatal" -ne 0 ]; then
+              echo "::error::Unprotected Google-generated v2 base APK failed startup."
+              if [ "$fatal" -eq 0 ]; then tail -n 500 "$RUNNER_TEMP/unprotected-base-logcat.txt"; fi
+              exit 1
+            fi
+
+            echo "Unprotected Google-generated v2 base launched successfully; process ${pid} is alive."
