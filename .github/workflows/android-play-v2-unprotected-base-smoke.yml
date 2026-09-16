@@ -1,9 +1,6 @@
 name: Android Play v2 unprotected base smoke
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/android-play-v2-unprotected-base-smoke.yml"
   workflow_dispatch:
 
 permissions:
