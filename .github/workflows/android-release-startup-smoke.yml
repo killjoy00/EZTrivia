@@ -17,7 +17,7 @@ concurrency:
 jobs:
   smoke:
     name: Launch minified v3 release candidate
-    runs-on: macos-26
+    runs-on: macos-26-intel
     timeout-minutes: 25
     env:
       EZTRIVIA_VERSION_CODE: "3"
@@ -154,6 +154,21 @@ jobs:
           fi
 
           sleep 12
+          ready=0
+          for attempt in $(seq 1 30); do
+            if "$adb_bin" -s emulator-5554 shell pm path com.android.vending >/dev/null 2>&1 && \
+               "$adb_bin" -s emulator-5554 shell cmd package list packages >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::Emulator booted but Android services never became ready."
+            tail -n 300 "$emulator_log" || true
+            exit 12
+          fi
+
           adbdev() { "$adb_bin" -s emulator-5554 "$@"; }
 
           adbdev install -r "$RUNNER_TEMP/v3-smoke.apk"
