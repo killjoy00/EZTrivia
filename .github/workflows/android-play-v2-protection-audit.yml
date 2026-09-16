@@ -1,9 +1,6 @@
 name: Android Play v2 protection audit
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/android-play-v2-protection-audit.yml"
   workflow_dispatch:
 
 permissions:
