@@ -1,0 +1,93 @@
+name: Android Vitals crash audit
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/android-vitals-crash-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Read v2 crash reports
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PACKAGE_NAME: com.rsm.eztrivia
+      VERSION_CODE: "2"
+
+    steps:
+      - name: Authenticate to Play Developer Reporting API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/playdeveloperreporting
+          create_credentials_file: false
+
+      - name: Query recent v2 crashes
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/android-vitals-v2-crashes.json"
+          endpoint="https://playdeveloperreporting.googleapis.com/v1alpha1/apps/${PACKAGE_NAME}/errorReports:search"
+          filter="versionCode = ${VERSION_CODE} AND errorIssueType = CRASH"
+
+          http_code="$(curl --silent --show-error \
+            --get "$endpoint" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Accept: application/json" \
+            --data-urlencode "filter=${filter}" \
+            --data-urlencode "pageSize=100" \
+            -o "$output" \
+            -w '%{http_code}')"
+
+          if [ "$http_code" != "200" ]; then
+            echo "Play Developer Reporting API returned HTTP ${http_code}."
+            jq -r '.error.message // .' "$output" 2>/dev/null || cat "$output"
+            exit 1
+          fi
+
+          count="$(jq '(.errorReports // []) | length' "$output")"
+          echo "Found ${count} recent crash report(s) for versionCode ${VERSION_CODE}."
+
+          {
+            echo "## Android Vitals — versionCode ${VERSION_CODE}"
+            echo
+            echo "Recent crash reports returned: **${count}**"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$count" = "0" ]; then
+            echo "No v2 crash reports are available in the API's default recent window yet."
+            exit 0
+          fi
+
+          # ErrorReport.reportText is sanitized by Google before it is returned.
+          # Print it so a release crash can be diagnosed without changing any
+          # Google Play release, tester, track, or review state.
+          jq -r '
+            .errorReports[] |
+            "=== ANDROID VITALS CRASH ===\n" +
+            "Event: " + (.eventTime // "unknown") + "\n" +
+            "Type: " + (.type // "unknown") + "\n" +
+            "Issue: " + (.issue // "unknown") + "\n" +
+            "Version: " + ((.appVersion.versionCode // "unknown") | tostring) + "\n" +
+            "Device: " + (.deviceModel.marketingName // "unknown") + "\n" +
+            "VCS: " + (.vcsInformation // "unknown") + "\n\n" +
+            (.reportText // "(no report text)") + "\n"
+          ' "$output"
+
+          # Put compact identifiers in the job summary while keeping the full
+          # sanitized platform report in the step log for diagnosis.
+          jq -r '
+            .errorReports[] |
+            "- **" + (.eventTime // "unknown") + "** — " +
+            (.deviceModel.marketingName // "unknown device") +
+            " — `" + (.issue // "unknown issue") + "`"
+          ' "$output" >> "$GITHUB_STEP_SUMMARY"
