@@ -52,3 +52,19 @@ jobs:
           else
             echo "No unprotected APK metadata was exposed."
           fi
+
+          echo "=== VARIANT TARGETING ==="
+          jq -r '
+            .generatedApks[0].targetingInfo.variant[] |
+            "variant=" + (.variantNumber|tostring) +
+            " sdk=" + (([.targeting.sdkVersionTargeting.value[]?.min] | map(tostring) | join(",")) // "") +
+            " abi=" + (([.targeting.abiTargeting.value[]?.alias] | join(",")) // "") +
+            " density=" + (([.targeting.screenDensityTargeting.value[]? | (.densityAlias // (.densityDpi|tostring))] | map(tostring) | join(",")) // "")
+          ' "$out"
+
+          echo "=== UNPROTECTED BASE SPLITS ==="
+          jq -r '
+            .generatedApks[0].unprotectedGeneratedSplitApks[] |
+            select((.moduleName == "base") and ((.splitId // "") == "")) |
+            "variant=" + (.variantId|tostring) + " downloadId=" + .downloadId
+          ' "$out"
