@@ -73,7 +73,7 @@ jobs:
         with:
           api-level: 35
           arch: x86_64
-          target: google_apis
+          target: google_apis_playstore
           profile: pixel_6
           script: |
             set -euo pipefail
