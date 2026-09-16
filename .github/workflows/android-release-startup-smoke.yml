@@ -15,10 +15,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  smoke:
-    name: Launch minified v3 release candidate
-    runs-on: macos-26-intel
-    timeout-minutes: 25
+  build:
+    name: Build minified v3 release candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       EZTRIVIA_VERSION_CODE: "3"
 
@@ -42,10 +42,39 @@ jobs:
           gradle bundleRelease --stacktrace
           test -s app/build/outputs/bundle/release/app-release.aab
 
+      - name: Archive exact v3 candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-v3-minified-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 7
+
+  smoke:
+    name: Launch minified v3 release candidate
+    needs: build
+    runs-on: macos-26-intel
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Download exact v3 candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: eztrivia-v3-minified-aab
+          path: ${{ runner.temp }}/v3-bundle
+
       - name: Build signed universal APK from v3 candidate
         shell: bash
         run: |
           set -euo pipefail
+          aab="$RUNNER_TEMP/v3-bundle/app-release.aab"
+          test -s "$aab"
+
           curl --fail-with-body --silent --show-error -L \
             "https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar" \
             -o "$RUNNER_TEMP/bundletool.jar"
@@ -61,7 +90,7 @@ jobs:
             -validity 30
 
           java -jar "$RUNNER_TEMP/bundletool.jar" build-apks \
-            --bundle="android/app/build/outputs/bundle/release/app-release.aab" \
+            --bundle="$aab" \
             --output="$RUNNER_TEMP/v3-smoke.apks" \
             --mode=universal \
             --ks="$RUNNER_TEMP/smoke.jks" \
@@ -133,7 +162,7 @@ jobs:
 
           "$adb_bin" start-server >/dev/null 2>&1 || true
           booted=0
-          for attempt in $(seq 1 320); do
+          for attempt in $(seq 1 450); do
             state="$("$adb_bin" -s emulator-5554 get-state 2>/dev/null || true)"
             boot="$("$adb_bin" -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
             if [ "$state" = "device" ] && [ "$boot" = "1" ]; then
@@ -145,17 +174,21 @@ jobs:
               tail -n 300 "$emulator_log" || true
               exit 10
             fi
+            if [ $((attempt % 30)) -eq 0 ]; then
+              "$adb_bin" kill-server >/dev/null 2>&1 || true
+              "$adb_bin" start-server >/dev/null 2>&1 || true
+            fi
             sleep 2
           done
           if [ "$booted" -ne 1 ]; then
-            echo "::error::Android emulator did not complete boot."
+            echo "::error::Android emulator did not become an online booted ADB device."
             tail -n 300 "$emulator_log" || true
             exit 11
           fi
 
           sleep 12
           ready=0
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 60); do
             if "$adb_bin" -s emulator-5554 shell pm path com.android.vending >/dev/null 2>&1 && \
                "$adb_bin" -s emulator-5554 shell cmd package list packages >/dev/null 2>&1; then
               ready=1
@@ -201,7 +234,7 @@ jobs:
           {
             echo '## Android v3 startup smoke'
             echo
-            echo '- Minified release bundle: **built**'
+            echo '- Minified release bundle: **built on Linux and transferred unchanged**'
             echo '- Universal APK: **installed**'
             echo '- Startup fatal exception: **none**'
             echo '- MainActivity after 12 seconds: **active**'
