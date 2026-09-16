@@ -142,6 +142,8 @@ jobs:
           adb_bin="$sdk_root/platform-tools/adb"
           emulator_bin="$sdk_root/emulator/emulator"
           emulator_log="$RUNNER_TEMP/emulator.log"
+          install_log="$RUNNER_TEMP/install.txt"
+          device_apk="/data/local/tmp/eztrivia-v3-smoke.apk"
 
           "$emulator_bin" \
             -avd eztrivia-v3 \
@@ -189,7 +191,8 @@ jobs:
           sleep 12
           ready=0
           for attempt in $(seq 1 60); do
-            if "$adb_bin" -s emulator-5554 shell pm path com.android.vending >/dev/null 2>&1 && \
+            if "$adb_bin" -s emulator-5554 shell service check package 2>/dev/null | grep -q 'found' && \
+               "$adb_bin" -s emulator-5554 shell pm path com.android.vending >/dev/null 2>&1 && \
                "$adb_bin" -s emulator-5554 shell cmd package list packages >/dev/null 2>&1; then
               ready=1
               break
@@ -197,14 +200,54 @@ jobs:
             sleep 2
           done
           if [ "$ready" -ne 1 ]; then
-            echo "::error::Emulator booted but Android services never became ready."
+            echo "::error::Emulator booted but Android package services never became ready."
             tail -n 300 "$emulator_log" || true
             exit 12
           fi
 
           adbdev() { "$adb_bin" -s emulator-5554 "$@"; }
 
-          adbdev install -r "$RUNNER_TEMP/v3-smoke.apk"
+          : > "$install_log"
+          installed=0
+
+          echo 'Attempt 1: non-streaming adb install' | tee -a "$install_log"
+          if adbdev install --no-streaming -r "$RUNNER_TEMP/v3-smoke.apk" >> "$install_log" 2>&1; then
+            if adbdev shell pm path com.rsm.eztrivia >> "$install_log" 2>&1; then
+              installed=1
+            fi
+          fi
+
+          if [ "$installed" -ne 1 ]; then
+            echo 'Attempt 1 did not produce an installed package; falling back to push + device-side package manager.' | tee -a "$install_log"
+            adbdev shell rm -f "$device_apk" >> "$install_log" 2>&1 || true
+            if ! adbdev push "$RUNNER_TEMP/v3-smoke.apk" "$device_apk" >> "$install_log" 2>&1; then
+              echo "::error::Failed to push v3 APK to emulator."
+              cat "$install_log"
+              exit 13
+            fi
+
+            for attempt in 1 2 3; do
+              echo "Device-side install attempt ${attempt}" | tee -a "$install_log"
+              if adbdev shell pm install -r "$device_apk" >> "$install_log" 2>&1; then
+                if adbdev shell pm path com.rsm.eztrivia >> "$install_log" 2>&1; then
+                  installed=1
+                  break
+                fi
+              fi
+              adbdev shell pm uninstall com.rsm.eztrivia >> "$install_log" 2>&1 || true
+              sleep 5
+            done
+          fi
+
+          cat "$install_log"
+          if [ "$installed" -ne 1 ]; then
+            echo "::error::v3 APK could not be installed after non-streaming and device-side retries."
+            adbdev shell df -h /data >> "$install_log" 2>&1 || true
+            adbdev shell dumpsys package installer >> "$install_log" 2>&1 || true
+            cat "$install_log"
+            exit 14
+          fi
+
           adbdev logcat -c
           adbdev shell am start -W -n com.rsm.eztrivia/.MainActivity > "$RUNNER_TEMP/start.txt" 2>&1 || true
           cat "$RUNNER_TEMP/start.txt"
@@ -246,6 +289,7 @@ jobs:
         with:
           name: eztrivia-v3-startup-smoke
           path: |
+            ${{ runner.temp }}/install.txt
             ${{ runner.temp }}/start.txt
             ${{ runner.temp }}/v3-logcat.txt
             ${{ runner.temp }}/emulator.log
