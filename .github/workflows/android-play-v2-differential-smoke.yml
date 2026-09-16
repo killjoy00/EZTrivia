@@ -124,16 +124,30 @@ jobs:
               sleep 10
               adb logcat -d -v threadtime > "$log"
               pid="$(adb shell pidof com.rsm.eztrivia | tr -d '\r')"
-              if grep -A160 -B60 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*com\.(pairip|rsm\.eztrivia)|com\.pairip' "$log" > "$RUNNER_TEMP/${label}.fatal"; then
+
+              app_crash=0
+              if grep -q -E 'Process: com\.rsm\.eztrivia' "$log" || \
+                 grep -q -E 'Unable to (instantiate|create|start).*(com\.pairip|com\.rsm\.eztrivia)' "$log"; then
+                app_crash=1
+                grep -A160 -B60 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*(com\.pairip|com\.rsm\.eztrivia)' \
+                  "$log" > "$RUNNER_TEMP/${label}.fatal" || true
                 echo "${label}=FATAL"
                 cat "$RUNNER_TEMP/${label}.fatal"
                 return 1
               fi
+
               if [ -z "$pid" ]; then
                 echo "${label}=PROCESS_DIED"
                 tail -n 700 "$log"
                 return 1
               fi
+
+              if ! adb shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
+                echo "${label}=PROCESS_ALIVE_MAIN_ACTIVITY_NOT_PRESENT pid=${pid}"
+                tail -n 300 "$log"
+                return 2
+              fi
+
               echo "${label}=ALIVE pid=${pid}"
               return 0
             }
@@ -161,7 +175,7 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
 
             if [ "$unprotected_status" = PASS ] && [ "$protected_status" = FAIL ]; then
-              echo 'Automatic Protection is the startup-breaking difference in this test environment.'
+              echo 'The protected distribution path is the startup-breaking difference in this test environment.'
               exit 2
             fi
             if [ "$unprotected_status" = FAIL ]; then
