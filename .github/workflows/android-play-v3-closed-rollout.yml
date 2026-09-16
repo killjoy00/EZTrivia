@@ -25,8 +25,8 @@ jobs:
       VERSION_NAME: 1.0.0-alpha03
       RELEASE_NAME: EZ Trivia 1.0.0-alpha03 closed test
       RELEASE_NOTES: Fixes an Android startup crash in the release build and improves release validation.
-      TEST_ADMOB_APP_ID: ca-app-pub-3940256099942544~3347511713
-      TEST_ADMOB_BANNER_ID: ca-app-pub-3940256099942544/6300978111
+      ANDROID_ADMOB_APP_ID: ca-app-pub-1217971050094766~1085041409
+      ANDROID_ADMOB_BANNER_ID: ca-app-pub-1217971050094766/1190439457
 
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
-      - name: Validate signing and Play credentials
+      - name: Validate signing, Play credentials, and production AdMob IDs
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
@@ -51,8 +51,8 @@ jobs:
           test -n "$KEYSTORE_BASE64"
           test -n "$KEYSTORE_PASSWORD"
           test -n "$PLAY_SERVICE_ACCOUNT"
-          echo "Closed-test v3 intentionally uses Google's official Android demo AdMob IDs."
-          echo "A later Production candidate must use the real Android AdMob app/banner IDs."
+          [[ "$ANDROID_ADMOB_APP_ID" =~ ^ca-app-pub-1217971050094766~[0-9]+$ ]]
+          [[ "$ANDROID_ADMOB_BANNER_ID" =~ ^ca-app-pub-1217971050094766/[0-9]+$ ]]
 
       - name: Authenticate to Google Play Developer API
         id: auth
@@ -111,13 +111,11 @@ jobs:
         working-directory: android
         run: gradle testDebugUnitTest --stacktrace
 
-      - name: Build signed test-only v3 bundle
+      - name: Build signed production-configured v3 bundle
         working-directory: android
         env:
           ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/eztrivia-upload.p12
           ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
-          ANDROID_ADMOB_APP_ID: ${{ env.TEST_ADMOB_APP_ID }}
-          ANDROID_ADMOB_BANNER_ID: ${{ env.TEST_ADMOB_BANNER_ID }}
           EZTRIVIA_VERSION_CODE: ${{ env.VERSION_CODE }}
           EZTRIVIA_VERSION_NAME: ${{ env.VERSION_NAME }}
         run: |
