@@ -4,6 +4,13 @@ Package: `com.rsm.eztrivia`
 
 Publisher used by the public root `app-ads.txt` record: `pub-1217971050094766`
 
+Current Android production SDK configuration:
+
+- App ID: `ca-app-pub-1217971050094766~1085041409`
+- Banner ad-unit ID: `ca-app-pub-1217971050094766/1190439457`
+
+These IDs are public SDK configuration, not credentials. The signed Play release workflow pins these values so production Android builds do not depend on separate repository secrets for public AdMob identifiers.
+
 The Android client already contains Google Mobile Ads SDK 25.4.0 and UMP 4.0.0. It refreshes consent information at launch, shows a required consent form, exposes Privacy Choices when UMP requires it, and does not initialize/request ads until `canRequestAds()` is true. Remove Ads ownership suppresses the banner.
 
 ## Why this cannot use the Google Play service account
@@ -64,14 +71,9 @@ If a Play-linked app cannot be created because the package is not publicly disco
 - `ANDROID_ADMOB_APP_ID`
 - `ANDROID_ADMOB_BANNER_ID`
 
-Ordinary CI intentionally falls back to Google's official sample IDs. The signed Play workflow reads the two production values from GitHub Actions secrets. Do not promote a sample-ID build to Production.
+Ordinary CI intentionally falls back to Google's official sample IDs. The signed Play workflow supplies the current production Android IDs listed at the top of this document. The first signed v3 closed-test bundle using those production IDs was successfully uploaded to Google Play on September 16, 2026.
 
-After the AdMob inventory workflow reports the production app/banner IDs, add them as:
-
-- `ANDROID_ADMOB_APP_ID`
-- `ANDROID_ADMOB_BANNER_ID`
-
-Then create a new signed Internal Testing build and verify banner/Remove Ads behavior from the Play-delivered build.
+If the Android AdMob app or banner unit changes, update both this document and `.github/workflows/android-play-internal.yml`, then create a new signed Internal Testing build and verify banner/Remove Ads behavior from the Play-delivered build.
 
 ## UMP / Privacy & messaging
 
