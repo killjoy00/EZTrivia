@@ -93,12 +93,7 @@ jobs:
           profile: pixel_2
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           disable-animations: true
-          script: |
-            set -eu
-            cd android
-            gradle connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=com.rsm.eztrivia.CrashlyticsConfigurationTest \
-              --stacktrace
+          script: gradle -p android connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.rsm.eztrivia.CrashlyticsConfigurationTest --stacktrace
 
       - name: Surface instrumentation results
         if: always()
