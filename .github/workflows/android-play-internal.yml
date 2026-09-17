@@ -44,13 +44,14 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
-      - name: Validate inputs, signing secrets, and production AdMob IDs
+      - name: Validate inputs, release configuration, and signing secrets
         env:
           VERSION_CODE: ${{ inputs.version_code }}
           VERSION_NAME: ${{ inputs.version_name }}
           KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
           PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
         run: |
           set -euo pipefail
           if ! [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]]; then
@@ -77,6 +78,27 @@ jobs:
             echo "::error::ANDROID_ADMOB_BANNER_ID is not a banner ad-unit ID for the expected EZ Trivia publisher"
             exit 1
           fi
+
+          # v4 is already in the closed test without Crashlytics. Starting with
+          # v5, do not silently ship another Play build without crash reporting.
+          if (( VERSION_CODE >= 5 )) && [[ -z "$FIREBASE_CONFIG" ]]; then
+            echo "::error::Missing FIREBASE_GOOGLE_SERVICES_JSON; v5+ Play builds require Crashlytics."
+            exit 1
+          fi
+
+      - name: Materialize Firebase Android config
+        if: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON != '' }}
+        env:
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$FIREBASE_CONFIG" > android/app/google-services.json
+          jq -e '
+            any(.client[]?;
+              .client_info.android_client_info.package_name == "com.rsm.eztrivia" and
+              (.client_info.mobilesdk_app_id | type == "string" and length > 0)
+            )
+          ' android/app/google-services.json >/dev/null
 
       - name: Materialize upload keystore
         env:
