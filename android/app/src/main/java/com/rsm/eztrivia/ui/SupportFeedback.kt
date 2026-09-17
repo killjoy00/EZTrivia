@@ -125,7 +125,10 @@ fun openSupportEmail(
 
         if (purchaseState != null) {
             appendLine(
-                "Billing: removedAds=${purchaseState.hasRemovedAds}, " +
+                "Billing: ready=${purchaseState.isBillingReady}, " +
+                    "productAvailable=${purchaseState.productAvailable}, " +
+                    "ownershipChecked=${purchaseState.ownershipQueryCompleted}, " +
+                    "removedAds=${purchaseState.hasRemovedAds}, " +
                     "connecting=${purchaseState.isConnecting}, " +
                     "purchasing=${purchaseState.isPurchasing}, " +
                     "pending=${purchaseState.isPending}, " +
@@ -142,8 +145,13 @@ fun openSupportEmail(
             appendLine(
                 "Ads/consent: canRequestAds=${consentState.canRequestAds}, " +
                     "privacyOptionsRequired=${consentState.privacyOptionsRequired}, " +
-                    "checking=${consentState.isChecking}"
+                    "checking=${consentState.isChecking}, " +
+                    "mobileAdsInitialized=${consentState.mobileAdsInitialized}, " +
+                    "banner=${consentState.bannerStatus}"
             )
+            consentState.bannerErrorMessage?.takeIf { it.isNotBlank() }?.let {
+                appendLine("Banner message: $it")
+            }
             consentState.errorMessage?.takeIf { it.isNotBlank() }?.let {
                 appendLine("Ad privacy message: $it")
             }
