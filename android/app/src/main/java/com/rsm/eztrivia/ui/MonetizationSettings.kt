@@ -27,100 +27,104 @@ fun MonetizationSettingsCard() {
     val purchaseState = billingManager?.state?.collectAsState()?.value
     val consentState = adConsentManager?.state?.collectAsState()?.value
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            "ADS & PRIVACY",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 4.dp),
-        )
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                when {
-                    purchaseState == null -> Text(
-                        "Google Play purchases are unavailable in this activity.",
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    purchaseState.hasRemovedAds -> Text(
-                        "Ads removed. Your one-time Google Play purchase is active.",
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    else -> {
-                        Text(
-                            "EZ Trivia shows one banner while you browse the Play screen. A one-time purchase removes advertising.",
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                "ADS & PRIVACY",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    when {
+                        purchaseState == null -> Text(
+                            "Google Play purchases are unavailable in this activity.",
+                            modifier = Modifier.padding(16.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Button(
-                            onClick = { billingManager.purchase() },
-                            enabled = !purchaseState.isConnecting &&
-                                !purchaseState.isPurchasing &&
-                                !purchaseState.isPending &&
-                                purchaseState.formattedPrice != null,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                        ) {
+                        purchaseState.hasRemovedAds -> Text(
+                            "Ads removed. Your one-time Google Play purchase is active.",
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        else -> {
                             Text(
-                                when {
-                                    purchaseState.isPurchasing -> "Purchasing…"
-                                    purchaseState.isPending -> "Purchase pending"
-                                    purchaseState.formattedPrice != null ->
-                                        "Remove Ads — ${purchaseState.formattedPrice}"
-                                    else -> "Remove Ads unavailable"
-                                }
+                                "EZ Trivia shows one banner while you browse the Play screen. A one-time purchase removes advertising.",
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            Button(
+                                onClick = { billingManager.purchase() },
+                                enabled = !purchaseState.isConnecting &&
+                                    !purchaseState.isPurchasing &&
+                                    !purchaseState.isPending &&
+                                    purchaseState.formattedPrice != null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                            ) {
+                                Text(
+                                    when {
+                                        purchaseState.isPurchasing -> "Purchasing…"
+                                        purchaseState.isPending -> "Purchase pending"
+                                        purchaseState.formattedPrice != null ->
+                                            "Remove Ads — ${purchaseState.formattedPrice}"
+                                        else -> "Remove Ads unavailable"
+                                    }
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = { billingManager.restore() },
+                                enabled = !purchaseState.isPurchasing,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                            ) {
+                                Text("Restore purchases")
+                            }
                         }
+                    }
+
+                    if (purchaseState?.hasRemovedAds != true && consentState?.privacyOptionsRequired == true) {
+                        HorizontalDivider()
                         OutlinedButton(
-                            onClick = { billingManager.restore() },
-                            enabled = !purchaseState.isPurchasing,
+                            onClick = { adConsentManager.showPrivacyOptions() },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp),
                         ) {
-                            Text("Restore purchases")
+                            Text("Ad privacy choices")
                         }
                     }
-                }
 
-                if (purchaseState?.hasRemovedAds != true && consentState?.privacyOptionsRequired == true) {
-                    HorizontalDivider()
-                    OutlinedButton(
-                        onClick = { adConsentManager.showPrivacyOptions() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                    ) {
-                        Text("Ad privacy choices")
+                    purchaseState?.errorMessage?.let { error ->
+                        Text(
+                            error,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
                     }
-                }
-
-                purchaseState?.errorMessage?.let { error ->
+                    consentState?.errorMessage?.let { error ->
+                        Text(
+                            "Ad privacy: $error",
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                     Text(
-                        error,
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        "Google Play handles payment details. Ad privacy choices are provided by Google's User Messaging Platform where required.",
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                consentState?.errorMessage?.let { error ->
-                    Text(
-                        "Ad privacy: $error",
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                Text(
-                    "Google Play handles payment details. Ad privacy choices are provided by Google's User Messaging Platform where required.",
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
+
+        SupportSettingsCard()
     }
 }
