@@ -94,7 +94,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             cd android
             gradle connectedDebugAndroidTest \
               -Pandroid.testInstrumentationRunnerArguments.class=com.rsm.eztrivia.CrashlyticsConfigurationTest \
