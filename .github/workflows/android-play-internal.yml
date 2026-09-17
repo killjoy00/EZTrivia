@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -44,7 +44,7 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
-      - name: Validate inputs, signing secrets, and production AdMob IDs
+      - name: Validate inputs, release configuration, and signing secrets
         env:
           VERSION_CODE: ${{ inputs.version_code }}
           VERSION_NAME: ${{ inputs.version_name }}
@@ -78,6 +78,44 @@ jobs:
             exit 1
           fi
 
+      - name: Authenticate to Firebase Management API
+        id: firebase_auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/cloud-platform
+          create_credentials_file: false
+
+      - name: Materialize required Firebase Android config
+        env:
+          ACCESS_TOKEN: ${{ steps.firebase_auth.outputs.access_token }}
+          SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_id="$(jq -r '.project_id // empty' <<<"$SERVICE_ACCOUNT")"
+          test -n "$project_id"
+          auth=(-H "Authorization: Bearer ${ACCESS_TOKEN}" -H "Accept: application/json")
+          base="https://firebase.googleapis.com/v1beta1"
+
+          apps="$(curl --fail-with-body --silent --show-error "${base}/projects/${project_id}/androidApps" "${auth[@]}")"
+          app_name="$(jq -r '[.apps[]? | select(.packageName == "com.rsm.eztrivia") | .name] | first // empty' <<<"$apps")"
+          if [[ -z "$app_name" ]]; then
+            echo "::error::Firebase Android app com.rsm.eztrivia is missing; refusing Play release without Crashlytics."
+            exit 10
+          fi
+
+          config="$(curl --fail-with-body --silent --show-error "${base}/${app_name}/config" "${auth[@]}")"
+          jq -r '.configFileContents' <<<"$config" | base64 --decode > android/app/google-services.json
+          jq -e '
+            any(.client[]?;
+              .client_info.android_client_info.package_name == "com.rsm.eztrivia" and
+              (.client_info.mobilesdk_app_id | type == "string" and length > 0)
+            )
+          ' android/app/google-services.json >/dev/null
+          echo "Firebase Crashlytics config materialized for com.rsm.eztrivia."
+
       - name: Materialize upload keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
@@ -96,14 +134,17 @@ jobs:
         working-directory: android
         run: gradle testDebugUnitTest --stacktrace
 
-      - name: Build signed release bundle
+      - name: Build signed release bundle with Crashlytics
         working-directory: android
         env:
           ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/eztrivia-upload.p12
           ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
           EZTRIVIA_VERSION_CODE: ${{ inputs.version_code }}
           EZTRIVIA_VERSION_NAME: ${{ inputs.version_name }}
-        run: gradle bundleRelease --stacktrace
+        run: |
+          set -euo pipefail
+          gradle bundleRelease --stacktrace
+          test -s app/build/outputs/bundle/release/app-release.aab
 
       - name: Verify bundle signature
         run: jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab

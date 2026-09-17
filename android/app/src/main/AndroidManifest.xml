@@ -21,6 +21,12 @@
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="${adMobAppId}" />
+        <!-- Debug overrides this to false before Firebase's startup provider runs.
+             Release builds keep it true so even very-early startup crashes can be
+             captured once the Firebase Android config is materialized. -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="true" />
 
         <activity
             android:name=".MainActivity"
