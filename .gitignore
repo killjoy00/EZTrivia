@@ -13,6 +13,6 @@ __pycache__/
 *.p12
 android/keystore.properties
 
-# Firebase Android configuration is materialized by the signed release workflow
-# from FIREBASE_GOOGLE_SERVICES_JSON once Crashlytics is provisioned.
+# Firebase Android configuration is fetched from Firebase Management API by
+# configured CI/release workflows and must not be committed to the public repo.
 android/app/google-services.json
