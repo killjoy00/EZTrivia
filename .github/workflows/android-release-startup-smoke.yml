@@ -119,7 +119,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             install_log="$RUNNER_TEMP/install.txt"
             start_log="$RUNNER_TEMP/start.txt"
             startup_log="$RUNNER_TEMP/v3-logcat.txt"
