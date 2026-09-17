@@ -86,12 +86,15 @@ jobs:
             exit 1
           fi
 
-      - name: Materialize Firebase Android config
-        if: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON != '' }}
+      - name: Materialize Firebase Android config when available
         env:
           FIREBASE_CONFIG: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
         run: |
           set -euo pipefail
+          if [[ -z "$FIREBASE_CONFIG" ]]; then
+            echo "No Firebase Android config supplied; ordinary pre-v5 build path only."
+            exit 0
+          fi
           printf '%s' "$FIREBASE_CONFIG" > android/app/google-services.json
           jq -e '
             any(.client[]?;
