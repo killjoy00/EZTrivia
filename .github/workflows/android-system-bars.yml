@@ -53,7 +53,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             overlay="com.android.internal.systemui.navbar.${{ matrix.navigation }}"
             echo "Switching emulator to $overlay"
             adb shell cmd overlay list | grep 'com.android.internal.systemui.navbar' || true
