@@ -70,6 +70,19 @@ jobs:
           ' android/app/google-services.json >/dev/null
           echo "Firebase config materialized for com.rsm.eztrivia."
 
+      - name: Assert Firebase Analytics is absent
+        working-directory: android
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle dependencies --configuration releaseRuntimeClasspath > "$RUNNER_TEMP/release-runtime-deps.txt"
+          if grep -Eq 'com\.google\.firebase:firebase-analytics([:-]|$)' "$RUNNER_TEMP/release-runtime-deps.txt"; then
+            echo "::error::Firebase Analytics entered the release runtime graph; EZ Trivia intentionally uses Crashlytics without Analytics."
+            grep 'com.google.firebase:firebase-analytics' "$RUNNER_TEMP/release-runtime-deps.txt" || true
+            exit 20
+          fi
+          echo "Firebase Analytics is absent from releaseRuntimeClasspath."
+
       - name: Build minified release with Crashlytics plugins active
         working-directory: android
         shell: bash
