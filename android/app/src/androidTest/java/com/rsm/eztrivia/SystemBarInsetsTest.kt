@@ -1,32 +1,29 @@
 package com.rsm.eztrivia
 
+import android.app.Activity
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodes
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import androidx.test.ext.junit.runners.AndroidJUnit4
 
 private fun assertClickTargetsStayAboveNavigationBar(
     rule: AndroidComposeTestRule<*, *>,
+    activity: Activity,
 ) {
     rule.waitForIdle()
 
-    var rootHeight = 0
-    var navigationBarBottom = 0
-    rule.activityRule.scenario.onActivity { activity ->
-        val decor = activity.window.decorView
-        rootHeight = decor.height
-        navigationBarBottom = ViewCompat.getRootWindowInsets(decor)
-            ?.getInsets(WindowInsetsCompat.Type.navigationBars())
-            ?.bottom
-            ?: 0
-    }
+    val decor = activity.window.decorView
+    val rootHeight = decor.height
+    val navigationBarBottom = ViewCompat.getRootWindowInsets(decor)
+        ?.getInsets(WindowInsetsCompat.Type.navigationBars())
+        ?.bottom
+        ?: 0
 
     assertTrue("Expected a non-zero Android navigation-bar inset", navigationBarBottom > 0)
 
@@ -52,7 +49,7 @@ class MainSystemBarInsetsTest {
 
     @Test
     fun clickTargetsStayAboveNavigationBar() {
-        assertClickTargetsStayAboveNavigationBar(composeRule)
+        assertClickTargetsStayAboveNavigationBar(composeRule, composeRule.activity)
     }
 }
 
@@ -63,7 +60,7 @@ class DailySystemBarInsetsTest {
 
     @Test
     fun clickTargetsStayAboveNavigationBar() {
-        assertClickTargetsStayAboveNavigationBar(composeRule)
+        assertClickTargetsStayAboveNavigationBar(composeRule, composeRule.activity)
     }
 }
 
@@ -74,6 +71,6 @@ class FriendSystemBarInsetsTest {
 
     @Test
     fun clickTargetsStayAboveNavigationBar() {
-        assertClickTargetsStayAboveNavigationBar(composeRule)
+        assertClickTargetsStayAboveNavigationBar(composeRule, composeRule.activity)
     }
 }
