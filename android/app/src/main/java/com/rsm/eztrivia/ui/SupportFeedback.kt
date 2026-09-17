@@ -15,7 +15,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -47,10 +46,8 @@ enum class SupportMessageKind(
 fun SupportSettingsCard() {
     val context = LocalContext.current
     val activity = LocalActivity.current as? MainActivity
-    val purchaseState by activity?.removeAdsBillingManager?.state?.collectAsState()
-        ?: androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(null) }
-    val consentState by activity?.adConsentManager?.state?.collectAsState()
-        ?: androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(null) }
+    val purchaseState = activity?.removeAdsBillingManager?.state?.collectAsState()?.value
+    val consentState = activity?.adConsentManager?.state?.collectAsState()?.value
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
