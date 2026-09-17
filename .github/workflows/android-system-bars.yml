@@ -53,20 +53,12 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           disable-animations: true
           script: |
-            set -eu
-            overlay="com.android.internal.systemui.navbar.${{ matrix.navigation }}"
-            echo "Switching emulator to $overlay"
-            adb shell cmd overlay list | grep 'com.android.internal.systemui.navbar' || true
-            adb shell cmd overlay enable-exclusive --category "$overlay"
+            echo "Switching emulator to com.android.internal.systemui.navbar.${{ matrix.navigation }}"
+            adb shell cmd overlay list | grep 'com.android.internal.systemui.navbar'
+            adb shell cmd overlay enable-exclusive --category "com.android.internal.systemui.navbar.${{ matrix.navigation }}"
             sleep 3
-            adb shell cmd overlay list | grep -E "\[x\].*${{ matrix.navigation }}" || {
-              echo "Requested navigation overlay did not become active"
-              exit 2
-            }
-            cd android
-            gradle connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=com.rsm.eztrivia.MainSystemBarInsetsTest,com.rsm.eztrivia.DailySystemBarInsetsTest,com.rsm.eztrivia.FriendSystemBarInsetsTest \
-              --stacktrace
+            adb shell cmd overlay list | grep -E "\[x\].*${{ matrix.navigation }}"
+            gradle -p android connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.rsm.eztrivia.MainSystemBarInsetsTest,com.rsm.eztrivia.DailySystemBarInsetsTest,com.rsm.eztrivia.FriendSystemBarInsetsTest --stacktrace
 
       - name: Surface instrumentation results
         if: always()
