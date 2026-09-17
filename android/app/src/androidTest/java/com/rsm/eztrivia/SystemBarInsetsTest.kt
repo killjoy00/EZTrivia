@@ -16,6 +16,9 @@ private fun assertClickTargetsStayAboveNavigationBar(
     rule: AndroidComposeTestRule<*, *>,
     activity: Activity,
 ) {
+    rule.waitUntil(timeoutMillis = 30_000) {
+        rule.onAllNodes(hasClickAction()).fetchSemanticsNodes().isNotEmpty()
+    }
     rule.waitForIdle()
 
     val decor = activity.window.decorView
@@ -27,8 +30,7 @@ private fun assertClickTargetsStayAboveNavigationBar(
 
     assertTrue("Expected a non-zero Android navigation-bar inset", navigationBarBottom > 0)
 
-    val clickTargets = rule.onAllNodes(hasClickAction(), useUnmergedTree = true)
-        .fetchSemanticsNodes()
+    val clickTargets = rule.onAllNodes(hasClickAction()).fetchSemanticsNodes()
     assertTrue("Expected at least one clickable control", clickTargets.isNotEmpty())
 
     val lowestClickableBottom = clickTargets.maxOf { it.boundsInRoot.bottom }
