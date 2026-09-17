@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle dependencies --configuration releaseRuntimeClasspath > "$RUNNER_TEMP/release-runtime-deps.txt"
+          gradle :app:dependencies --configuration releaseRuntimeClasspath > "$RUNNER_TEMP/release-runtime-deps.txt"
           if grep -Eq 'com\.google\.firebase:firebase-analytics([:-]|$)' "$RUNNER_TEMP/release-runtime-deps.txt"; then
             echo "::error::Firebase Analytics entered the release runtime graph; EZ Trivia intentionally uses Crashlytics without Analytics."
             grep 'com.google.firebase:firebase-analytics' "$RUNNER_TEMP/release-runtime-deps.txt" || true
