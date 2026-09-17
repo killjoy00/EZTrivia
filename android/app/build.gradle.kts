@@ -6,6 +6,17 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Firebase setup is intentionally optional for ordinary source CI. Once the
+// repository contains a valid google-services.json (or a release workflow
+// materializes one before Gradle starts), Crashlytics and its mapping upload
+// plugin turn on automatically. Firebase Analytics is deliberately not used.
+val firebaseConfigFile = file("google-services.json")
+val crashlyticsConfigured = firebaseConfigFile.isFile
+if (crashlyticsConfigured) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
+
 val releaseVersionCode = providers.environmentVariable("EZTRIVIA_VERSION_CODE").orNull?.toIntOrNull()
 val releaseVersionName = providers.environmentVariable("EZTRIVIA_VERSION_NAME").orNull
 val uploadKeystorePath = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PATH")
@@ -34,6 +45,7 @@ android {
 
         manifestPlaceholders["adMobAppId"] = adMobAppId
         buildConfigField("String", "ADMOB_BANNER_ID", "\"$adMobBannerId\"")
+        buildConfigField("Boolean", "CRASHLYTICS_CONFIGURED", crashlyticsConfigured.toString())
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -161,6 +173,10 @@ dependencies {
     implementation("com.google.android.gms:play-services-ads:25.4.0")
     implementation("com.google.android.ump:user-messaging-platform:4.0.0")
     implementation("com.android.billingclient:billing:9.1.0")
+
+    val firebaseBom = platform("com.google.firebase:firebase-bom:34.19.0")
+    implementation(firebaseBom)
+    implementation("com.google.firebase:firebase-crashlytics")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
