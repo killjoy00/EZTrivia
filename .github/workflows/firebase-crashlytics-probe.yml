@@ -1,0 +1,77 @@
+name: Firebase Crashlytics capability probe
+
+on:
+  push:
+    branches: ["hardening/android-testability"]
+    paths:
+      - ".github/workflows/firebase-crashlytics-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve service-account project
+        id: project
+        env:
+          SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_id="$(jq -r '.project_id // empty' <<<"$SERVICE_ACCOUNT")"
+          test -n "$project_id"
+          echo "project_id=$project_id" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate for Firebase Management API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/cloud-platform
+          create_credentials_file: false
+
+      - name: Read Firebase project and Android apps
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          PROJECT_ID: ${{ steps.project.outputs.project_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          auth=(-H "Authorization: Bearer ${ACCESS_TOKEN}" -H "Accept: application/json")
+          project_url="https://firebase.googleapis.com/v1beta1/projects/${PROJECT_ID}"
+          apps_url="https://firebase.googleapis.com/v1beta1/projects/${PROJECT_ID}/androidApps"
+
+          project_code="$(curl --silent --show-error -o "$RUNNER_TEMP/firebase-project.json" -w '%{http_code}' "$project_url" "${auth[@]}")"
+          apps_code="$(curl --silent --show-error -o "$RUNNER_TEMP/firebase-android-apps.json" -w '%{http_code}' "$apps_url" "${auth[@]}")"
+
+          echo "Firebase project HTTP ${project_code}"
+          echo "Firebase Android apps HTTP ${apps_code}"
+          jq '{projectId, projectNumber, displayName, state}' "$RUNNER_TEMP/firebase-project.json" 2>/dev/null || cat "$RUNNER_TEMP/firebase-project.json"
+          jq '[.apps[]? | {name, displayName, packageName, appId, state}]' "$RUNNER_TEMP/firebase-android-apps.json" 2>/dev/null || cat "$RUNNER_TEMP/firebase-android-apps.json"
+
+          if [ "$project_code" != "200" ]; then
+            echo "::error::Existing service account cannot read this project through the Firebase Management API."
+            exit 10
+          fi
+          if [ "$apps_code" != "200" ]; then
+            echo "::error::Firebase project is readable but Android app inventory is not."
+            exit 11
+          fi
+
+      - name: Archive probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebase-crashlytics-capability-probe
+          path: |
+            ${{ runner.temp }}/firebase-project.json
+            ${{ runner.temp }}/firebase-android-apps.json
+          if-no-files-found: warn
+          retention-days: 7
