@@ -109,6 +109,64 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Prepare startup smoke script
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/v3-startup-smoke.sh" <<'EOF'
+          set -euo pipefail
+          install_log="$RUNNER_TEMP/install.txt"
+          start_log="$RUNNER_TEMP/start.txt"
+          startup_log="$RUNNER_TEMP/v3-logcat.txt"
+
+          adb shell settings put global package_verifier_enable 0 >/dev/null 2>&1 || true
+          adb shell settings put global verifier_verify_adb_installs 0 >/dev/null 2>&1 || true
+          adb shell pm uninstall com.rsm.eztrivia >/dev/null 2>&1 || true
+
+          : > "$install_log"
+          if ! adb install -r "$RUNNER_TEMP/v3-smoke.apk" >> "$install_log" 2>&1; then
+            cat "$install_log"
+            echo "::error::v3 APK installation failed."
+            exit 14
+          fi
+          cat "$install_log"
+          adb shell pm path com.rsm.eztrivia
+
+          adb logcat -c || true
+          adb shell am start -W -n com.rsm.eztrivia/.MainActivity > "$start_log" 2>&1 || true
+          cat "$start_log"
+          sleep 12
+
+          adb logcat -d -v threadtime > "$startup_log"
+          pid="$(adb shell pidof com.rsm.eztrivia 2>/dev/null | tr -d '\r' || true)"
+
+          if grep -q -E 'Process: com\.rsm\.eztrivia' "$startup_log" || \
+             grep -q -E 'Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$startup_log"; then
+            echo "::error::v3 release candidate crashed during startup."
+            grep -A180 -B80 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$startup_log" || true
+            exit 20
+          fi
+          if [ -z "$pid" ]; then
+            echo "::error::v3 release candidate process did not survive startup."
+            tail -n 700 "$startup_log"
+            exit 21
+          fi
+          if ! adb shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
+            echo "::error::v3 process survived but MainActivity is not active."
+            tail -n 700 "$startup_log"
+            exit 22
+          fi
+
+          echo "v3 release startup smoke passed; process ${pid} is alive and MainActivity is active."
+          {
+            echo '## Android v3 startup smoke'
+            echo
+            echo '- Minified release bundle: **built on Linux and transferred unchanged**'
+            echo '- Universal APK: **installed**'
+            echo '- Startup fatal exception: **none**'
+            echo '- MainActivity after 12 seconds: **active**'
+          } >> "$GITHUB_STEP_SUMMARY"
+          EOF
+
       - name: Launch v3 candidate and capture startup
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -118,59 +176,7 @@ jobs:
           profile: pixel_2
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           disable-animations: true
-          script: |
-            set -eu
-            install_log="$RUNNER_TEMP/install.txt"
-            start_log="$RUNNER_TEMP/start.txt"
-            startup_log="$RUNNER_TEMP/v3-logcat.txt"
-
-            adb shell settings put global package_verifier_enable 0 >/dev/null 2>&1 || true
-            adb shell settings put global verifier_verify_adb_installs 0 >/dev/null 2>&1 || true
-            adb shell pm uninstall com.rsm.eztrivia >/dev/null 2>&1 || true
-
-            : > "$install_log"
-            if ! adb install -r "$RUNNER_TEMP/v3-smoke.apk" >> "$install_log" 2>&1; then
-              cat "$install_log"
-              echo "::error::v3 APK installation failed."
-              exit 14
-            fi
-            cat "$install_log"
-            adb shell pm path com.rsm.eztrivia
-
-            adb logcat -c || true
-            adb shell am start -W -n com.rsm.eztrivia/.MainActivity > "$start_log" 2>&1 || true
-            cat "$start_log"
-            sleep 12
-
-            adb logcat -d -v threadtime > "$startup_log"
-            pid="$(adb shell pidof com.rsm.eztrivia 2>/dev/null | tr -d '\r' || true)"
-
-            if grep -q -E 'Process: com\.rsm\.eztrivia' "$startup_log" || \
-               grep -q -E 'Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$startup_log"; then
-              echo "::error::v3 release candidate crashed during startup."
-              grep -A180 -B80 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$startup_log" || true
-              exit 20
-            fi
-            if [ -z "$pid" ]; then
-              echo "::error::v3 release candidate process did not survive startup."
-              tail -n 700 "$startup_log"
-              exit 21
-            fi
-            if ! adb shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
-              echo "::error::v3 process survived but MainActivity is not active."
-              tail -n 700 "$startup_log"
-              exit 22
-            fi
-
-            echo "v3 release startup smoke passed; process ${pid} is alive and MainActivity is active."
-            {
-              echo '## Android v3 startup smoke'
-              echo
-              echo '- Minified release bundle: **built on Linux and transferred unchanged**'
-              echo '- Universal APK: **installed**'
-              echo '- Startup fatal exception: **none**'
-              echo '- MainActivity after 12 seconds: **active**'
-            } >> "$GITHUB_STEP_SUMMARY"
+          script: bash "$RUNNER_TEMP/v3-startup-smoke.sh"
 
       - name: Archive startup diagnostics
         if: always()
