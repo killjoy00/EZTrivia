@@ -30,8 +30,11 @@ class RemoveAdsBillingManager(
     data class State(
         val hasRemovedAds: Boolean = false,
         val isConnecting: Boolean = true,
+        val isBillingReady: Boolean = false,
         val isPurchasing: Boolean = false,
         val isPending: Boolean = false,
+        val productAvailable: Boolean = false,
+        val ownershipQueryCompleted: Boolean = false,
         val formattedPrice: String? = null,
         val errorMessage: String? = null,
     )
@@ -71,6 +74,7 @@ class RemoveAdsBillingManager(
 
     fun refresh() {
         if (billingClient.isReady) {
+            _state.value = _state.value.copy(isBillingReady = true)
             queryOwnedPurchases(showMissingMessage = false)
             queryProduct()
         } else {
@@ -81,6 +85,7 @@ class RemoveAdsBillingManager(
     fun purchase() {
         val details = productDetails ?: run {
             _state.value = _state.value.copy(
+                productAvailable = false,
                 errorMessage = "Remove Ads is not available from Google Play right now."
             )
             refresh()
@@ -113,6 +118,7 @@ class RemoveAdsBillingManager(
         } else {
             _state.value = _state.value.copy(
                 isConnecting = true,
+                isBillingReady = false,
                 errorMessage = null,
             )
             connect(onConnected = { queryOwnedPurchases(showMissingMessage = true) })
@@ -147,22 +153,33 @@ class RemoveAdsBillingManager(
 
     private fun connect(onConnected: (() -> Unit)? = null) {
         if (billingClient.isReady) {
-            _state.value = _state.value.copy(isConnecting = false)
+            _state.value = _state.value.copy(
+                isConnecting = false,
+                isBillingReady = true,
+            )
             onConnected?.invoke()
             return
         }
 
-        _state.value = _state.value.copy(isConnecting = true)
+        _state.value = _state.value.copy(
+            isConnecting = true,
+            isBillingReady = false,
+        )
         billingClient.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(billingResult: BillingResult) {
                 if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    _state.value = _state.value.copy(isConnecting = false, errorMessage = null)
+                    _state.value = _state.value.copy(
+                        isConnecting = false,
+                        isBillingReady = true,
+                        errorMessage = null,
+                    )
                     queryOwnedPurchases(showMissingMessage = false)
                     queryProduct()
                     onConnected?.invoke()
                 } else {
                     _state.value = _state.value.copy(
                         isConnecting = false,
+                        isBillingReady = false,
                         errorMessage = billingResult.debugMessage.ifBlank {
                             "Google Play Billing is unavailable right now."
                         },
@@ -171,7 +188,10 @@ class RemoveAdsBillingManager(
             }
 
             override fun onBillingServiceDisconnected() {
-                _state.value = _state.value.copy(isConnecting = true)
+                _state.value = _state.value.copy(
+                    isConnecting = true,
+                    isBillingReady = false,
+                )
                 // enableAutoServiceReconnection() handles the actual reconnect.
             }
         })
@@ -194,6 +214,7 @@ class RemoveAdsBillingManager(
                 productDetails = null
                 selectedOfferToken = null
                 _state.value = _state.value.copy(
+                    productAvailable = false,
                     formattedPrice = null,
                     errorMessage = result.debugMessage.ifBlank {
                         "Google Play could not load Remove Ads."
@@ -208,6 +229,7 @@ class RemoveAdsBillingManager(
                 ?: details?.oneTimePurchaseOfferDetails
             selectedOfferToken = offer?.offerToken
             _state.value = _state.value.copy(
+                productAvailable = details != null,
                 formattedPrice = offer?.formattedPrice,
                 errorMessage = if (details == null) {
                     "Remove Ads is not available in Google Play yet."
@@ -224,6 +246,7 @@ class RemoveAdsBillingManager(
             .build()
         billingClient.queryPurchasesAsync(params) { result, purchases ->
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                _state.value = _state.value.copy(ownershipQueryCompleted = true)
                 handlePurchases(
                     purchases = purchases,
                     authoritative = true,
