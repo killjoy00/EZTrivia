@@ -51,7 +51,7 @@ jobs:
           retention-days: 7
 
   smoke:
-    name: Launch minified v3 release candidate
+    name: Launch and rotate minified v3 release candidate
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -109,7 +109,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Prepare startup smoke script
+      - name: Prepare startup and rotation smoke script
         shell: bash
         run: |
           cat > "$RUNNER_TEMP/v3-startup-smoke.sh" <<'EOF'
@@ -134,40 +134,70 @@ jobs:
           adb logcat -c || true
           adb shell am start -W -n com.rsm.eztrivia/.MainActivity > "$start_log" 2>&1 || true
           cat "$start_log"
-          sleep 12
+          sleep 8
 
-          adb logcat -d -v threadtime > "$startup_log"
-          pid="$(adb shell pidof com.rsm.eztrivia 2>/dev/null | tr -d '\r' || true)"
-
-          if grep -q -E 'Process: com\.rsm\.eztrivia' "$startup_log" || \
-             grep -q -E 'Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$startup_log"; then
-            echo "::error::v3 release candidate crashed during startup."
-            grep -A180 -B80 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$startup_log" || true
-            exit 20
-          fi
-          if [ -z "$pid" ]; then
+          initial_pid="$(adb shell pidof com.rsm.eztrivia 2>/dev/null | tr -d '\r' || true)"
+          if [ -z "$initial_pid" ]; then
+            adb logcat -d -v threadtime > "$startup_log"
             echo "::error::v3 release candidate process did not survive startup."
             tail -n 700 "$startup_log"
             exit 21
           fi
           if ! adb shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
-            echo "::error::v3 process survived but MainActivity is not active."
+            adb logcat -d -v threadtime > "$startup_log"
+            echo "::error::v3 process survived but MainActivity is not active before rotation."
             tail -n 700 "$startup_log"
             exit 22
           fi
 
-          echo "v3 release startup smoke passed; process ${pid} is alive and MainActivity is active."
+          # Reproduce the user-visible failure path: portrait -> landscape ->
+          # portrait, then repeat from the opposite landscape direction. The
+          # Activity is expected to handle these changes in place.
+          adb shell settings put system accelerometer_rotation 0
+          for rotation in 1 0 3 0; do
+            adb shell settings put system user_rotation "$rotation"
+            sleep 3
+          done
+
+          adb logcat -d -v threadtime > "$startup_log"
+          final_pid="$(adb shell pidof com.rsm.eztrivia 2>/dev/null | tr -d '\r' || true)"
+
+          if grep -q -E 'Process: com\.rsm\.eztrivia' "$startup_log" || \
+             grep -q -E 'Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$startup_log"; then
+            echo "::error::v3 release candidate crashed during startup or rotation."
+            grep -A180 -B80 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$startup_log" || true
+            exit 20
+          fi
+          if [ -z "$final_pid" ]; then
+            echo "::error::v3 release candidate process did not survive rotation."
+            tail -n 700 "$startup_log"
+            exit 23
+          fi
+          if [ "$final_pid" != "$initial_pid" ]; then
+            echo "::error::v3 app process restarted during the rotation smoke."
+            tail -n 700 "$startup_log"
+            exit 24
+          fi
+          if ! adb shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
+            echo "::error::v3 process survived rotation but MainActivity is not active."
+            tail -n 700 "$startup_log"
+            exit 25
+          fi
+
+          echo "v3 release startup/rotation smoke passed; process ${final_pid} stayed alive and MainActivity is active."
           {
-            echo '## Android v3 startup smoke'
+            echo '## Android v3 startup + rotation smoke'
             echo
             echo '- Minified release bundle: **built on Linux and transferred unchanged**'
             echo '- Universal APK: **installed**'
             echo '- Startup fatal exception: **none**'
-            echo '- MainActivity after 12 seconds: **active**'
+            echo '- Portrait/landscape rotations exercised: **4**'
+            echo '- Process restart during rotation: **none**'
+            echo '- MainActivity after rotation: **active**'
           } >> "$GITHUB_STEP_SUMMARY"
           EOF
 
-      - name: Launch v3 candidate and capture startup
+      - name: Launch, rotate, and capture v3 candidate
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
