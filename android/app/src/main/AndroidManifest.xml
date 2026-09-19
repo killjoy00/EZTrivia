@@ -28,8 +28,15 @@
             android:name="firebase_crashlytics_collection_enabled"
             android:value="true" />
 
+        <!--
+          Trivia rounds plus Play Games, Billing, and ad/consent bridges keep
+          live session state in memory. Rotation changes are therefore handled
+          in-place instead of destroying/recreating the Activity. Compose still
+          receives the new Configuration and remeasures for the new window size.
+        -->
         <activity
             android:name=".MainActivity"
+            android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -39,10 +46,12 @@
 
         <activity
             android:name=".DailyChallengeActivity"
+            android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
             android:exported="false" />
 
         <activity
             android:name=".FriendChallengeActivity"
+            android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
             android:exported="true"
             android:launchMode="singleTop">
             <intent-filter>
