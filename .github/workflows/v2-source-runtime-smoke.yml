@@ -1,0 +1,94 @@
+name: V2 source runtime smoke
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/v2-source-runtime-smoke.yml"
+      - "android/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Launch exact v2 source release
+    runs-on: macos-15
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Build exact v2 release APK
+        env:
+          EZTRIVIA_VERSION_CODE: "2"
+          EZTRIVIA_VERSION_NAME: "1.0.0-alpha02"
+        run: gradle assembleRelease --stacktrace
+
+      - name: Sign release APK for emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          keytool -genkeypair \
+            -keystore "$RUNNER_TEMP/v2-smoke.jks" \
+            -storepass android \
+            -keypass android \
+            -alias smoke \
+            -dname "CN=EZ Trivia v2 Smoke,O=EZ Trivia,C=US" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 30
+
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort | tail -1)"
+          test -x "$apksigner"
+          "$apksigner" sign \
+            --ks "$RUNNER_TEMP/v2-smoke.jks" \
+            --ks-key-alias smoke \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --out "$RUNNER_TEMP/eztrivia-v2-source.apk" \
+            app/build/outputs/apk/release/app-release-unsigned.apk
+          "$apksigner" verify "$RUNNER_TEMP/eztrivia-v2-source.apk"
+
+      - name: Launch exact v2 source release
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis_playstore
+          profile: pixel_6
+          script: |
+            set -eu
+            apk="$RUNNER_TEMP/eztrivia-v2-source.apk"
+            adb install -r "$apk"
+            adb logcat -c
+            adb shell am start -W -n com.rsm.eztrivia/.MainActivity || true
+            sleep 10
+            adb logcat -d -v threadtime > "$RUNNER_TEMP/v2-source-logcat.txt"
+            pid="$(adb shell pidof com.rsm.eztrivia | tr -d '\r')"
+
+            fatal=0
+            if grep -A120 -B40 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$RUNNER_TEMP/v2-source-logcat.txt" > "$RUNNER_TEMP/v2-source-fatal.txt"; then
+              fatal=1
+              cat "$RUNNER_TEMP/v2-source-fatal.txt"
+            fi
+
+            if [ -z "$pid" ] || [ "$fatal" -ne 0 ]; then
+              echo "::error::Exact v2 source release failed startup."
+              if [ "$fatal" -eq 0 ]; then tail -n 500 "$RUNNER_TEMP/v2-source-logcat.txt"; fi
+              exit 1
+            fi
+
+            echo "Exact v2 source release launched; process ${pid} is alive."
