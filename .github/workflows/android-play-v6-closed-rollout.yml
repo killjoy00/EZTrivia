@@ -1,0 +1,284 @@
+name: Android Play v6 closed rollout
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/android-play-v6-closed-rollout.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-play-v6-closed-rollout
+  cancel-in-progress: false
+
+jobs:
+  rollout:
+    name: Build v6 and update existing closed test
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PACKAGE_NAME: com.rsm.eztrivia
+      CLOSED_TRACK: production-access
+      VERSION_CODE: "6"
+      VERSION_NAME: 1.0.0-alpha06
+      RELEASE_NAME: EZ Trivia 1.0.0-alpha06 closed test
+      RELEASE_NOTES: Fixes a crash when rotating between portrait and landscape and preserves the active trivia session during orientation changes.
+      ANDROID_ADMOB_APP_ID: ca-app-pub-1217971050094766~1085041409
+      ANDROID_ADMOB_BANNER_ID: ca-app-pub-1217971050094766/1190439457
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Validate release configuration and credentials
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$PLAY_SERVICE_ACCOUNT"
+          [[ "$ANDROID_ADMOB_APP_ID" =~ ^ca-app-pub-1217971050094766~[0-9]+$ ]]
+          [[ "$ANDROID_ADMOB_BANNER_ID" =~ ^ca-app-pub-1217971050094766/[0-9]+$ ]]
+
+      - name: Authenticate to Google Play Developer API
+        id: play_auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Guard existing closed test before any Play mutation
+        env:
+          ACCESS_TOKEN: ${{ steps.play_auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/tracks"
+          auth=(-H "Authorization: Bearer ${ACCESS_TOKEN}" -H "Accept: application/json")
+          curl --fail-with-body --silent --show-error "${base}/${CLOSED_TRACK}/releases" "${auth[@]}" > "$RUNNER_TEMP/closed-before.json"
+          curl --fail-with-body --silent --show-error "${base}/internal/releases" "${auth[@]}" > "$RUNNER_TEMP/internal-before.json"
+
+          closed_count="$(jq '(.releases // []) | length' "$RUNNER_TEMP/closed-before.json")"
+          closed_v6="$(jq -r '[.releases[]? | select(any(.activeArtifacts[]?.versionCode; . == 6)) | .releaseLifecycleState] | first // "absent"' "$RUNNER_TEMP/closed-before.json")"
+          internal_v6="$(jq -r '[.releases[]? | select(any(.activeArtifacts[]?.versionCode; . == 6)) | .releaseLifecycleState] | first // "absent"' "$RUNNER_TEMP/internal-before.json")"
+          internal_v5="$(jq -r '[.releases[]? | select(any(.activeArtifacts[]?.versionCode; . == 5)) | .releaseLifecycleState] | first // "absent"' "$RUNNER_TEMP/internal-before.json")"
+          published_closed="$(jq '[.releases[]? | select(.releaseLifecycleState == "RELEASE_LIFECYCLE_STATE_PUBLISHED")] | length' "$RUNNER_TEMP/closed-before.json")"
+
+          echo "existing closed releases=${closed_count} published=${published_closed} closed v6=${closed_v6} internal v5=${internal_v5} internal v6=${internal_v6}"
+          jq -r '.releases[]? | "closed track=\(.track) release=\(.releaseName) versions=\([.activeArtifacts[]?.versionCode] | join(",")) lifecycle=\(.releaseLifecycleState)"' "$RUNNER_TEMP/closed-before.json"
+
+          if [ "$closed_count" -lt 1 ] || [ "$published_closed" -lt 1 ]; then
+            echo "::error::Existing ${CLOSED_TRACK} closed test is not active; refusing to create or replace a track."
+            exit 2
+          fi
+          if [ "$closed_v6" != "absent" ] || [ "$internal_v6" != "absent" ]; then
+            echo "::error::v6 already exists on Google Play; refusing duplicate rollout."
+            exit 3
+          fi
+          if [ "$internal_v5" != "RELEASE_LIFECYCLE_STATE_PUBLISHED" ]; then
+            echo "::error::Expected the prior Internal v5 build to be published; found ${internal_v5}."
+            exit 4
+          fi
+
+      - name: Authenticate to Firebase Management API
+        id: firebase_auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/cloud-platform
+          create_credentials_file: false
+
+      - name: Materialize required Firebase Android config
+        env:
+          ACCESS_TOKEN: ${{ steps.firebase_auth.outputs.access_token }}
+          SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_id="$(jq -r '.project_id // empty' <<<"$SERVICE_ACCOUNT")"
+          test -n "$project_id"
+          auth=(-H "Authorization: Bearer ${ACCESS_TOKEN}" -H "Accept: application/json")
+          base="https://firebase.googleapis.com/v1beta1"
+
+          apps="$(curl --fail-with-body --silent --show-error "${base}/projects/${project_id}/androidApps" "${auth[@]}")"
+          app_name="$(jq -r '[.apps[]? | select(.packageName == "com.rsm.eztrivia") | .name] | first // empty' <<<"$apps")"
+          if [[ -z "$app_name" ]]; then
+            echo "::error::Firebase Android app com.rsm.eztrivia is missing; refusing v6 release without Crashlytics."
+            exit 10
+          fi
+
+          config="$(curl --fail-with-body --silent --show-error "${base}/${app_name}/config" "${auth[@]}")"
+          jq -r '.configFileContents' <<<"$config" | base64 --decode > android/app/google-services.json
+          jq -e '
+            any(.client[]?;
+              .client_info.android_client_info.package_name == "com.rsm.eztrivia" and
+              (.client_info.mobilesdk_app_id | type == "string" and length > 0)
+            )
+          ' android/app/google-services.json >/dev/null
+
+      - name: Assert Firebase Analytics is absent
+        working-directory: android
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle :app:dependencies --configuration releaseRuntimeClasspath > "$RUNNER_TEMP/release-runtime-deps.txt"
+          if grep -Eq 'com\.google\.firebase:firebase-analytics([:-]|$)' "$RUNNER_TEMP/release-runtime-deps.txt"; then
+            echo "::error::Firebase Analytics entered the release graph; refusing v6."
+            grep 'com.google.firebase:firebase-analytics' "$RUNNER_TEMP/release-runtime-deps.txt" || true
+            exit 11
+          fi
+
+      - name: Materialize upload keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/eztrivia-upload.p12"
+          keytool -list             -keystore "$RUNNER_TEMP/eztrivia-upload.p12"             -storetype PKCS12             -storepass "$KEYSTORE_PASSWORD"             -alias upload >/dev/null
+          chmod 600 "$RUNNER_TEMP/eztrivia-upload.p12"
+
+      - name: Run Android unit tests
+        working-directory: android
+        run: gradle testDebugUnitTest --stacktrace
+
+      - name: Build signed production-configured v6 bundle
+        working-directory: android
+        env:
+          ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/eztrivia-upload.p12
+          ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          EZTRIVIA_VERSION_CODE: ${{ env.VERSION_CODE }}
+          EZTRIVIA_VERSION_NAME: ${{ env.VERSION_NAME }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle bundleRelease --stacktrace
+          test -s app/build/outputs/bundle/release/app-release.aab
+
+      - name: Verify bundle signature
+        run: jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Prepare Play release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/play-notes"
+          printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/play-notes/whatsnew-en-US"
+
+      - name: Publish v6 to Google Play Internal Testing
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.rsm.eztrivia
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
+          releaseName: EZ Trivia 1.0.0-alpha06 (v6)
+          whatsNewDirectory: ${{ runner.temp }}/play-notes
+          mappingFile: android/app/build/outputs/mapping/release/mapping.txt
+
+      - name: Update the existing closed test only
+        env:
+          ACCESS_TOKEN: ${{ steps.play_auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}"
+          auth=(-H "Authorization: Bearer ${ACCESS_TOKEN}" -H "Content-Type: application/json")
+          edit_id=""
+
+          cleanup() {
+            if [ -n "$edit_id" ]; then
+              curl --silent --show-error -X DELETE "${base}/edits/${edit_id}" "${auth[@]}" >/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          edit_json="$(curl --fail-with-body --silent --show-error -X POST "${base}/edits" "${auth[@]}" -d '{}')"
+          edit_id="$(jq -r '.id' <<<"$edit_json")"
+
+          internal_json="$(curl --fail-with-body --silent --show-error "${base}/edits/${edit_id}/tracks/internal" "${auth[@]}")"
+          if ! jq -e --arg version "$VERSION_CODE" 'any(.releases[]?.versionCodes[]?; . == $version)' <<<"$internal_json" >/dev/null; then
+            echo "::error::v6 upload returned but versionCode 6 is not present on Internal."
+            exit 20
+          fi
+
+          closed_url="${base}/edits/${edit_id}/tracks/${CLOSED_TRACK}"
+          closed_json="$(curl --fail-with-body --silent --show-error "$closed_url" "${auth[@]}")"
+          release_count="$(jq '(.releases // []) | length' <<<"$closed_json")"
+          if [ "$release_count" -lt 1 ]; then
+            echo "::error::Existing closed track unexpectedly has no release; refusing to create a new test."
+            exit 21
+          fi
+          echo "Replacing the current release on existing ${CLOSED_TRACK}; track itself is preserved."
+          jq -r '.releases[]? | "current editable closed release name=\(.name // "") versions=\(.versionCodes // []) status=\(.status // "")"' <<<"$closed_json"
+
+          jq -n             --arg track "$CLOSED_TRACK"             --arg name "$RELEASE_NAME"             --arg version "$VERSION_CODE"             --arg notes "$RELEASE_NOTES"             '{track:$track,releases:[{name:$name,versionCodes:[$version],status:"completed",releaseNotes:[{language:"en-US",text:$notes}]}]}'             > "$RUNNER_TEMP/closed-v6.json"
+
+          curl --fail-with-body --silent --show-error -X PUT "$closed_url" "${auth[@]}"             --data-binary @"$RUNNER_TEMP/closed-v6.json" > "$RUNNER_TEMP/closed-update-response.json"
+
+          curl --fail-with-body --silent --show-error -X POST "${base}/edits/${edit_id}:validate" "${auth[@]}" -d '{}'             > "$RUNNER_TEMP/validate-response.json"
+
+          commit_code="$(curl --silent --show-error -o "$RUNNER_TEMP/commit-response.json" -w '%{http_code}'             -X POST "${base}/edits/${edit_id}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW" "${auth[@]}" -d '{}')"
+
+          if [ "$commit_code" = "400" ] && jq -e '.error.details[]? | select(.reason == "CHANGES_ALREADY_IN_REVIEW")' "$RUNNER_TEMP/commit-response.json" >/dev/null; then
+            echo "A Play review is already in progress; combining v6 into that review without recreating the closed track."
+            commit_code="$(curl --silent --show-error -o "$RUNNER_TEMP/commit-response.json" -w '%{http_code}'               -X POST "${base}/edits/${edit_id}:commit?changesInReviewBehavior=CANCEL_IN_REVIEW_AND_SUBMIT" "${auth[@]}" -d '{}')"
+          fi
+
+          cat "$RUNNER_TEMP/commit-response.json"
+          if [ "$commit_code" != "200" ]; then
+            echo "::error::Closed-test v6 commit failed with HTTP ${commit_code}; edit will be abandoned."
+            exit 22
+          fi
+          edit_id=""
+
+      - name: Verify live closed-test lifecycle after commit
+        env:
+          ACCESS_TOKEN: ${{ steps.play_auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/tracks/${CLOSED_TRACK}/releases"
+          curl --fail-with-body --silent --show-error             -H "Authorization: Bearer ${ACCESS_TOKEN}"             -H "Accept: application/json"             "$url" > "$RUNNER_TEMP/closed-after.json"
+
+          jq -r '.releases[]? | "track=\(.track) releaseName=\(.releaseName) versionCodes=\([.activeArtifacts[]?.versionCode] | join(",")) lifecycle=\(.releaseLifecycleState)"' "$RUNNER_TEMP/closed-after.json"
+
+          if ! jq -e 'any(.releases[]?.activeArtifacts[]?.versionCode; . == 6)' "$RUNNER_TEMP/closed-after.json" >/dev/null; then
+            echo "::error::Commit succeeded but live existing closed track does not show v6."
+            exit 30
+          fi
+
+      - name: Archive v6 release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-play-v6-closed-rollout
+          path: |
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/mapping/release/mapping.txt
+            ${{ runner.temp }}/closed-before.json
+            ${{ runner.temp }}/internal-before.json
+            ${{ runner.temp }}/closed-after.json
+            ${{ runner.temp }}/validate-response.json
+            ${{ runner.temp }}/commit-response.json
+          if-no-files-found: warn
+          retention-days: 30
