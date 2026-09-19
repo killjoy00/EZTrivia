@@ -1,0 +1,67 @@
+name: Android Play v2 protection audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Inspect v2 generated APK protection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Authenticate to Google Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Inspect generated APK metadata
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/generated-apks-v2.json"
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Accept: application/json" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.rsm.eztrivia/generatedApks/2" > "$out"
+
+          jq -r '
+            .generatedApks[] |
+            "certificate=" + (.certificateSha256Hash // "unknown") + "\n" +
+            "protectedSplits=" + (((.generatedSplitApks // [])|length)|tostring) + "\n" +
+            "unprotectedSplits=" + (((.unprotectedGeneratedSplitApks // [])|length)|tostring) + "\n" +
+            "protectedStandalone=" + (((.generatedStandaloneApks // [])|length)|tostring) + "\n" +
+            "unprotectedStandalone=" + (((.unprotectedGeneratedStandaloneApks // [])|length)|tostring) + "\n" +
+            "hasProtectedUniversal=" + ((.generatedUniversalApk != null)|tostring) + "\n"
+          ' "$out"
+
+          has_unprotected="$(jq '[.generatedApks[] | ((.unprotectedGeneratedSplitApks // [])|length) + ((.unprotectedGeneratedStandaloneApks // [])|length)] | add // 0' "$out")"
+          if [ "$has_unprotected" -gt 0 ]; then
+            echo "Automatic Protection confirmed: Google exposes both protected and unprotected generated APK metadata."
+          else
+            echo "No unprotected APK metadata was exposed."
+          fi
+
+          echo "=== VARIANT TARGETING ==="
+          jq -r '
+            .generatedApks[0].targetingInfo.variant[] |
+            "variant=" + (.variantNumber|tostring) +
+            " sdk=" + (([.targeting.sdkVersionTargeting.value[]?.min] | map(tostring) | join(",")) // "") +
+            " abi=" + (([.targeting.abiTargeting.value[]?.alias] | join(",")) // "") +
+            " density=" + (([.targeting.screenDensityTargeting.value[]? | (.densityAlias // (.densityDpi|tostring))] | map(tostring) | join(",")) // "")
+          ' "$out"
+
+          echo "=== UNPROTECTED BASE SPLITS ==="
+          jq -r '
+            .generatedApks[0].unprotectedGeneratedSplitApks[] |
+            select((.moduleName == "base") and ((.splitId // "") == "")) |
+            "variant=" + (.variantId|tostring) + " downloadId=" + .downloadId
+          ' "$out"

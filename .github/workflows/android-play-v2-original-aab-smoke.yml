@@ -1,0 +1,104 @@
+name: Android Play v2 original AAB smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  smoke:
+    name: Launch exact uploaded v2 AAB unprotected
+    runs-on: macos-15-intel
+    timeout-minutes: 20
+    env:
+      V2_ARTIFACT_ID: "10356030348"
+
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Download original v2 upload artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/v2-original.zip"
+          curl --fail-with-body --silent --show-error -L \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${V2_ARTIFACT_ID}/zip" \
+            -o "$zip"
+          mkdir -p "$RUNNER_TEMP/v2-original"
+          unzip -q "$zip" -d "$RUNNER_TEMP/v2-original"
+          aab="$RUNNER_TEMP/v2-original/bundle/release/app-release.aab"
+          test -s "$aab"
+          shasum -a 256 "$aab"
+
+      - name: Build unprotected universal APK from exact uploaded AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error -L \
+            "https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar" \
+            -o "$RUNNER_TEMP/bundletool.jar"
+
+          keytool -genkeypair \
+            -keystore "$RUNNER_TEMP/v2-smoke.jks" \
+            -storepass android \
+            -keypass android \
+            -alias smoke \
+            -dname "CN=EZ Trivia v2 AAB Smoke,O=EZ Trivia,C=US" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 30
+
+          java -jar "$RUNNER_TEMP/bundletool.jar" build-apks \
+            --bundle="$RUNNER_TEMP/v2-original/bundle/release/app-release.aab" \
+            --output="$RUNNER_TEMP/v2-unprotected.apks" \
+            --mode=universal \
+            --ks="$RUNNER_TEMP/v2-smoke.jks" \
+            --ks-key-alias=smoke \
+            --ks-pass=pass:android \
+            --key-pass=pass:android \
+            --overwrite
+
+          unzip -p "$RUNNER_TEMP/v2-unprotected.apks" universal.apk > "$RUNNER_TEMP/v2-original-unprotected.apk"
+          test -s "$RUNNER_TEMP/v2-original-unprotected.apk"
+          shasum -a 256 "$RUNNER_TEMP/v2-original-unprotected.apk"
+
+      - name: Launch exact uploaded v2 AAB without protection
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis_playstore
+          profile: pixel_6
+          script: |
+            set -eu
+            apk="$RUNNER_TEMP/v2-original-unprotected.apk"
+            adb install -r "$apk"
+            adb logcat -c
+            adb shell am start -W -n com.rsm.eztrivia/.MainActivity || true
+            sleep 10
+            adb logcat -d -v threadtime > "$RUNNER_TEMP/v2-original-aab-logcat.txt"
+            pid="$(adb shell pidof com.rsm.eztrivia | tr -d '\r')"
+
+            fatal=0
+            if grep -A140 -B50 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$RUNNER_TEMP/v2-original-aab-logcat.txt" > "$RUNNER_TEMP/v2-original-aab-fatal.txt"; then
+              fatal=1
+              cat "$RUNNER_TEMP/v2-original-aab-fatal.txt"
+            fi
+
+            if [ -z "$pid" ] || [ "$fatal" -ne 0 ]; then
+              echo "::error::Exact uploaded v2 AAB fails even without Automatic Protection."
+              if [ "$fatal" -eq 0 ]; then tail -n 600 "$RUNNER_TEMP/v2-original-aab-logcat.txt"; fi
+              exit 1
+            fi
+
+            echo "Exact uploaded v2 AAB launches without Automatic Protection; process ${pid} is alive."

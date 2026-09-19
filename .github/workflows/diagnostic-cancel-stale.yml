@@ -1,0 +1,75 @@
+name: Diagnostic stale-run cleanup
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/diagnostic-cancel-stale.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    name: Cancel superseded diagnostic runs
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Cancel stale runs from older PR heads
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY}"
+          api="https://api.github.com/repos/${repo}/actions/runs"
+          all="$RUNNER_TEMP/stale-runs.jsonl"
+          : > "$all"
+
+          for status in in_progress queued; do
+            curl --fail-with-body --silent --show-error \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              --get "$api" \
+              --data-urlencode "branch=${HEAD_BRANCH}" \
+              --data-urlencode "status=${status}" \
+              --data-urlencode "per_page=100" \
+              | jq -c '.workflow_runs[]?' >> "$all"
+          done
+
+          jq -r --arg current "$HEAD_SHA" '
+            select(.head_sha != $current) |
+            select(
+              .name == "CI" or
+              .name == "Android Vitals crash audit" or
+              (.name | startswith("Android Play v2")) or
+              .name == "Diagnostic stale-run cleanup"
+            ) |
+            [.id, .name, .head_sha, .status] | @tsv
+          ' "$all" | sort -u > "$RUNNER_TEMP/to-cancel.tsv"
+
+          count="$(wc -l < "$RUNNER_TEMP/to-cancel.tsv" | tr -d ' ')"
+          echo "Found ${count} superseded run(s) to cancel."
+
+          while IFS=$'\t' read -r run_id run_name run_sha run_status; do
+            [ -n "$run_id" ] || continue
+            echo "Cancelling ${run_name} run ${run_id} (${run_status}, ${run_sha})."
+            code="$(curl --silent --show-error \
+              -X POST \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -o "$RUNNER_TEMP/cancel-${run_id}.txt" \
+              -w '%{http_code}' \
+              "https://api.github.com/repos/${repo}/actions/runs/${run_id}/cancel")"
+            if [ "$code" != "202" ] && [ "$code" != "409" ]; then
+              echo "::warning::Cancel request for run ${run_id} returned HTTP ${code}."
+              cat "$RUNNER_TEMP/cancel-${run_id}.txt" || true
+            fi
+          done < "$RUNNER_TEMP/to-cancel.tsv"
+
+          echo "Stale diagnostic run cleanup complete."
