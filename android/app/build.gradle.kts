@@ -24,13 +24,24 @@ val uploadKeystorePassword = providers.environmentVariable("ANDROID_UPLOAD_KEYST
 
 // Ordinary CI uses Google's official sample IDs so ad/consent code is compiled
 // and R8-tested without requiring production credentials. Signed Play releases
-// should provide the Android-specific AdMob IDs through these environment vars.
-val adMobAppId = providers.environmentVariable("ANDROID_ADMOB_APP_ID").orNull
+// should provide both Android-specific AdMob IDs through these environment vars.
+// Treat the pair atomically: partial production configuration falls back to the
+// complete Google sample pair rather than mixing real and demo identifiers.
+val configuredAdMobAppId = providers.environmentVariable("ANDROID_ADMOB_APP_ID").orNull
     ?.takeIf { it.isNotBlank() }
-    ?: "ca-app-pub-3940256099942544~3347511713"
-val adMobBannerId = providers.environmentVariable("ANDROID_ADMOB_BANNER_ID").orNull
+val configuredAdMobBannerId = providers.environmentVariable("ANDROID_ADMOB_BANNER_ID").orNull
     ?.takeIf { it.isNotBlank() }
-    ?: "ca-app-pub-3940256099942544/6300978111"
+val hasProductionAdMobPair = configuredAdMobAppId != null && configuredAdMobBannerId != null
+val adMobAppId = if (hasProductionAdMobPair) {
+    configuredAdMobAppId!!
+} else {
+    "ca-app-pub-3940256099942544~3347511713"
+}
+val adMobBannerId = if (hasProductionAdMobPair) {
+    configuredAdMobBannerId!!
+} else {
+    "ca-app-pub-3940256099942544/6300978111"
+}
 
 android {
     namespace = "com.rsm.eztrivia"

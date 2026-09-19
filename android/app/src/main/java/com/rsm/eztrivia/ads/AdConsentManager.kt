@@ -46,7 +46,10 @@ class AdConsentManager(
             activity,
             parameters,
             {
-                refreshState()
+                // A freshly updated consent state can say ads are requestable
+                // while UMP still has a required form to present. Wait until
+                // loadAndShowConsentFormIfRequired has definitively completed
+                // before initializing Mobile Ads or exposing canRequestAds.
                 UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
                     if (formError != null) {
                         _state.value = _state.value.copy(errorMessage = formError.message)
