@@ -17,12 +17,21 @@ class AppSettingsPolicyTest {
     @Test
     fun feedbackDefaultsOnAndAutoAdvanceDefaultsOff() {
         val settings = AppSettings()
+        assertFalse(settings.darkModeEnabled)
         assertFalse(settings.autoAdvanceEnabled)
         assertEquals(5, settings.autoAdvanceSeconds)
         assertTrue(settings.soundEnabled)
         assertTrue(settings.hapticsEnabled)
         assertFalse(settings.streakRemindersEnabled)
         assertEquals(20, settings.reminderHour)
+    }
+
+    @Test
+    fun darkAppearanceCanBeEnabledWithoutChangingGameplaySettings() {
+        val settings = AppSettings(darkModeEnabled = true)
+        assertTrue(settings.darkModeEnabled)
+        assertFalse(settings.autoAdvanceEnabled)
+        assertTrue(settings.soundEnabled)
     }
 
     @Test

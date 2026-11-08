@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.stateIn
 private val Context.appSettingsDataStore by preferencesDataStore(name = "eztrivia_app_settings")
 
 data class AppSettings(
+    val darkModeEnabled: Boolean = false,
     val autoAdvanceEnabled: Boolean = false,
     val autoAdvanceSeconds: Int = AppSettingsPolicy.DEFAULT_AUTO_ADVANCE_SECONDS,
     val soundEnabled: Boolean = true,
@@ -49,6 +50,7 @@ object AppSettingsPolicy {
 
 class AppSettingsStore(context: Context) {
     private object Keys {
+        val darkModeEnabled = booleanPreferencesKey("appearance.dark.enabled")
         val autoAdvanceEnabled = booleanPreferencesKey("gameplay.autoAdvance.enabled")
         val autoAdvanceSeconds = intPreferencesKey("gameplay.autoAdvance.seconds")
         val soundEnabled = booleanPreferencesKey("feedback.sound.enabled")
@@ -81,6 +83,8 @@ class AppSettingsStore(context: Context) {
         .map(::decode)
         .first()
 
+    suspend fun setDarkModeEnabled(enabled: Boolean) = set(Keys.darkModeEnabled, enabled)
+
     suspend fun setAutoAdvanceEnabled(enabled: Boolean) = set(Keys.autoAdvanceEnabled, enabled)
 
     suspend fun setAutoAdvanceSeconds(seconds: Int) =
@@ -100,6 +104,7 @@ class AppSettingsStore(context: Context) {
     }
 
     private fun decode(preferences: Preferences): AppSettings = AppSettings(
+        darkModeEnabled = preferences[Keys.darkModeEnabled] ?: false,
         autoAdvanceEnabled = preferences[Keys.autoAdvanceEnabled] ?: false,
         autoAdvanceSeconds = AppSettingsPolicy.clampAutoAdvanceSeconds(
             preferences[Keys.autoAdvanceSeconds] ?: AppSettingsPolicy.DEFAULT_AUTO_ADVANCE_SECONDS

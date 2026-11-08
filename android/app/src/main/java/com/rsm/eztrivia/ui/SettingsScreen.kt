@@ -109,6 +109,19 @@ fun SettingsScreen(
             }
 
             item {
+                SettingsSection(title = "Appearance") {
+                    SettingToggle(
+                        title = "Dark mode",
+                        subtitle = "Use a darker look throughout the app.",
+                        checked = settings.darkModeEnabled,
+                        onCheckedChange = { enabled ->
+                            scope.launch { settingsStore.setDarkModeEnabled(enabled) }
+                        },
+                    )
+                }
+            }
+
+            item {
                 SettingsSection(title = "Gameplay") {
                     SettingToggle(
                         title = "Auto-advance",

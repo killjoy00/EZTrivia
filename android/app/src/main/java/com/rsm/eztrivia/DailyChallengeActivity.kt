@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -19,17 +18,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.rsm.eztrivia.data.AppSettingsStore
 import com.rsm.eztrivia.data.PlayerStateStore
 import com.rsm.eztrivia.data.QuestionCatalog
 import com.rsm.eztrivia.model.TriviaQuestion
 import com.rsm.eztrivia.ui.DailyChallengeScreen
+import com.rsm.eztrivia.ui.EZTriviaTheme
 
 class DailyChallengeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MaterialTheme {
+            val appearanceStore = remember(applicationContext) { AppSettingsStore(applicationContext) }
+            val appearance by appearanceStore.state.collectAsState()
+            EZTriviaTheme(darkModeEnabled = appearance.darkModeEnabled) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     Box(
                         modifier = Modifier
