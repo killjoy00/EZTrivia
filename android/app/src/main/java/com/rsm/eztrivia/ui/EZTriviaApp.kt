@@ -607,6 +607,11 @@ private fun RoundScreen(
                 }
             }
 
+            // Mixed Quick Play changes category on every question.
+            if (mode == RoundMode.QuickPlay) {
+                item { QuestionCategoryLabel(question.category) }
+            }
+
             question.visual?.let { visual ->
                 item { FlagVisual(visual = visual, compact = answered) }
             }

@@ -282,6 +282,8 @@ private fun DailyRoundScreen(
                 }
             }
 
+            item { QuestionCategoryLabel(question.category) }
+
             question.visual?.let { visual -> item { DailyFlagVisual(visual, answered) } }
 
             item {

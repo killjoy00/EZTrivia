@@ -7,18 +7,22 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.rsm.eztrivia.ads.AdConsentManager
 import com.rsm.eztrivia.billing.RemoveAdsBillingManager
+import com.rsm.eztrivia.data.AppSettingsStore
 import com.rsm.eztrivia.data.PlayerStateStore
 import com.rsm.eztrivia.playgames.PlayGamesManager
 import com.rsm.eztrivia.playgames.PlayGamesSavedStateManager
 import com.rsm.eztrivia.ui.EZTriviaApp
+import com.rsm.eztrivia.ui.EZTriviaTheme
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -76,7 +80,9 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme {
+            val appearanceStore = remember(applicationContext) { AppSettingsStore(applicationContext) }
+            val appearance by appearanceStore.state.collectAsState()
+            EZTriviaTheme(darkModeEnabled = appearance.darkModeEnabled) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     Box(
                         modifier = Modifier

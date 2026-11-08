@@ -444,6 +444,8 @@ private fun FriendChallengeRoundScreen(
                 }
             }
 
+            item { QuestionCategoryLabel(question.category) }
+
             question.visual?.let { visual ->
                 item { FriendFlagVisual(visual, answered) }
             }
