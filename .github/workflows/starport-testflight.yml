@@ -67,6 +67,15 @@ jobs:
           print("Verified bundle ID, version and disabled production ad requests.")
           PY
 
+      - name: Verify approved StarPort icon is baked into the release asset catalog
+        working-directory: starport
+        run: |
+          set -euo pipefail
+          bash scripts/bake_approved_icon.sh
+          git diff --exit-code -- Starport/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          test -s Starport/Assets.xcassets/AppIcon.appiconset/ApprovedGateway.jpg
+          echo "Approved gateway art matches committed universal AppIcon.png."
+
       - name: Select Xcode 26 SDK
         uses: maxim-lobanov/setup-xcode@v1
         with:
