@@ -1,10 +1,15 @@
 {
   "repository": "killjoy00/Starport",
   "bundleID": "pro.stuffyland.stories",
-  "sha": "c046bde52025f1a55317dd5ccde5f0cfa0e47772",
+  "sha": "4a9a9d9e3a48e057f6421610070ab9a0957b98bb",
   "version": "0.1.0",
   "destination": "TestFlight",
-  "purpose": "First Stuffy Land internal beta: branching and regular e-reader stories, on-device Read to Me, distinct branding. Live ads disabled.",
-  "attempt": 2,
-  "reason": "Correct app identifier in shared credential release workflow before signed archive"
+  "purpose": "Updated internal beta: Opal's 13-story collection, 11 read-alongs, Pillow-Fort and Snore-Snatcher interactive adventures, Lolo icon, illustrated story shelf, and native Read to Me.",
+  "validation": {
+    "pullRequest": "https://github.com/killjoy00/Starport/pull/12",
+    "nativeBuild": "https://github.com/killjoy00/Starport/actions/runs/42860141764",
+    "productionAdsEnabled": false
+  },
+  "attempt": 3,
+  "reason": "Publish the completed Stuffy Land story and design update after source checks pass."
 }
