@@ -1,0 +1,270 @@
+name: Starport TestFlight (shared Apple credentials)
+
+# Only a reviewed request merged to EZTrivia main (or manual dispatch) can sign
+# and upload the immutable Starport commit. Apple secrets stay in EZTrivia.
+on:
+  push:
+    branches: [main]
+    paths: [".github/starport-release-request.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: starport-testflight-upload
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    name: Signed Starport build to TestFlight
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - name: Checkout release request
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate approved immutable Starport source
+        id: approved
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, pathlib, re
+          r = json.loads(pathlib.Path(".github/starport-release-request.json").read_text())
+          assert r.get("repository") == "killjoy00/Starport", "Wrong source repository"
+          assert r.get("bundleID") == "pro.starport.story", "Wrong bundle ID"
+          assert re.fullmatch(r"[0-9a-f]{40}", r.get("sha", "")), "Source must be a full immutable commit SHA"
+          assert re.fullmatch(r"[0-9]+[.][0-9]+[.][0-9]+", r.get("version", "")), "Invalid version"
+          print("sha=" + r["sha"])
+          print("version=" + r["version"])
+          PY
+
+      - name: Checkout approved Starport commit
+        uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Starport
+          ref: ${{ steps.approved.outputs.sha }}
+          path: starport
+          persist-credentials: false
+
+      - name: Verify Starport source and embedded illustrations
+        working-directory: starport
+        env:
+          APPROVED_SHA: ${{ steps.approved.outputs.sha }}
+          RELEASE_VERSION: ${{ steps.approved.outputs.version }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$APPROVED_SHA"
+          python3 scripts/audit_artwork.py
+          python3 - <<'PY'
+          import os, pathlib
+          project = pathlib.Path("Starport.xcodeproj/project.pbxproj").read_text()
+          assert project.count("PRODUCT_BUNDLE_IDENTIFIER = pro.starport.story;") == 2
+          assert project.count("MARKETING_VERSION = " + os.environ["RELEASE_VERSION"] + ";") == 2
+          assert project.count("INFOPLIST_KEY_STARPORT_ADS_LIVE_APPROVED = NO;") == 2
+          print("Verified bundle ID, version and disabled production ad requests.")
+          PY
+
+      - name: Select Xcode 26 SDK
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26"
+
+      - name: Run Starport story and achievement tests before using Apple credentials
+        working-directory: starport
+        run: swift test
+
+      - name: Check EZTrivia shared Apple secrets
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID" || { echo "::error::Missing ASC_KEY_ID"; exit 1; }
+          test -n "$ASC_ISSUER_ID" || { echo "::error::Missing ASC_ISSUER_ID"; exit 1; }
+          test -n "$ASC_KEY_P8" || { echo "::error::Missing ASC_KEY_P8"; exit 1; }
+          test -n "$APPLE_TEAM_ID" || { echo "::error::Missing APPLE_TEAM_ID"; exit 1; }
+          echo "The existing four Apple signing secrets are present."
+
+      - name: Normalize Apple API key without printing it
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/private_keys"
+          key="$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          if ! grep -q 'BEGIN' "$key" && grep -q '\\n' "$key"; then
+            printf '%b' "$(cat "$key")" > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          if ! grep -q 'BEGIN' "$key" && base64 -d < "$key" > "$key.tmp" 2>/dev/null; then
+            if grep -q 'BEGIN' "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi
+          fi
+          if ! grep -q 'BEGIN' "$key"; then
+            body=$(tr -d '\n\r ' < "$key")
+            { echo "-----BEGIN PRIVATE KEY-----"
+              printf '%s' "$body" | fold -w 64
+              echo "-----END PRIVATE KEY-----"; } > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          chmod 600 "$key"
+          openssl pkey -in "$key" -noout 2>/dev/null || {
+            echo "::error::Cannot parse existing App Store Connect private key."
+            exit 1
+          }
+
+      - name: Verify newly created Starport App Store Connect record
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/asc-venv"
+          "$RUNNER_TEMP/asc-venv/bin/python" -m pip install --quiet "PyJWT[crypto]"
+          "$RUNNER_TEMP/asc-venv/bin/python" - <<'PY'
+          import json, os, pathlib, time, urllib.parse, urllib.request, urllib.error
+          import jwt
+          kid = os.environ["ASC_KEY_ID"]
+          key = (pathlib.Path.home() / "private_keys" / ("AuthKey_" + kid + ".p8")).read_text()
+          now = int(time.time())
+          token = jwt.encode({"iss": os.environ["ASC_ISSUER_ID"], "iat": now,
+                              "exp": now+600, "aud": "appstoreconnect-v1"},
+                             key, algorithm="ES256", headers={"kid": kid})
+          url = "https://api.appstoreconnect.apple.com/v1/apps?" + urllib.parse.urlencode(
+              {"filter[bundleId]": "pro.starport.story", "limit": "1"})
+          request = urllib.request.Request(url, headers={
+              "Authorization": "Bearer " + token, "Accept": "application/json"})
+          try:
+              with urllib.request.urlopen(request, timeout=30) as result:
+                  apps = json.load(result).get("data", [])
+          except urllib.error.HTTPError as exc:
+              raise SystemExit("App Store Connect preflight returned HTTP " + str(exc.code))
+          if not apps:
+              raise SystemExit("No pro.starport.story app in this Apple team; confirm bundle ID and app record.")
+          print("App Store Connect confirmed: " + apps[0]["attributes"]["name"] +
+                " (pro.starport.story), app ID " + apps[0]["id"])
+          PY
+
+      - name: Install Xcode output formatter
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      - name: Allocate Apple build number
+        env:
+          RELEASE_VERSION: ${{ steps.approved.outputs.version }}
+        run: |
+          echo "STARPORT_BUILD=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "STARPORT_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
+
+      - name: Archive Starport signed for App Store distribution
+        working-directory: starport
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project Starport.xcodeproj \
+            -scheme Starport \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Starport.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$STARPORT_BUILD" \
+            MARKETING_VERSION="$STARPORT_VERSION" \
+            INFOPLIST_KEY_ITSAppUsesNonExemptEncryption=NO \
+            2>&1 | tee "$RUNNER_TEMP/starport-archive.log" | xcbeautify
+
+      - name: Validate signed archive identity and version
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/Starport.xcarchive/Products/Applications/Starport.app"
+          plist="$app/Info.plist"
+          test -f "$plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = "pro.starport.story"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = "$STARPORT_VERSION"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "$STARPORT_BUILD"
+          codesign --verify --deep --strict "$app"
+          echo "Signed Starport archive verified: $STARPORT_VERSION ($STARPORT_BUILD)."
+
+      - name: Preserve signed archive for debugging
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Starport-archive-${{ github.run_number }}
+          path: ${{ runner.temp }}/Starport.xcarchive
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Export and upload Starport through Xcode to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/StarportExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>destination</key><string>upload</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Starport.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/StarportExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/StarportExport" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee "$RUNNER_TEMP/starport-upload.log" | xcbeautify
+          echo "Starport $STARPORT_VERSION ($STARPORT_BUILD) uploaded to Apple; TestFlight processing can take additional time."
+
+      - name: Report upload
+        if: success()
+        run: |
+          {
+            echo "## Starport TestFlight upload"
+            echo "- App: Starport"
+            echo "- Bundle ID: pro.starport.story"
+            echo "- Version: $STARPORT_VERSION"
+            echo "- Build: $STARPORT_BUILD"
+            echo "- Source commit: ${{ steps.approved.outputs.sha }}"
+            echo "- Status: submitted to App Store Connect (processing may be pending)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Surface errors only
+        if: failure()
+        run: |
+          for f in "$RUNNER_TEMP/starport-archive.log" "$RUNNER_TEMP/starport-upload.log"; do
+            if [ -f "$f" ]; then
+              echo "Errors from $(basename "$f"):"
+              grep -E "error:|ERROR:|ITMS-|409" "$f" | head -30 || true
+            fi
+          done
+
+      - name: Delete temporary Apple API key
+        if: always()
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          if [ -n "$ASC_KEY_ID" ]; then
+            rm -f "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          fi
