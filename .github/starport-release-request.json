@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/Starport",
   "bundleID": "pro.starport.story",
-  "sha": "ac49198d8e0614155d02361e2aee60ce8ea63651",
-  "version": "0.2.0",
+  "sha": "819738fe0b2e9ac06c7462aa0b430f0a4a423137",
+  "version": "0.3.0",
   "destination": "TestFlight",
-  "purpose": "Internal TestFlight beta with the approved icon and corrected GADApplicationIdentifier; live ads remain disabled.",
-  "attempt": 6,
-  "reason": "Ship approved gateway icon together with the Google Ads startup-crash hotfix"
+  "purpose": "Internal TestFlight beta: simplified one-tap 13+ confirmation and expanded truly branching Episode 01; preserve discovered endings on v2-to-v3 story migration. Production ads disabled.",
+  "attempt": 7,
+  "reason": "Ship the expanded Episode 01 and reduced-friction 13+ gate after story graph tests pass"
 }
