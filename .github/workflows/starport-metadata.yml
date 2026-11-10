@@ -1,0 +1,152 @@
+name: StarPort App Store listing sync
+on:
+  push:
+    branches: [main]
+    paths: [".github/starport-metadata-request.json"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Approve pinned StarPort metadata
+        id: request
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, pathlib, re
+          r=json.loads(pathlib.Path(".github/starport-metadata-request.json").read_text())
+          assert r["repository"]=="killjoy00/Starport"
+          assert re.fullmatch("[0-9a-f]{40}",r["sha"])
+          assert r["mode"] in ("inspect","apply")
+          print("sha="+r["sha"])
+          print("mode="+r["mode"])
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Starport
+          ref: ${{ steps.request.outputs.sha }}
+          path: starport
+          persist-credentials: false
+      - name: Validate metadata and support pages
+        run: |
+          python3 - <<'PY'
+          import json,pathlib
+          p=pathlib.Path("starport")
+          a=json.loads((p/"docs/app-store/en-US.json").read_text())
+          for name,limit in (("appName",30),("subtitle",30),("description",4000),("promotionalText",170),("keywords",100)):
+              assert 0<len(a[name].encode())<=limit,name
+          assert a["locale"]=="en-US"
+          assert a["privacyPolicyUrl"]=="https://github.com/killjoy00/Starport/blob/main/docs/privacy.md"
+          assert a["supportUrl"]=="https://github.com/killjoy00/Starport/blob/main/docs/support.md"
+          assert (p/"docs/privacy.md").is_file() and (p/"docs/support.md").is_file()
+          print("English listing metadata and public pages validated")
+          PY
+      - name: Check existing Apple API secrets
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          test -n "$ASC_KEY_ID" && test -n "$ASC_ISSUER_ID" && test -n "$ASC_KEY_P8"
+      - name: Normalize same Apple key used by EZ Trivia TestFlight
+        shell: bash
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -u
+          umask 077
+          mkdir -p "$HOME/private_keys"
+          key="$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          if ! grep -q 'BEGIN' "$key" && grep -q '\\n' "$key"; then
+            printf '%b' "$(cat "$key")" > "$key.tmp" && mv "$key.tmp" "$key"
+          fi
+          if ! grep -q 'BEGIN' "$key" && base64 -d < "$key" > "$key.tmp" 2>/dev/null; then
+            if grep -q 'BEGIN' "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi
+          fi
+          if ! grep -q 'BEGIN' "$key"; then
+            body=$(tr -d '\n\r ' < "$key")
+            { echo "-----BEGIN PRIVATE KEY-----"
+              echo "$body" | fold -w 64
+              echo "-----END PRIVATE KEY-----"; } > "$key.tmp" && mv "$key.tmp" "$key"
+          fi
+          chmod 600 "$key"
+          openssl pkey -in "$key" -noout 2>/dev/null || { echo "::error::Apple key unreadable"; exit 1; }
+      - name: Inspect StarPort icon processing and apply editable metadata
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          SYNC_MODE: ${{ steps.request.outputs.mode }}
+        run: |
+          python3 -m pip install --quiet "PyJWT[crypto]"
+          python3 - <<'PY'
+          import os,json,time,pathlib,urllib.parse,urllib.request,urllib.error,jwt
+          data=json.loads(pathlib.Path("starport/docs/app-store/en-US.json").read_text())
+          kid=os.environ["ASC_KEY_ID"]
+          pem=(pathlib.Path.home()/"private_keys"/("AuthKey_"+kid+".p8")).read_text()
+          t=int(time.time())
+          token=jwt.encode({"iss":os.environ["ASC_ISSUER_ID"],"iat":t,"exp":t+600,"aud":"appstoreconnect-v1"},pem,algorithm="ES256",headers={"kid":kid})
+          host="https://api.appstoreconnect.apple.com/v1/"
+          def api(verb,path,payload=None):
+              r=urllib.request.Request(host+path,data=json.dumps(payload).encode() if payload is not None else None,method=verb,headers={"Authorization":"Bearer "+token,"Accept":"application/json","Content-Type":"application/json"})
+              try:
+                  with urllib.request.urlopen(r,timeout=45) as response:
+                      b=response.read()
+                      return json.loads(b) if b else {}
+              except urllib.error.HTTPError as e:
+                  detail=""
+                  try:detail="; ".join(z.get("detail","") for z in json.loads(e.read()).get("errors",[]))
+                  except Exception:pass
+                  raise RuntimeError("Apple "+verb+" "+path.split("?")[0]+" HTTP "+str(e.code)+" "+detail[:220])
+          def get(path):return api("GET",path).get("data",[])
+          def write(resource,item,attrs):
+              if item is None:
+                  print("No en-US "+resource+" exists; draft stays in GitHub")
+                  return
+              changed={k:v for k,v in attrs.items() if item.get("attributes",{}).get(k)!=v}
+              if not changed:
+                  print(resource+" matches listing")
+                  return
+              print(resource+" "+("will update" if os.environ["SYNC_MODE"]=="apply" else "would update")+": "+", ".join(sorted(changed)))
+              if os.environ["SYNC_MODE"]=="apply":
+                  api("PATCH",resource+"/"+item["id"],{"data":{"type":resource,"id":item["id"],"attributes":changed}})
+                  print(resource+" saved to Apple")
+          items=get("apps?"+urllib.parse.urlencode({"filter[bundleId]":"pro.starport.story","limit":1}))
+          if not items:raise RuntimeError("App pro.starport.story not visible in this Apple team")
+          app=items[0]; appid=app["id"]
+          print("Apple record:",app["attributes"].get("name"),"app ID",appid)
+          builds=get("builds?"+urllib.parse.urlencode({"filter[app]":appid,"sort":"-uploadedDate","limit":10}))
+          for b in builds[:4]:
+              a=b.get("attributes",{})
+              print("TestFlight build:",a.get("version"),"processing state:",a.get("processingState"),"icon token present:",bool(a.get("iconAssetToken")))
+          infos=get("apps/"+appid+"/appInfos?limit=20")
+          if infos:
+              info=infos[0]
+              locs=get("appInfos/"+info["id"]+"/appInfoLocalizations?limit=50")
+              loc=next((x for x in locs if x["attributes"].get("locale")=="en-US"),None)
+              write("appInfoLocalizations",loc,{"name":data["appName"],"subtitle":data["subtitle"],"privacyPolicyUrl":data["privacyPolicyUrl"]})
+          else: print("App info record missing; no app-level fields changed")
+          versions=[x for x in get("apps/"+appid+"/appStoreVersions?limit=50") if x["attributes"].get("platform")=="IOS"]
+          print("iOS versions:",[(v["attributes"].get("versionString"),v["attributes"].get("appStoreState")) for v in versions])
+          valid={"PREPARE_FOR_SUBMISSION","DEVELOPER_REJECTED","REJECTED","METADATA_REJECTED","INVALID_BINARY"}
+          target=next((v for v in versions if v["attributes"].get("versionString")==data["version"] and v["attributes"].get("appStoreState") in valid),None)
+          if not target:target=next((v for v in versions if v["attributes"].get("appStoreState") in valid),None)
+          if target:
+              print("Editing version:",target["attributes"].get("versionString"))
+              locs=get("appStoreVersions/"+target["id"]+"/appStoreVersionLocalizations?limit=50")
+              loc=next((x for x in locs if x["attributes"].get("locale")=="en-US"),None)
+              write("appStoreVersionLocalizations",loc,{"description":data["description"],"keywords":data["keywords"],"promotionalText":data["promotionalText"],"supportUrl":data["supportUrl"]})
+          else: print("No editable iOS version; store version text remains prepared only in GitHub")
+          print("No screenshots, purchases, age-rating, pricing, public release or App Privacy questionnaire were changed")
+          PY
+      - name: Remove Apple key from runner
+        if: always()
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          [ -z "$ASC_KEY_ID" ] || rm -f "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8"
