@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/Starport",
   "bundleID": "pro.starport.story",
-  "sha": "ecc2b8462f949f4b2ab45615531fef70ac4d0b11",
+  "sha": "a187c404d77eb7e1c9f94c860a1cfc27c804313b",
   "version": "0.2.0",
   "destination": "TestFlight",
-  "purpose": "First Starport internal beta; live advertising remains disabled.",
-  "attempt": 3,
-  "reason": "Include Apple-required iPad and iPhone orientation declarations in the verified Starport app"
+  "purpose": "Emergency replacement of crash-on-launch TestFlight beta; live ads remain disabled",
+  "attempt": 4,
+  "reason": "Hotfix for startup crash: bundled Info.plist was missing Google Mobile Ads application identifier"
 }
