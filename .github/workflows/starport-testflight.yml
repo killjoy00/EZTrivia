@@ -197,6 +197,20 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = "pro.starport.story"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = "$STARPORT_VERSION"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "$STARPORT_BUILD"
+          # App Store Connect rejects universal apps missing iPad multitasking orientations.
+          for key in UISupportedInterfaceOrientations UISupportedInterfaceOrientations~ipad UISupportedInterfaceOrientations~iphone; do
+            /usr/libexec/PlistBuddy -c "Print :$key" "$plist" >/dev/null || {
+              echo "::error::Missing $key orientation declaration."
+              exit 1
+            }
+          done
+          ipad=$(/usr/libexec/PlistBuddy -c 'Print :UISupportedInterfaceOrientations~ipad' "$plist")
+          for orientation in UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight; do
+            echo "$ipad" | grep -Fq "$orientation" || {
+              echo "::error::The iPad configuration is missing $orientation."
+              exit 1
+            }
+          done
           codesign --verify --deep --strict "$app"
           echo "Signed Starport archive verified: $STARPORT_VERSION ($STARPORT_BUILD)."
 
