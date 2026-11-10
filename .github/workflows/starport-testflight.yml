@@ -212,7 +212,7 @@ jobs:
             }
           done
           # Verify the actual signed bundle includes AdMob's required startup ID.
-          python3 scripts/check_release_plist.py "$app"
+          python3 starport/scripts/check_release_plist.py "$app"
           codesign --verify --deep --strict "$app"
           echo "Signed Starport archive verified: $STARPORT_VERSION ($STARPORT_BUILD)."
 
