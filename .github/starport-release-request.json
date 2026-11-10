@@ -5,6 +5,6 @@
   "version": "0.3.0",
   "destination": "TestFlight",
   "purpose": "Internal TestFlight beta: simplified one-tap 13+ confirmation and expanded truly branching Episode 01; preserve discovered endings on v2-to-v3 story migration. Production ads disabled.",
-  "attempt": 7,
-  "reason": "Ship the expanded Episode 01 and reduced-friction 13+ gate after story graph tests pass"
+  "attempt": 8,
+  "reason": "Refresh release preflight to allow two app targets sharing disabled AdMob switch"
 }

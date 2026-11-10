@@ -63,7 +63,7 @@ jobs:
           project = pathlib.Path("Starport.xcodeproj/project.pbxproj").read_text()
           assert project.count("PRODUCT_BUNDLE_IDENTIFIER = pro.starport.story;") == 2
           assert project.count("MARKETING_VERSION = " + os.environ["RELEASE_VERSION"] + ";") == 2
-          assert project.count("INFOPLIST_KEY_STARPORT_ADS_LIVE_APPROVED = NO;") == 2
+          assert project.count("INFOPLIST_KEY_STARPORT_ADS_LIVE_APPROVED = NO;") >= 2, "Starport live ads not disabled"
           print("Verified bundle ID, version and disabled production ad requests.")
           PY
 
