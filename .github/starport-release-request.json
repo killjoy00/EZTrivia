@@ -4,7 +4,7 @@
   "sha": "a187c404d77eb7e1c9f94c860a1cfc27c804313b",
   "version": "0.2.0",
   "destination": "TestFlight",
-  "purpose": "Emergency replacement of crash-on-launch TestFlight beta; live ads remain disabled",
-  "attempt": 4,
-  "reason": "Hotfix for startup crash: bundled Info.plist was missing Google Mobile Ads application identifier"
+  "purpose": "TestFlight startup crash hotfix; compiled GADApplicationIdentifier and ad-off flag required in signed archive.",
+  "attempt": 5,
+  "reason": "Fix release runner path to the checked-out Starport validation script"
 }
