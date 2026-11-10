@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/Starport",
   "bundleID": "pro.starport.story",
-  "sha": "819738fe0b2e9ac06c7462aa0b430f0a4a423137",
-  "version": "0.3.0",
+  "sha": "346416feea3e262fca982822660480f3366bf504",
+  "version": "0.4.0",
   "destination": "TestFlight",
-  "purpose": "Internal TestFlight beta: simplified one-tap 13+ confirmation and expanded truly branching Episode 01; preserve discovered endings on v2-to-v3 story migration. Production ads disabled.",
-  "attempt": 8,
-  "reason": "Refresh release preflight to allow two app targets sharing disabled AdMob switch"
+  "purpose": "StarPort only: expanded The Door That Opens Tomorrow manuscript (16.9k words), redesigned direct-entry home screen, preserves v3 reading progress; production ads remain disabled. Stuffy Land untouched.",
+  "attempt": 9,
+  "reason": "Upload StarPort-only 0.4.0 beta after passed Swift story tests; GitHub iOS simulator validation remains independently gated."
 }
