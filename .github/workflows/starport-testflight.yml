@@ -110,7 +110,8 @@ jobs:
           if ! grep -q 'BEGIN' "$key"; then
             body=$(tr -d '\n\r ' < "$key")
             { echo "-----BEGIN PRIVATE KEY-----"
-              printf '%s' "$body" | fold -w 64
+              # Match the proven EZTrivia normalization: finish the base64 body with a newline.
+              echo "$body" | fold -w 64
               echo "-----END PRIVATE KEY-----"; } > "$key.tmp"
             mv "$key.tmp" "$key"
           fi
