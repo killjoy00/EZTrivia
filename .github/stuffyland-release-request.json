@@ -1,15 +1,16 @@
 {
   "repository": "killjoy00/Starport",
   "bundleID": "pro.stuffyland.stories",
-  "sha": "4a9a9d9e3a48e057f6421610070ab9a0957b98bb",
-  "version": "0.1.0",
+  "sha": "ebceb0d1978c473ccc5c02797eea591fd48862f9",
+  "version": "0.1.1",
   "destination": "TestFlight",
-  "purpose": "Updated internal beta: Opal's 13-story collection, 11 read-alongs, Pillow-Fort and Snore-Snatcher interactive adventures, Lolo icon, illustrated story shelf, and native Read to Me.",
+  "purpose": "Stuffy Land 0.1.1: add Opal and the Great Sundae Switch, a new original 18-scene choose-your-own-adventure with nine bundled scene illustrations, five endings, ten detours, saved progress and its own ending memories. 14 stories total.",
   "validation": {
-    "pullRequest": "https://github.com/killjoy00/Starport/pull/12",
-    "nativeBuild": "https://github.com/killjoy00/Starport/actions/runs/42860141764",
+    "pullRequest": "https://github.com/killjoy00/Starport/pull/13",
+    "storyTests": "https://github.com/killjoy00/Starport/actions/runs/42881860766",
+    "nativeBuild": "https://github.com/killjoy00/Starport/actions/runs/42881014119",
     "productionAdsEnabled": false
   },
-  "attempt": 3,
-  "reason": "Publish the completed Stuffy Land story and design update after source checks pass."
+  "attempt": 4,
+  "reason": "Publish the new illustrated interactive Stuffy Land story after the signed archive preflight and story tests pass."
 }
