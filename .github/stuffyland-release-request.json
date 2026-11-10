@@ -1,0 +1,9 @@
+{
+  "repository": "killjoy00/Starport",
+  "bundleID": "pro.stuffyland.stories",
+  "sha": "c046bde52025f1a55317dd5ccde5f0cfa0e47772",
+  "version": "0.1.0",
+  "destination": "TestFlight",
+  "purpose": "First Stuffy Land internal beta: branching and regular e-reader stories, on-device Read to Me, distinct branding. Live ads disabled.",
+  "attempt": 1
+}
