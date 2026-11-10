@@ -1,0 +1,8 @@
+{
+  "repository": "killjoy00/Starport",
+  "bundleID": "pro.starport.story",
+  "sha": "89ed744c8b016a071770d09e78ed5c58d5f6c756",
+  "version": "0.2.0",
+  "destination": "TestFlight",
+  "purpose": "First Starport internal beta; live advertising remains disabled."
+}
