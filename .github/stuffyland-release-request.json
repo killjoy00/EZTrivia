@@ -1,16 +1,16 @@
 {
   "repository": "killjoy00/Starport",
   "bundleID": "pro.stuffyland.stories",
-  "sha": "ebceb0d1978c473ccc5c02797eea591fd48862f9",
-  "version": "0.1.1",
+  "sha": "d6dfe9d7b5f4029e8aa504304434f9c225e82968",
+  "version": "0.1.2",
   "destination": "TestFlight",
-  "purpose": "Stuffy Land 0.1.1: add Opal and the Great Sundae Switch, a new original 18-scene choose-your-own-adventure with nine bundled scene illustrations, five endings, ten detours, saved progress and its own ending memories. 14 stories total.",
+  "purpose": "Stuffy Land 0.1.2: clean, story-first home with compact title and cover rows, one-tap story opening, resume for unfinished stories, and no in-app 13+ gate or age banners. Store-level age classification and underlying ad safeguards remain separate. Starport unchanged.",
   "validation": {
-    "pullRequest": "https://github.com/killjoy00/Starport/pull/13",
-    "storyTests": "https://github.com/killjoy00/Starport/actions/runs/42881860766",
-    "nativeBuild": "https://github.com/killjoy00/Starport/actions/runs/42881014119",
+    "pullRequest": "https://github.com/killjoy00/Starport/pull/14",
+    "storyTests": "https://github.com/killjoy00/Starport/actions/runs/42908024661",
+    "nativeBuild": "https://github.com/killjoy00/Starport/actions/runs/42908024661",
     "productionAdsEnabled": false
   },
-  "attempt": 4,
-  "reason": "Publish the new illustrated interactive Stuffy Land story after the signed archive preflight and story tests pass."
+  "attempt": 5,
+  "reason": "Ship story-first home redesign and remove Stuffy Land consumer age-gate messaging while preserving store metadata and privacy safeguards."
 }
