@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/Starport",
   "bundleID": "pro.starport.story",
-  "sha": "a187c404d77eb7e1c9f94c860a1cfc27c804313b",
+  "sha": "ac49198d8e0614155d02361e2aee60ce8ea63651",
   "version": "0.2.0",
   "destination": "TestFlight",
-  "purpose": "TestFlight startup crash hotfix; compiled GADApplicationIdentifier and ad-off flag required in signed archive.",
-  "attempt": 5,
-  "reason": "Fix release runner path to the checked-out Starport validation script"
+  "purpose": "Internal TestFlight beta with the approved icon and corrected GADApplicationIdentifier; live ads remain disabled.",
+  "attempt": 6,
+  "reason": "Ship approved gateway icon together with the Google Ads startup-crash hotfix"
 }
