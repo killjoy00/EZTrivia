@@ -1,0 +1,62 @@
+name: Bootstrap reusable Stuffy Land signing identity
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/stuffyland-signing-bootstrap-request.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  initialize-signing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Install cryptography for encrypted signing-key bootstrap
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check "PyJWT[crypto]"
+
+      - name: Create or verify encrypted reusable certificate private key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_P8"
+          python3 -m py_compile scripts/stuffyland_ci_signing.py
+          python3 scripts/stuffyland_ci_signing.py bootstrap \
+            --encrypted-key .github/signing/stuffyland-distribution-key.enc.json
+          test -s .github/signing/stuffyland-distribution-key.enc.json
+          # Ensure only the envelope (never a .pem, .key or .p12) is committed.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path=Path(".github/signing/stuffyland-distribution-key.enc.json")
+          data=json.loads(path.read_text())
+          assert sorted(data) == sorted([
+            "format", "algorithm", "kdf", "salt", "nonce", "ciphertext",
+            "publicKeySHA256", "securityNote"
+          ])
+          assert data["algorithm"] == "AES-256-GCM"
+          assert data["kdf"] == "HKDF-SHA256"
+          assert len(data["publicKeySHA256"]) == 64
+          print("Encrypted-only signing envelope validated.")
+          PY
+
+      - name: Commit encrypted identity for future releases
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/signing/stuffyland-distribution-key.enc.json
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Persistent encrypted identity already exists."
+          else
+            git commit -m "Store encrypted reusable Stuffy Land signing identity (no raw key)"
+            git push origin HEAD:main
+          fi
