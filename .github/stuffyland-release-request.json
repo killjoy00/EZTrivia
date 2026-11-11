@@ -1,17 +1,16 @@
 {
   "repository": "killjoy00/Starport",
   "bundleID": "pro.stuffyland.stories",
-  "sha": "7b25bad2786b7824b9be05fb10c39284be311b87",
-  "version": "0.1.3",
+  "sha": "eece48722afaa422d5d9eec9389b6181a10e9ba3",
+  "version": "0.1.4",
   "destination": "TestFlight",
-  "purpose": "Stuffy Land 0.1.3: replace all nine Sundae Switch scenes with approved house-style plush storybook art and add a skippable six-frame illustrated opening. Preserve choices, achievements, age metadata and disabled live ads.",
+  "purpose": "Stuffy Land 0.1.4: add the author's complete 3,447-word Opal and the Great Stuffy Land Wobble-Palooza as a 19-section read-along, retaining every paragraph verbatim, bookmarks and on-device Read to Me. No live ads.",
   "validation": {
-    "pullRequest": "https://github.com/killjoy00/Starport/pull/17",
-    "storyTests": "https://github.com/killjoy00/Starport/actions/runs/42935596725",
-    "nativeBuild": "https://github.com/killjoy00/Starport/actions/runs/42935596725",
-    "productionAdsEnabled": false,
-    "signingDiagnostic": "https://github.com/killjoy00/EZTrivia/actions/runs/42936879524"
+    "pullRequest": "https://github.com/killjoy00/Starport/pull/18",
+    "storyTests": "https://github.com/killjoy00/Starport/actions/runs/42955679830",
+    "nativeBuild": "https://github.com/killjoy00/Starport/actions/runs/42955679830",
+    "productionAdsEnabled": false
   },
-  "attempt": 8,
-  "reason": "User confirmed Apple certificate limits are fixed; restore proven automatic Xcode signing, remove conflicting distribution identity override, retry the same immutable Stuffy Land 0.1.3. No certificate deletion/revocation."
+  "attempt": 9,
+  "reason": "Release user-supplied original Wobble-Palooza read-along from immutable merged app commit using proven TestFlight automatic signing, without changing StarPort or production ad settings."
 }
