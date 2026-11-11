@@ -1,16 +1,16 @@
 {
   "repository": "killjoy00/Starport",
   "bundleID": "pro.stuffyland.stories",
-  "sha": "d6dfe9d7b5f4029e8aa504304434f9c225e82968",
-  "version": "0.1.2",
+  "sha": "7b25bad2786b7824b9be05fb10c39284be311b87",
+  "version": "0.1.3",
   "destination": "TestFlight",
-  "purpose": "Stuffy Land 0.1.2: clean, story-first home with compact title and cover rows, one-tap story opening, resume for unfinished stories, and no in-app 13+ gate or age banners. Store-level age classification and underlying ad safeguards remain separate. Starport unchanged.",
+  "purpose": "Stuffy Land 0.1.3: replace all nine Sundae Switch scenes with approved house-style plush storybook art and add a skippable six-frame illustrated opening. Preserve choices, achievements, age metadata and disabled live ads.",
   "validation": {
-    "pullRequest": "https://github.com/killjoy00/Starport/pull/14",
-    "storyTests": "https://github.com/killjoy00/Starport/actions/runs/42908024661",
-    "nativeBuild": "https://github.com/killjoy00/Starport/actions/runs/42908024661",
+    "pullRequest": "https://github.com/killjoy00/Starport/pull/17",
+    "storyTests": "https://github.com/killjoy00/Starport/actions/runs/42935596725",
+    "nativeBuild": "https://github.com/killjoy00/Starport/actions/runs/42935596725",
     "productionAdsEnabled": false
   },
-  "attempt": 5,
-  "reason": "Ship story-first home redesign and remove Stuffy Land consumer age-gate messaging while preserving store metadata and privacy safeguards."
+  "attempt": 6,
+  "reason": "Publish user-approved illustrations and opening animation via signed TestFlight without additional approval."
 }
