@@ -171,6 +171,9 @@ jobs:
           echo "STUFFYLAND_BUILD=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
           echo "STUFFYLAND_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
 
+      # Xcode automatic signing must choose its own archive identity; forcing
+      # Apple Distribution conflicts with the development identity Xcode uses
+      # for automatic provisioning. Xcode re-signs for App Store on export.
       - name: Archive StuffyLand signed for App Store distribution
         working-directory: stuffyland
         env:
@@ -191,7 +194,6 @@ jobs:
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
             CURRENT_PROJECT_VERSION="$STUFFYLAND_BUILD" \
             MARKETING_VERSION="$STUFFYLAND_VERSION" \
             INFOPLIST_KEY_ITSAppUsesNonExemptEncryption=NO \
