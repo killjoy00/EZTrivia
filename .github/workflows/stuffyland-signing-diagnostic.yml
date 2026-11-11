@@ -1,0 +1,90 @@
+name: Stuffy Land Apple signing diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/stuffyland-signing-diagnostic-request.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  examine-signing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Apple certificate inventory (read-only)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check "PyJWT[crypto]"
+          python3 - <<'PY'
+          import base64, collections, json, os, time, urllib.request, urllib.error
+          import jwt
+
+          raw = os.environ["ASC_KEY_P8"].strip().replace("\r", "")
+          if "BEGIN PRIVATE KEY" in raw:
+              key = raw.replace("\\n", "\n")
+          else:
+              try:
+                  key = base64.b64decode(raw).decode()
+              except Exception:
+                  raw = raw.replace(" ", "").replace("\n", "")
+                  key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(
+                      raw[i:i+64] for i in range(0, len(raw), 64)
+                  ) + "\n-----END PRIVATE KEY-----\n"
+          now = int(time.time())
+          token = jwt.encode({
+              "iss": os.environ["ASC_ISSUER_ID"],
+              "iat": now,
+              "exp": now + 600,
+              "aud": "appstoreconnect-v1"
+          }, key, algorithm="ES256", headers={"kid":os.environ["ASC_KEY_ID"]})
+
+          def get(path):
+              req = urllib.request.Request("https://api.appstoreconnect.apple.com" + path,
+                  headers={"Authorization": "Bearer " + token, "Accept":"application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=25) as response:
+                      return json.load(response)
+              except urllib.error.HTTPError as error:
+                  print("Endpoint", path.split("?")[0], "HTTP", error.code)
+                  return None
+
+          def gather(root):
+              path = root + "?limit=200"
+              out = []
+              while path:
+                  result = get(path)
+                  if not result:
+                      break
+                  out.extend(result.get("data", []))
+                  nxt = result.get("links", {}).get("next")
+                  path = nxt.removeprefix("https://api.appstoreconnect.apple.com") if nxt else None
+              return out
+
+          certs = gather("/v1/certificates")
+          profiles = gather("/v1/profiles")
+          print("Certificate count:", len(certs), "types:", dict(collections.Counter(
+              c.get("attributes", {}).get("certificateType", "UNKNOWN") for c in certs)))
+          usage = collections.Counter()
+          for p in profiles:
+              for x in p.get("relationships", {}).get("certificates", {}).get("data", []):
+                  usage[x["id"]] += 1
+          print("Provisioning profile count:", len(profiles), "states:", dict(collections.Counter(
+              p.get("attributes", {}).get("profileState", "UNKNOWN") for p in profiles)))
+          # IDs are deliberately abbreviated and no private keys, profile bytes,
+          # full certificate contents, or API JWT are printed.
+          for c in sorted(certs, key=lambda x:x.get("attributes",{}).get("expirationDate","")):
+              a=c.get("attributes",{})
+              print("CERT", c["id"][:10],
+                    "type", a.get("certificateType"),
+                    "expires", a.get("expirationDate","unknown")[:10],
+                    "attached_profiles", usage[c["id"]])
+          print("Diagnostic complete; no certificates or profiles were changed.")
+          PY
