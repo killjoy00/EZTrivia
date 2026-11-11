@@ -191,6 +191,7 @@ jobs:
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             CURRENT_PROJECT_VERSION="$STUFFYLAND_BUILD" \
             MARKETING_VERSION="$STUFFYLAND_VERSION" \
             INFOPLIST_KEY_ITSAppUsesNonExemptEncryption=NO \
