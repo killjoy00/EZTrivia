@@ -9,8 +9,9 @@
     "pullRequest": "https://github.com/killjoy00/Starport/pull/17",
     "storyTests": "https://github.com/killjoy00/Starport/actions/runs/42935596725",
     "nativeBuild": "https://github.com/killjoy00/Starport/actions/runs/42935596725",
-    "productionAdsEnabled": false
+    "productionAdsEnabled": false,
+    "signingDiagnostic": "https://github.com/killjoy00/EZTrivia/actions/runs/42936879524"
   },
-  "attempt": 6,
-  "reason": "Publish user-approved illustrations and opening animation via signed TestFlight without additional approval."
+  "attempt": 7,
+  "reason": "Retry existing immutable Stuffy Land 0.1.3 after forcing Apple Distribution certificate use, avoiding a new capped iOS development certificate; no certificates revoked."
 }
