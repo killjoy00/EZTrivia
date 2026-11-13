@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "2c662adc7323e8b1bef7c3c17faca3857c49a8ad",
-  "version": "0.3.1",
+  "sha": "9e91d6f8bded37e580f45a27dea6bf33898c2fba",
+  "version": "0.4.0",
   "destination": "TestFlight",
-  "purpose": "StarRun iOS accessibility/readability fix: Retina canvas_items scaling, 16pt minimum phone text, expanded touch targets, mobile menus and Hangar layout. All game and iPhone build CI passed.",
-  "attempt": 3,
-  "reason": "Retina rendering on iPhone made all text unreadably small; ship verified PR #6."
+  "purpose": "StarRun iOS v0.4 playtest: four active slots from 20 abilities, one hull signature, Normal/Hard/Insane reward tiers, escalating Stage 2 and status pressure, slower defensive cooldowns, fewer stronger level-ups and improved projectile collision. All simulation, UI and unsigned iPhone build tests passed.",
+  "attempt": 4,
+  "reason": "Release merged StarRun PR #7 as the next iOS TestFlight gameplay iteration."
 }
