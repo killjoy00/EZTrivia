@@ -1,0 +1,8 @@
+{
+  "repository": "killjoy00/StarRun",
+  "bundleID": "com.rsm.starrun",
+  "sha": "f0daa25ce096bc2b2415e08945e441ff9d73dc0c",
+  "version": "0.3.0",
+  "destination": "TestFlight",
+  "purpose": "First native iOS StarRun beta; mobile gameplay and ship/pilot selection; unsigned iPhone build proven in StarRun CI."
+}
