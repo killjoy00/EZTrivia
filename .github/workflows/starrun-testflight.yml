@@ -1,0 +1,254 @@
+name: StarRun TestFlight (shared Apple credentials)
+
+# Keep Apple credentials only in EZTrivia. A reviewed, immutable StarRun SHA
+# is the only source allowed here; ordinary StarRun commits cannot sign apps.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/starrun-release-request.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: starrun-testflight-upload
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    name: Sign and upload StarRun for iPhone
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - name: Checkout the reviewed release request
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate StarRun commit, bundle ID, and version
+        id: approved
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, pathlib, re
+          path = pathlib.Path(".github/starrun-release-request.json")
+          if not path.is_file():
+              raise SystemExit("Missing approved StarRun release request.")
+          request = json.loads(path.read_text())
+          assert request.get("repository") == "killjoy00/StarRun"
+          assert request.get("bundleID") == "com.rsm.starrun"
+          assert re.fullmatch(r"[0-9a-f]{40}", request.get("sha", ""))
+          assert re.fullmatch(r"[0-9]+(?:\\.[0-9]+){1,2}", request.get("version", ""))
+          print("sha=" + request["sha"])
+          print("version=" + request["version"])
+          PY
+
+      - name: Checkout approved immutable StarRun source
+        uses: actions/checkout@v4
+        with:
+          repository: killjoy00/StarRun
+          ref: ${{ steps.approved.outputs.sha }}
+          path: starrun
+          persist-credentials: false
+
+      - name: Verify source and iOS export configuration
+        working-directory: starrun
+        env:
+          APPROVED_SHA: ${{ steps.approved.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$APPROVED_SHA"
+          grep -Fq 'application/bundle_identifier="com.rsm.starrun"' export_presets.cfg
+          grep -Fq 'application/export_project_only=true' export_presets.cfg
+          test -f tools/ios-export.sh
+          test -f tools/generate-ios-icon.swift
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26"
+
+      - name: Cache pinned Godot iOS templates
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Application Support/Godot/export_templates/4.6.3.stable/ios.zip
+          key: starrun-godot-4.6.3-ios-template-v1
+
+      - name: Export iPhone Xcode project from reviewed StarRun source
+        working-directory: starrun
+        run: bash tools/ios-export.sh
+
+      - name: Check existing shared Apple secrets
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID" || { echo "::error::Missing ASC_KEY_ID"; exit 1; }
+          test -n "$ASC_ISSUER_ID" || { echo "::error::Missing ASC_ISSUER_ID"; exit 1; }
+          test -n "$ASC_KEY_P8" || { echo "::error::Missing ASC_KEY_P8"; exit 1; }
+          test -n "$APPLE_TEAM_ID" || { echo "::error::Missing APPLE_TEAM_ID"; exit 1; }
+          echo "Existing shared Apple secrets are present."
+
+      - name: Normalize and validate existing App Store Connect key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/private_keys"
+          key="$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          if ! grep -q 'BEGIN' "$key" && grep -q '\\n' "$key"; then
+            printf '%b' "$(cat "$key")" > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          if ! grep -q 'BEGIN' "$key" && base64 -D < "$key" > "$key.tmp" 2>/dev/null; then
+            if grep -q 'BEGIN' "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi
+          fi
+          if ! grep -q 'BEGIN' "$key"; then
+            body=$(tr -d '\n\r ' < "$key")
+            { echo "-----BEGIN PRIVATE KEY-----"
+              echo "$body" | fold -w 64
+              echo "-----END PRIVATE KEY-----"; } > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          chmod 600 "$key"
+          openssl pkey -in "$key" -noout 2>/dev/null || {
+            echo "::error::Cannot parse shared App Store Connect private key."
+            exit 1
+          }
+
+      - name: Verify StarRun app is registered in App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/starrun-asc"
+          "$RUNNER_TEMP/starrun-asc/bin/pip" install --quiet "PyJWT[crypto]"
+          "$RUNNER_TEMP/starrun-asc/bin/python" - <<'PY'
+          import json, os, pathlib, time, urllib.request, urllib.parse, urllib.error
+          import jwt
+          key = (pathlib.Path.home() / "private_keys" / ("AuthKey_" + os.environ["ASC_KEY_ID"] + ".p8")).read_text()
+          now = int(time.time())
+          token = jwt.encode({"iss": os.environ["ASC_ISSUER_ID"], "iat": now,
+                              "exp": now + 600, "aud": "appstoreconnect-v1"},
+                             key, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"]})
+          url = "https://api.appstoreconnect.apple.com/v1/apps?" + urllib.parse.urlencode(
+              {"filter[bundleId]": "com.rsm.starrun", "limit": "1"})
+          req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token,
+                                                    "Accept": "application/json"})
+          try:
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  apps = json.load(response).get("data", [])
+          except urllib.error.HTTPError as exc:
+              raise SystemExit(f"App Store Connect preflight failed HTTP {exc.code}")
+          if not apps:
+              raise SystemExit(
+                  "StarRun is not registered in App Store Connect. One-time Apple setup: "
+                  "register bundle ID com.rsm.starrun, then create the iOS app 'StarRun' "
+                  "at https://appstoreconnect.apple.com/apps. The signing credentials already exist.")
+          print("App Store Connect confirmed StarRun app ID " + apps[0]["id"])
+          PY
+
+      - name: Set TestFlight build version
+        env:
+          APPROVED_VERSION: ${{ steps.approved.outputs.version }}
+        run: |
+          echo "STARRUN_VERSION=$APPROVED_VERSION" >> "$GITHUB_ENV"
+          echo "STARRUN_BUILD=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+
+      - name: Archive and sign the iPhone app
+        working-directory: starrun
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          project=$(find build/ios/xcode -name '*.xcodeproj' -type d -print -quit)
+          test -n "$project"
+          scheme=$(basename "$project" .xcodeproj)
+          xcodebuild archive \
+            -project "$project" \
+            -scheme "$scheme" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/StarRun.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$STARRUN_BUILD" \
+            MARKETING_VERSION="$STARRUN_VERSION" \
+            2>&1 | tee "$RUNNER_TEMP/starrun-archive.log"
+          app=$(find "$RUNNER_TEMP/StarRun.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' -type d -print -quit)
+          test -n "$app"
+          plist="$app/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = com.rsm.starrun
+          codesign --verify --deep --strict "$app"
+          echo "Signed archive confirmed for com.rsm.starrun."
+
+      - name: Preserve signed archive on failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarRun-archive-${{ github.run_number }}
+          path: ${{ runner.temp }}/StarRun.xcarchive
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Export and upload StarRun to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/StarRunExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>destination</key><string>upload</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/StarRun.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/StarRunExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/StarRunExport" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee "$RUNNER_TEMP/starrun-upload.log"
+          echo "## StarRun TestFlight upload" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: $STARRUN_VERSION ($STARRUN_BUILD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source: ${{ steps.approved.outputs.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Apple processing may still be pending." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Print archive and upload errors only
+        if: failure()
+        run: |
+          for f in "$RUNNER_TEMP/starrun-archive.log" "$RUNNER_TEMP/starrun-upload.log"; do
+            if [ -f "$f" ]; then
+              echo "Errors from $(basename "$f"):"
+              grep -E "error:|ERROR:|ITMS-|409" "$f" | head -30 || true
+            fi
+          done
+
+      - name: Remove temporary private key
+        if: always()
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          if [ -n "$ASC_KEY_ID" ]; then
+            rm -f "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          fi
