@@ -37,7 +37,7 @@ jobs:
           assert request.get("repository") == "killjoy00/StarRun"
           assert request.get("bundleID") == "com.rsm.starrun"
           assert re.fullmatch(r"[0-9a-f]{40}", request.get("sha", ""))
-          assert re.fullmatch(r"[0-9]+(?:\\.[0-9]+){1,2}", request.get("version", ""))
+          assert re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,2}", request.get("version", ""))
           print("sha=" + request["sha"])
           print("version=" + request["version"])
           PY
