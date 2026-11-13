@@ -4,5 +4,7 @@
   "sha": "f0daa25ce096bc2b2415e08945e441ff9d73dc0c",
   "version": "0.3.0",
   "destination": "TestFlight",
-  "purpose": "First native iOS StarRun beta; mobile gameplay and ship/pilot selection; unsigned iPhone build proven in StarRun CI."
+  "purpose": "First native iOS StarRun beta; mobile gameplay and ship/pilot selection; unsigned iPhone build proven in StarRun CI.",
+  "attempt": 2,
+  "reason": "Retry signed iPhone archive with Xcode automatic signing identity corrected by PR #120"
 }
