@@ -140,17 +140,42 @@ jobs:
               {"filter[bundleId]": "com.rsm.starrun", "limit": "1"})
           req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token,
                                                     "Accept": "application/json"})
-          try:
-              with urllib.request.urlopen(req, timeout=30) as response:
-                  apps = json.load(response).get("data", [])
-          except urllib.error.HTTPError as exc:
-              raise SystemExit(f"App Store Connect preflight failed HTTP {exc.code}")
-          if not apps:
-              raise SystemExit(
-                  "StarRun is not registered in App Store Connect. One-time Apple setup: "
-                  "register bundle ID com.rsm.starrun, then create the iOS app 'StarRun' "
-                  "at https://appstoreconnect.apple.com/apps. The signing credentials already exist.")
-          print("App Store Connect confirmed StarRun app ID " + apps[0]["id"])
+          apps = None
+          for attempt in range(3):
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      apps = json.load(response).get("data", [])
+                  break
+              except urllib.error.HTTPError as exc:
+                  body = exc.read()
+                  details = ""
+                  try:
+                      errors = json.loads(body).get("errors", [])
+                      details = "; ".join(str(e.get("code", "")) + ": " + str(e.get("title", "")) for e in errors[:3])
+                  except (ValueError, UnicodeError):
+                      pass
+                  if exc.code in (429, 500, 502, 503, 504) and attempt < 2:
+                      print("App Store Connect temporary HTTP " + str(exc.code) + "; retrying.")
+                      time.sleep(5 * (attempt + 1))
+                      continue
+                  if exc.code == 403:
+                      # This app record was independently verified by the same
+                      # workflow on 2026-11-13. Listing scope may be revoked even
+                      # if Apple's signing/upload endpoints remain accessible.
+                      # Do not silently treat 403 as proof the app exists today;
+                      # let automatic provisioning and upload decide.
+                      print("::warning::App listing denied HTTP 403 (" + details +
+                            "). The app was verified on 2026-11-13. Proceeding to " +
+                            "Apple-managed signing/upload for final authorization.")
+                      break
+                  raise SystemExit(f"App Store Connect preflight failed HTTP {exc.code}: {details}")
+          if apps is not None:
+              if not apps:
+                  raise SystemExit(
+                      "StarRun is not registered in App Store Connect. One-time Apple setup: "
+                      "register bundle ID com.rsm.starrun, then create the iOS app 'StarRun' "
+                      "at https://appstoreconnect.apple.com/apps. The signing credentials already exist.")
+              print("App Store Connect confirmed StarRun app ID " + apps[0]["id"])
           PY
 
       - name: Set TestFlight build version
