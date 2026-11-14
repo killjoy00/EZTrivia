@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "9e91d6f8bded37e580f45a27dea6bf33898c2fba",
-  "version": "0.4.0",
+  "sha": "e26ab033cb2dc88b87fe54d7f7bbe465cb4ab32b",
+  "version": "0.5.0",
   "destination": "TestFlight",
-  "purpose": "StarRun iOS v0.4 playtest: four active slots from 20 abilities, one hull signature, Normal/Hard/Insane reward tiers, escalating Stage 2 and status pressure, slower defensive cooldowns, fewer stronger level-ups and improved projectile collision. All simulation, UI and unsigned iPhone build tests passed.",
-  "attempt": 4,
-  "reason": "Release merged StarRun PR #7 as the next iOS TestFlight gameplay iteration."
+  "purpose": "StarRun iOS v0.5 four-stage campaign playtest: distinct Ion Storm, Solar Foundry, Void Citadel visuals and new enemies; four bosses with cinematic explosion and click-to-warp; readable mobile Build and Results with pinned navigation and word wrapping. 239 simulation assertions and 150 UI tests passed, plus Web/Windows/Linux and unsigned iPhone compile.",
+  "attempt": 5,
+  "reason": "Release reviewed and merged StarRun PR #8 for physical iPhone visual and gameplay UAT."
 }
