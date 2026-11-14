@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "e26ab033cb2dc88b87fe54d7f7bbe465cb4ab32b",
-  "version": "0.5.0",
+  "sha": "6742b1e5db8300bd99b2ad4dfdbd52ada76a6384",
+  "version": "0.6.0",
   "destination": "TestFlight",
-  "purpose": "StarRun iOS v0.5 four-stage campaign playtest: distinct Ion Storm, Solar Foundry, Void Citadel visuals and new enemies; four bosses with cinematic explosion and click-to-warp; readable mobile Build and Results with pinned navigation and word wrapping. 239 simulation assertions and 150 UI tests passed, plus Web/Windows/Linux and unsigned iPhone compile.",
-  "attempt": 5,
-  "reason": "Release reviewed and merged StarRun PR #8 for physical iPhone visual and gameplay UAT."
+  "purpose": "StarRun iOS v0.6 tactical playtest: distinct boss phases with destroyable launch bays, vents and pylons; Fortress/Glass Cannon/Control/Salvager build synergies; three Prototype offers and Safe Passage, Redline Jump or High-Risk Contract at warps. 301 simulation assertions and 160 UI checks passed, plus strict runtime checks, Web/Windows/Linux exports and unsigned iPhone compile. Physical iPhone UAT remains required.",
+  "attempt": 6,
+  "reason": "Reviewed StarRun PR #9 was merged as immutable commit 6742b1e; send signed v0.6 to TestFlight for physical campaign and UI acceptance testing, not App Store production."
 }
