@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "c9ea98f205dca4ae175f02d84cae0c277f17acde",
-  "version": "0.7.0",
+  "sha": "e0a4697f7ca7b11879c0673adc9e47471dcaa6b5",
+  "version": "0.7.2",
   "destination": "TestFlight",
-  "purpose": "StarRun v0.7 iPhone beta: replace placeholder gray/yellow turret art; display all four action buttons in one row; two paged upgrade offers with clear wording; add 35 rank 5/10 milestone tracks, eight passive pairs, ten two-to-one fused actives that free a slot, and a timing bonus for Nova Guard counters. 409 simulation assertions and 173 responsive UI checks passed, plus Web/Windows/Linux builds and unsigned native iPhone compile. Device UAT remains required.",
-  "attempt": 7,
-  "reason": "Reviewed StarRun PR #10 merged as immutable commit c9ea98f. Submit a signed v0.7 beta using existing EZTrivia Apple credentials for real iPhone playtesting, not production App Store release."
+  "purpose": "StarRun 0.7.2 combined iPhone beta: includes the separately merged PR #12 menu redesign plus PR #13 combat readability. Shared enemy danger outlines, projectiles above friendly effects, clear shield breaks, fusion/rank milestone cues, and permanent rerolls replenished each stage. 584 simulation assertions, 209 responsive layout checks, 85 rendered checks, Web/Windows/Linux exports and native iPhone compilation passed.",
+  "attempt": 8,
+  "reason": "User explicitly requested a new TestFlight build that also releases the separate menu visual changes. Immutable merged source includes both PR #12 and PR #13. Beta upload using existing Apple credentials; no production App Store release."
 }
