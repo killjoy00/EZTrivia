@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "17e60c879349923dcee00e7a6a1e78ffc78adab7",
+  "sha": "1138675f4186144b626ddc34f663d87aa6bc1fba",
   "version": "0.8.1",
   "destination": "TestFlight",
-  "purpose": "StarRun 0.8.1: 16 new permanent Hangar tracks (38 total), six pilot face portraits, Wing Drones and Ion Mine actives plus Storm Carrier, both components required at rank 5 for every fusion, distinct fusion icons and cast effects, and safe old-save migration. Includes PR #12 menu redesign, PR #13 combat readability/per-stage rerolls, and PR #14 tougher worlds, ten passives, direct fusion upgrades, notch clearance and hold-drag scrolling. Passed 904 simulation assertions, 209 layout, 91 readability, 106 fusion rendering, 44 expanded Hangar/portrait and 47 touch checks, all desktop/web exports and native iPhone compilation. Merged tree exactly matches tested PR #16.",
-  "attempt": 11,
-  "reason": "User explicitly requested another TestFlight build including the separate menu changes, then added rank-5 fusion rules, nicer fusion graphics, many more Hangar upgrades, pilot faces and two active pool upgrades. Release the tested merged PR #15/#16 changes using the existing Apple credentials; TestFlight beta only. Retry after build 1010 hit Apple's development certificate cap: archive with verified local ad-hoc signatures, then Apple cloud-managed distribution signing; no existing certificates are revoked."
+  "purpose": "Ship merged PR #17: safe-area HUD with hull/shield bars; visible unique active icons and cooldown meters; distinct activation/ready sounds and haptics; animated sheets and in-flight Aegis tutorial; recorded-damage death feedback; five distinct ship sprites; optional endless worlds after the four-world victory; seeded encounter patterns and boss variants; nine conservative cooldown changes. Retains prior menu, Hangar, pilot portraits, rank-5 fusions and iPhone input fixes. Exact merged main passed 921 assertions, 225 layout, 91 readability, 106 fusion visual, 44 Hangar/portrait and 47 touch checks, 63/63 screenshots, 24/24 timed vs 5/24 on-cooldown fixed-build victories, Web/Windows/Linux exports and iPhone compilation.",
+  "attempt": 12,
+  "reason": "Continue the user's authorized StarRun TestFlight releases with their merged combat-polish/endless update. Use the existing EZTrivia shared Apple credentials and working local archive/cloud distribution signing workflow; no new credentials or certificate revocations. TestFlight beta only."
 }
