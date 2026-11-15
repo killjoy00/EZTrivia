@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "75e9be6b7ea2e5178b30678b1474e7c9174f049d",
-  "version": "0.9.1",
+  "sha": "a502158c936562e750ad178e9b7095e739630ece",
+  "version": "0.9.2",
   "destination": "TestFlight",
-  "purpose": "Ship validated Star/Run 0.9.1 PR #22: one-tap Daily scorecard copy/share; queued local achievement banners; matching Star/Run title/icon/web branding; pinned and checksum-verified GameCenterKit native iPhone extension. Apple App Store Connect Game Center metadata and all 17 localized achievement badges were provisioned successfully in workflow run 43748596068, and recurring Daily leaderboard is live as configured metadata starting UTC 2026-11-16. New features passed 66 meta checks, 257 UI checks, 69 screenshots, 978 gameplay assertions, seven full-campaign jobs, Web/Windows/Linux builds, unsigned iPhone compile; no balance or ad changes. Apple review/publication, processing, and real iPhone Game Center sign-in/score submission are separate unverified gates.",
-  "attempt": 16,
-  "reason": "The user requested shareable Daily Challenge results, achievement unlock notifications, consistent Star/Run branding, online Apple Game Center leaderboard and Apple-compliant achievements. Merged and CI-tested PR #22 is approved. Upload to TestFlight with existing Apple credentials; do not create/revoke certificates or misstate Apple processing or review approval."
+  "purpose": "Ship merged and CI-green Star/Run 0.9.2 PR #24: one tap opens Apple's native Daily score share sheet with score/date/ship/pilot/worlds; cancellation never claims success, and native error or offline/web/desktop retains clipboard fallback. Verified 0.9.2 source passed iPhone Xcode compilation, 66+ progression tests, 257+ responsive UI tests including native-share mock, 978+ combat assertions, seven full-campaign checks and Web/Windows/Linux exports. The pinned Godot 4.6-compatible share plugin is digest-verified and iOS-only. Apple Game Center board and achievement IDs are unchanged. This is TestFlight only, NOT public app release.",
+  "attempt": 17,
+  "reason": "The user explicitly requested genuine one-tap native iPhone sharing instead of copying/pasting Daily results. PR #24 was merged only after all CI checks passed. Upload this immutable source to TestFlight via existing Apple credentials; do not change certificates, Apple metadata, bundle ID, Game Center setup, or publicly release the app. Apple processing and physical iPhone verification remain separate gates."
 }
