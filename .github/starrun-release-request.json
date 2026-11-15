@@ -5,6 +5,6 @@
   "version": "0.8.1",
   "destination": "TestFlight",
   "purpose": "StarRun 0.8.1: 16 new permanent Hangar tracks (38 total), six pilot face portraits, Wing Drones and Ion Mine actives plus Storm Carrier, both components required at rank 5 for every fusion, distinct fusion icons and cast effects, and safe old-save migration. Includes PR #12 menu redesign, PR #13 combat readability/per-stage rerolls, and PR #14 tougher worlds, ten passives, direct fusion upgrades, notch clearance and hold-drag scrolling. Passed 904 simulation assertions, 209 layout, 91 readability, 106 fusion rendering, 44 expanded Hangar/portrait and 47 touch checks, all desktop/web exports and native iPhone compilation. Merged tree exactly matches tested PR #16.",
-  "attempt": 10,
-  "reason": "User explicitly requested another TestFlight build including the separate menu changes, then added rank-5 fusion rules, nicer fusion graphics, many more Hangar upgrades, pilot faces and two active pool upgrades. Release the tested merged PR #15/#16 changes using the existing Apple credentials; TestFlight beta only."
+  "attempt": 11,
+  "reason": "User explicitly requested another TestFlight build including the separate menu changes, then added rank-5 fusion rules, nicer fusion graphics, many more Hangar upgrades, pilot faces and two active pool upgrades. Release the tested merged PR #15/#16 changes using the existing Apple credentials; TestFlight beta only. Retry after build 1010 hit Apple's development certificate cap: archive with verified local ad-hoc signatures, then Apple cloud-managed distribution signing; no existing certificates are revoked."
 }
