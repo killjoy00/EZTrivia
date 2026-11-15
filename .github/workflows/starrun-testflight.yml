@@ -185,11 +185,14 @@ jobs:
           echo "STARRUN_VERSION=$APPROVED_VERSION" >> "$GITHUB_ENV"
           echo "STARRUN_BUILD=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
 
-      - name: Archive and sign the iPhone app
+      # Sign every binary locally with an ad-hoc identity during archive.
+      # Xcode then uses Apple's cloud-managed distribution signing on export.
+      # This avoids creating a disposable development certificate on each CI
+      # runner while retaining signatures on embedded frameworks.
+      # https://developer.apple.com/forums/thread/756119
+      - name: Archive the iPhone app with local ad-hoc signatures
         working-directory: starrun
         env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
@@ -202,13 +205,10 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/StarRun.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY="Apple Development" \
+            CODE_SIGN_IDENTITY=- \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
             CURRENT_PROJECT_VERSION="$STARRUN_BUILD" \
             MARKETING_VERSION="$STARRUN_VERSION" \
             2>&1 | tee "$RUNNER_TEMP/starrun-archive.log"
@@ -216,8 +216,10 @@ jobs:
           test -n "$app"
           plist="$app/Info.plist"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = com.rsm.starrun
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = "$STARRUN_VERSION"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "$STARRUN_BUILD"
           codesign --verify --deep --strict "$app"
-          echo "Signed archive confirmed for com.rsm.starrun."
+          echo "Locally signed archive confirmed for com.rsm.starrun; distribution signing occurs on export."
 
       - name: Preserve signed archive on failures
         if: always()
