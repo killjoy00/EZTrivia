@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "ad79df95dbf11f4071279458f2a9ffe441a22df9",
-  "version": "0.8.2",
+  "sha": "6285c5a6d516e1e1d0b5d14b7c09f3fa2530d9e7",
+  "version": "0.8.3",
   "destination": "TestFlight",
-  "purpose": "Ship merged StarRun PR #18 balance and evidence pass: XP-neutral late World 1 projectile pressure; precise Aegis, Flak, and Jammer counter rewards; capped Rail Strike and Siphon boss scaling and correct Siphon healing; full four-world scripted-bot balance diagnostics across six ships and three difficulties. The merged head passed 937 simulation assertions, 225 UI, 91 readability, 106 fusion visuals, 44 Hangar/portrait, 47 touch, 63/63 screenshots, six parallel three-policy full-campaign smoke jobs, Web/Windows/Linux exports and unsigned iPhone compilation. World 1 scripted-bot clears: 8/24 no active, 17/24 cooldown, 19/24 timed; fixed-build timed Nova Guard 24/24 vs 5/24. These are scripted bots, not people, and limited full-campaign bots did not clear World 2.",
-  "attempt": 13,
-  "reason": "Continue the user's authorized StarRun TestFlight delivery of merged and validated PR #18, using pre-existing EZTrivia shared Apple credentials. TestFlight beta only; do not create credentials or revoke certificates."
+  "purpose": "Upload validated merged StarRun PR #20 Worlds 2-4 balance pass: staged incoming damage pressure without extra XP, early Citadel heavy beam spacing and safer Void shield bleed, meaningful Barrier/Deflector/Prism small status-shot counters and Mend cleanse, Haven 25% resistance to status rounds and corrosion, deterministic autopilot course beyond 1200s including saves, and evidence-based full-campaign balance diagnostics. Confirmed 978 simulation assertions zero failures, World 1 no ability 8/24 vs timed 19/24, 63/63 screenshots, 6/6 scripted smoke jobs, genuine four-world Arcwing/moderate-Hangar scripted run without forced kills, Web/Windows/Linux exports, unsigned iPhone compilation. These are scripted-bot outcomes, not real players.",
+  "attempt": 14,
+  "reason": "Continue the user's StarRun automated TestFlight beta delivery after successful CI and merge of PR #20. Use the existing EZTrivia Apple credentials and shared signing/upload workflow; never create credentials or revoke certificates. TestFlight beta only; Apple processing and physical-device testing remain independent."
 }
