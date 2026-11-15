@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "a502158c936562e750ad178e9b7095e739630ece",
-  "version": "0.9.2",
+  "sha": "0faeae691de9087b4badbdaa7623e62058171de7",
+  "version": "0.9.3",
   "destination": "TestFlight",
-  "purpose": "Ship merged and CI-green Star/Run 0.9.2 PR #24: one tap opens Apple's native Daily score share sheet with score/date/ship/pilot/worlds; cancellation never claims success, and native error or offline/web/desktop retains clipboard fallback. Verified 0.9.2 source passed iPhone Xcode compilation, 66+ progression tests, 257+ responsive UI tests including native-share mock, 978+ combat assertions, seven full-campaign checks and Web/Windows/Linux exports. The pinned Godot 4.6-compatible share plugin is digest-verified and iOS-only. Apple Game Center board and achievement IDs are unchanged. This is TestFlight only, NOT public app release.",
-  "attempt": 17,
-  "reason": "The user explicitly requested genuine one-tap native iPhone sharing instead of copying/pasting Daily results. PR #24 was merged only after all CI checks passed. Upload this immutable source to TestFlight via existing Apple credentials; do not change certificates, Apple metadata, bundle ID, Game Center setup, or publicly release the app. Apple processing and physical iPhone verification remain separate gates."
+  "purpose": "Ship merged, fully CI-green Star/Run 0.9.3 PR #26: simplify main menu; separate Build/Speed/Pause controls from Hull/Shield; fix ability icon, label and ready-state collisions; remove misleading first-slot highlight; allow Prototype skip for exactly 10 banked Cores and a maxed-upgrade choice of Field repair or 5 banked Cores. Rewards persist through save/restore, pay out once at run settlement, and do not inherit multipliers. The 0.9.3 source passed UI, touch/safe-area, visual, checkpoint and seeded balance tests; seven campaign checks, Web/Windows/Linux exports and unsigned iPhone compilation are green. Apple bundle ID, Game Center and shared signing credentials remain unchanged. TestFlight only, not a public App Store release.",
+  "attempt": 18,
+  "reason": "The user explicitly requested completion of Star/Run PR #26 and the follow-on TestFlight submission. PR #26 was merged only after all checks passed. Upload only immutable StarRun main commit 0faeae691de9087b4badbdaa7623e62058171de7 using existing shared Apple credentials; do not change certificates, app metadata, bundle ID, Game Center configuration or publish to the App Store. Apple processing and physical iPhone review remain separate post-upload gates."
 }
