@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "c3f6014f18ab41d56cd291f3cbe321a64d1135c0",
-  "version": "0.8.0",
+  "sha": "17e60c879349923dcee00e7a6a1e78ffc78adab7",
+  "version": "0.8.1",
   "destination": "TestFlight",
-  "purpose": "StarRun 0.8.0 iPhone beta: harder worlds 2–4, ten new passive upgrade tracks, direct fusion upgrades with consumed components removed from drafts, clearer Active/Passive/Auto weapon labels, safe combat HUD below the notch, and press-hold-drag scrolling on cards and purchase buttons. Includes the separate PR #12 menu redesign and PR #13 combat visuals. Passed 679 simulation assertions, 209 layout checks, 85 rendered checks, 43 touch/safe-area checks, all desktop/web exports and native iPhone compilation.",
-  "attempt": 9,
-  "reason": "User requested these playtest fixes and a new TestFlight build including the separate menu changes, then explicitly asked to continue. Upload the tested merged PR #14 source using existing Apple credentials; beta release only."
+  "purpose": "StarRun 0.8.1: 16 new permanent Hangar tracks (38 total), six pilot face portraits, Wing Drones and Ion Mine actives plus Storm Carrier, both components required at rank 5 for every fusion, distinct fusion icons and cast effects, and safe old-save migration. Includes PR #12 menu redesign, PR #13 combat readability/per-stage rerolls, and PR #14 tougher worlds, ten passives, direct fusion upgrades, notch clearance and hold-drag scrolling. Passed 904 simulation assertions, 209 layout, 91 readability, 106 fusion rendering, 44 expanded Hangar/portrait and 47 touch checks, all desktop/web exports and native iPhone compilation. Merged tree exactly matches tested PR #16.",
+  "attempt": 10,
+  "reason": "User explicitly requested another TestFlight build including the separate menu changes, then added rank-5 fusion rules, nicer fusion graphics, many more Hangar upgrades, pilot faces and two active pool upgrades. Release the tested merged PR #15/#16 changes using the existing Apple credentials; TestFlight beta only."
 }
