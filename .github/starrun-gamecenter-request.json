@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "40d71bb1324c20b83782039327e6d1e9a3a783e7",
+  "sha": "75e9be6b7ea2e5178b30678b1474e7c9174f049d",
   "purpose": "Configure the real Star/Run Game Center service for merged and CI-validated PR #22. Create the UTC-daily recurring online leaderboard and the 17 in-app Apple achievements with localized metadata. Use existing shared Apple App Store Connect credentials. Generate required 1024px RGB achievement badges as CI artifact. Do not publish metadata before Apple review or claim success if API rejects provisioning; do not create user accounts or external databases.",
   "approval": "User requested online leaderboards, Apple-compliant achievements, shareable dailies and updated Star/Run branding.",
   "appVersion": "0.9.1",
-  "attempt": 2,
-  "note": "Retry provisioning after Apple rejected retired challengeEnabled attribute in create Game Center detail request; no app gameplay changes."
+  "attempt": 3,
+  "note": "Existing UTC Daily and 17 achievement records are provisioned. Upload 17 opaque 1024 RGB badges to each en-US achievement localization using Apple's signed asset upload operations, then commit images. Do not submit for review until assets verified."
 }
