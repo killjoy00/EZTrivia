@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "6285c5a6d516e1e1d0b5d14b7c09f3fa2530d9e7",
-  "version": "0.8.3",
+  "sha": "e3aa12c9b5b3c9b4e71396f6ac37f8ece519d1d7",
+  "version": "0.9.0",
   "destination": "TestFlight",
-  "purpose": "Upload validated merged StarRun PR #20 Worlds 2-4 balance pass: staged incoming damage pressure without extra XP, early Citadel heavy beam spacing and safer Void shield bleed, meaningful Barrier/Deflector/Prism small status-shot counters and Mend cleanse, Haven 25% resistance to status rounds and corrosion, deterministic autopilot course beyond 1200s including saves, and evidence-based full-campaign balance diagnostics. Confirmed 978 simulation assertions zero failures, World 1 no ability 8/24 vs timed 19/24, 63/63 screenshots, 6/6 scripted smoke jobs, genuine four-world Arcwing/moderate-Hangar scripted run without forced kills, Web/Windows/Linux exports, unsigned iPhone compilation. These are scripted-bot outcomes, not real players.",
-  "attempt": 14,
-  "reason": "Continue the user's StarRun automated TestFlight beta delivery after successful CI and merge of PR #20. Use the existing EZTrivia Apple credentials and shared signing/upload workflow; never create credentials or revoke certificates. TestFlight beta only; Apple processing and physical-device testing remain independent."
+  "purpose": "Deliver merged and tested Star/Run PR #21: 17 local achievements, UTC-seeded Daily Challenge with shared daily ship/pilot/Normal difficulty/zero Hangar, first daily completion payout only and unlimited best-score retries, exact daily checkpoint restore and abandonment confirmation, 0.9.0 Star/Run-branded title, Awards page and daily results. Passed 26 meta-progression checks, 252 UI checks, 69 screenshots, 978 simulation assertions, seven campaign jobs including genuine four-world victory, Web/Windows/Linux exports, and unsigned iPhone compilation. Local achievements and best scores only; no Apple Game Center/Steam or online leaderboard claims. No balance or monetization SDK changes.",
+  "attempt": 15,
+  "reason": "The user requested the achievements, daily challenge and Star/Run title implementation. The reviewed, tested PR #21 is merged. Use existing EZTrivia shared signing and Apple App Store Connect workflow for a TestFlight-only 0.9.0 beta; do not create or revoke certificates; verify upload separately from Apple processing and on-device UAT."
 }
