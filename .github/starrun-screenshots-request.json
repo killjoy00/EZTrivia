@@ -2,7 +2,7 @@
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
   "sha": "fd5cb98ebc78cbc957934e46cd0730fe9d5eaa82",
-  "mode": "apply",
-  "attempt": 2,
-  "note": "Upload seven real Godot UI screenshots from the already accepted StarRun 0.9.4 source into the existing iOS 1.0 6.9-inch screenshot set. No app submission, version, data declarations or pricing changes."
+  "mode": "inspect",
+  "attempt": 3,
+  "note": "Seven Apple 6.9-inch iPhone screenshots were uploaded and confirmed COMPLETE in run 43911365253. Keep future runs read-only unless a new explicit review request is made."
 }
