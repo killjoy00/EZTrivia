@@ -1,0 +1,54 @@
+name: StarRun Remove Ads pricing and availability
+on:
+  push:
+    branches: [main]
+    paths: [".github/starrun-iap-merchant-request.json"]
+permissions:
+  contents: read
+concurrency:
+  group: starrun-iap-merchant
+  cancel-in-progress: false
+jobs:
+  apple-price:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 -m pip install --quiet "PyJWT[crypto]"
+      - name: Normalize existing Apple API key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/apple-auth"
+          key="$RUNNER_TEMP/apple-auth/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          if grep -q '\\n' "$key"; then
+            printf '%b' "$(cat "$key")" > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          if ! grep -q 'BEGIN' "$key" && base64 -d < "$key" > "$key.tmp" 2>/dev/null; then
+            if grep -q 'BEGIN' "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi
+          fi
+          if ! grep -q 'BEGIN' "$key"; then
+            body=$(tr -d '\n\r ' < "$key")
+            { echo "-----BEGIN PRIVATE KEY-----"
+              echo "$body" | fold -w 64
+              echo "-----END PRIVATE KEY-----"; } > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          chmod 600 "$key"
+          openssl pkey -in "$key" -noout 2>/dev/null || { echo "::error::Apple key unreadable"; exit 1; }
+      - name: Set Apple IAP price, availability and review instructions
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_FILE: ${{ runner.temp }}/apple-auth/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+        run: python3 Scripts/set_starrun_iap_merchant.py
+      - name: Wipe temporary key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/apple-auth"
