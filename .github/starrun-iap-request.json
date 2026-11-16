@@ -1,0 +1,9 @@
+{
+  "repository": "killjoy00/StarRun",
+  "bundleID": "com.rsm.starrun",
+  "productID": "com.rsm.starrun.remove_ads",
+  "type": "NON_CONSUMABLE",
+  "mode": "create_draft",
+  "attempt": 1,
+  "intent": "Create unpriced non-consumable and en-US localization; no App Review or payments configured."
+}
