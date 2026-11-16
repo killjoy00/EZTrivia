@@ -1,0 +1,88 @@
+name: StarRun App Store screenshots sync
+
+# Screenshots come from the actual Godot game UI at a pinned release commit.
+# Apple credentials exist only in EZTrivia; no iOS submission or publishing.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/starrun-screenshots-request.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: starrun-store-screenshots
+  cancel-in-progress: false
+jobs:
+  screenshots:
+    name: Capture game UI and sync existing iOS 1.0 draft screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate exact pinned beta source and request
+        id: approved
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, pathlib, re
+          p=pathlib.Path(".github/starrun-screenshots-request.json")
+          d=json.loads(p.read_text())
+          assert d["repository"]=="killjoy00/StarRun"
+          assert d["bundleID"]=="com.rsm.starrun"
+          assert d["sha"]=="fd5cb98ebc78cbc957934e46cd0730fe9d5eaa82"
+          assert d["mode"] in ("inspect","apply")
+          print("sha="+d["sha"])
+          print("mode="+d["mode"])
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/StarRun
+          ref: ${{ steps.approved.outputs.sha }}
+          path: starrun
+          persist-credentials: false
+      - name: Install pinned Godot 4.6.3
+        working-directory: starrun
+        run: bash tools/install-godot.sh
+      - name: Render the actual Star/Run game UI
+        working-directory: starrun
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = fd5cb98ebc78cbc957934e46cd0730fe9d5eaa82
+          godot --headless --path . --editor --import --quit
+          xvfb-run -a godot --path . --audio-driver Dummy --script tests/screenshot_harness.gd -- \
+            --output="$RUNNER_TEMP/starrun-screenshots" \
+            2>&1 | tee "$RUNNER_TEMP/starrun-screenshot-log.txt"
+          grep -q 'SCREENSHOT MATRIX: 72 of 72 screens' "$RUNNER_TEMP/starrun-screenshot-log.txt"
+          test -s "$RUNNER_TEMP/starrun-screenshots/390x844/cards.png"
+      - name: Install Apple API uploader dependencies
+        run: python3 -m pip install --quiet "PyJWT[crypto]" pillow
+      - name: Inspect or upload only iPhone screenshots on existing Apple draft
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          SCREENSHOT_SOURCE: ${{ runner.temp }}/starrun-screenshots
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID"
+          test -n "$ASC_ISSUER_ID"
+          test -n "$ASC_KEY_P8"
+          python3 Scripts/sync_starrun_screenshots.py
+      - name: Preserve captured source screenshots for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarRun-product-page-source
+          path: ${{ runner.temp }}/starrun-screenshots/390x844
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Preserve Apple-size screenshots for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarRun-AppStore-iPhone-6-9
+          path: ${{ runner.temp }}/starrun-appstore/*.png
+          if-no-files-found: ignore
+          retention-days: 30
