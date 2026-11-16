@@ -3,6 +3,6 @@
   "sha": "5fdc22136a51070f5b0b832ac4b11ef47978a50f",
   "bundleID": "com.killjoy00.ultttt",
   "appName": "Ultimate Tic/Tac/Toe",
-  "mode": "inspect",
+  "mode": "configure",
   "version": "1.0.0"
 }
