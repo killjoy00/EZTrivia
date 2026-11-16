@@ -4,5 +4,6 @@
   "mode": "inspect",
   "bundleID": "com.rsm.starrun",
   "intent": "Inspect existing iOS listing and editable draft before applying English product page copy. No App Review submission, screenshot changes, publishing, age-rating or privacy edits.",
-  "attempt": 1
+  "attempt": 2,
+  "reason": "Rerun inspection after fixing filter[bundleId] to com.rsm.starrun. Do not modify listing yet."
 }
