@@ -6,7 +6,10 @@ import jwt
 SKU="com.rsm.starrun.remove_ads"
 BUNDLE="com.rsm.starrun"
 def key():
-    raw=os.environ["ASC_KEY_P8"].strip()
+    saved=os.environ.get('ASC_PRIVATE_KEY_FILE','')
+    if saved:
+        return Path(saved).read_text()
+    raw=os.environ['ASC_KEY_P8'].replace('\\n','\n').strip()
     if "\\n" in raw: raw=raw.replace("\\n","\n")
     if "BEGIN" not in raw:
         try:
