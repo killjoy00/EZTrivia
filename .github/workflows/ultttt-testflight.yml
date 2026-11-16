@@ -188,7 +188,7 @@ jobs:
           echo "Signed, pinned iOS archive identity verified."
 
       - name: Preserve signed archive on failure
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: UltimateTTT-archive-${{ github.run_number }}
