@@ -92,6 +92,11 @@ def main():
     shot=missing404(f"/v2/inAppPurchases/{PID}/appStoreReviewScreenshot")
     screenshot=shot.get("data",{}).get("attributes",{}).get("assetDeliveryState",{}).get("state","MISSING") if shot else "MISSING"
     print("FINAL IAP CHECK",SKU,"screenshot",screenshot,"price target USD",PRICE)
+    print("APPLE PURCHASE STATE",latest["attributes"].get("state"))
+    version=apple("GET","/v1/inAppPurchaseVersions/ff1574d4-e69d-4e1c-89ad-05a811d7bbfc")["data"]
+    print("APPLE REVIEW VERSION STATE",version.get("attributes",{}).get("state"))
+    current_availability=apple("GET",f"/v1/inAppPurchaseAvailabilities/{PID}")["data"]
+    print("APPLE AVAILABILITY",json.dumps(current_availability.get("attributes",{}),sort_keys=True))
     print("Apple has NOT received any App Review submission or public launch request")
     with Path(os.environ.get("GITHUB_STEP_SUMMARY","/dev/null")).open("a") as f:
         f.write(f"Star/Run Remove Ads: Apple SKU {SKU}; USD {PRICE}; review screenshot {screenshot}. "
