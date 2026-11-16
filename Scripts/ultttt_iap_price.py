@@ -101,7 +101,7 @@ def main():
         if not chosen:
             raise SystemExit(f"Apple did not list a USA price point of USD {PRICE_USD}; no changes")
         point_id = chosen["id"]
-        temp_id = "ultttt-remove-ads-usa-usd199"
+        temp_id = "${ultttt-remove-ads-usa-usd199}"
         payload = {
             "data": {
                 "type": "inAppPurchasePriceSchedules",
