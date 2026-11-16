@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "fd5cb98ebc78cbc957934e46cd0730fe9d5eaa82",
-  "version": "0.9.4",
+  "sha": "ee881b885edd956ddce60e4d045f2ebb8b0b08fe",
+  "version": "0.9.5",
   "destination": "TestFlight",
-  "purpose": "Publish merged, CI-green Star/Run PR #27. Make Shielded Passage, Redline Assault and Hunter Contract meaningfully different; strengthen all eight Prototypes and keep the 10-Core skip option; run deterministic balance grids across all four worlds, three difficulties and three Hangar settings. Simplify the home screen, remove generic slogan language, separate ship artwork from ship/pilot details, and preserve touch-friendly Daily, loadout and difficulty controls. Branch CI passed full simulations, ship campaign checks, mobile layout/screenshot checks, Web/Windows/Linux exports and unsigned iPhone compile. Signed TestFlight beta only; no App Store publication.",
-  "attempt": 19,
-  "reason": "The user asked to continue Star/Run PR #27 to completion after reviewing the title-screen improvements. PR #27 was merged as fd5cb98ebc78cbc957934e46cd0730fe9d5eaa82 after required checks passed. Use this exact immutable source and the pre-existing shared Apple signing credentials. Preserve the com.rsm.starrun bundle ID, Apple team, Game Center settings and existing distribution workflow. Do not publish a public App Store release. Treat Apple processing and device verification as post-upload checks."
+  "purpose": "Upload merged Star/Run PR #28 as the next private TestFlight beta. Includes Shielded Passage rebalancing, Shieldstorm, revised Hard/Insane progression and projectile pressure, stronger situational passives, refined native UI and non-live staged AdMob code. No public App Store release and no live ads.",
+  "attempt": 20,
+  "reason": "User explicitly requested getting the verified Star/Run changes onto iPhone on 2026-11-16. PR #28 merged into main as ee881b885edd956ddce60e4d045f2ebb8b0b08fe; all PR-branch checks passed (playable 9/9, unsigned native iPhone, expanded balance 33/33, matched study 13/13). The only independent main commit was a published PRIVACY.md. Preserve existing bundle ID com.rsm.starrun, existing shared Apple signing secrets, Game Center settings and exact immutable source. Main post-merge checks are underway. Disabled data/admob.json means no Google ads or tracking are enabled in this beta. Upload to TestFlight only; do not submit the public App Store draft, activate real ads, or create an additional app. Apple's processing and tester installability remain separate verification gates."
 }
