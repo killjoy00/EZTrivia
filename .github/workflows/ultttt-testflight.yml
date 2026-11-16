@@ -1,0 +1,257 @@
+name: Ultimate Tic/Tac/Toe TestFlight (shared Apple credentials)
+# Only an immutable SHA approved in the EZTrivia main-branch request is signed.
+# This uploads a build for internal beta testing, NOT to public App Review.
+on:
+  push:
+    branches: [main]
+    paths: [".github/ultttt-testflight-request.json"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ultttt-testflight-upload
+  cancel-in-progress: false
+jobs:
+  testflight:
+    name: Sign and upload Ultimate Tic/Tac/Toe for iPhone
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - name: Checkout approved release request
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate source, identity and version
+        id: approved
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json,pathlib,re
+          r=json.loads(pathlib.Path(".github/ultttt-testflight-request.json").read_text())
+          assert r["repository"]=="killjoy00/Ultttt"
+          assert r["bundleID"]=="com.killjoy00.ultttt"
+          assert r["appName"]=="Ultimate Tic/Tac/Toe"
+          assert r["target"]=="testflight"
+          assert re.fullmatch(r"[0-9a-f]{40}",r["sha"])
+          assert r["version"]=="1.0"
+          print("sha="+r["sha"])
+          print("version="+r["version"])
+          PY
+
+      - name: Checkout reviewed Ultimate Tic/Tac/Toe commit
+        uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: ${{ steps.approved.outputs.sha }}
+          path: ultttt
+          persist-credentials: false
+
+      - name: Confirm exact release source and no live ads
+        working-directory: ultttt
+        env:
+          APPROVED_SHA: ${{ steps.approved.outputs.sha }}
+          RELEASE_VERSION: ${{ steps.approved.outputs.version }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$APPROVED_SHA"
+          grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER: com.killjoy00.ultttt' project.yml
+          grep -Fq 'CFBundleDisplayName: Ultimate Tic/Tac/Toe' project.yml
+          grep -Fq "MARKETING_VERSION: \"$RELEASE_VERSION\"" project.yml
+          grep -Fq 'GADApplicationIdentifier: ca-app-pub-3940256099942544~1458002511' project.yml
+          grep -Fq 'ca-app-pub-3940256099942544/2435281174' UltimateTTTApp/AdSupport.swift
+          python3 - <<'PY'
+          import json
+          r=json.load(open("docs/app-store/en-US.json"))
+          assert r["appName"]=="Ultimate Tic/Tac/Toe"
+          assert r["bundleID"]=="com.killjoy00.ultttt"
+          assert r["version"]=="1.0"
+          print("Release identity, draft version and test ads confirmed.")
+          PY
+
+      - name: Select Xcode 26
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26"
+
+      - name: Install XcodeGen and xcbeautify
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      - name: Run game rules and AI tests
+        working-directory: ultttt
+        run: swift test
+
+      - name: Generate original App Store icon
+        working-directory: ultttt
+        run: |
+          set -euo pipefail
+          swift tools/generate-app-icon.swift
+          icon=UltimateTTTApp/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          test -s "$icon"
+          test "$(sips -g pixelWidth "$icon" | awk '/pixelWidth/{print $2}')" = 1024
+          test "$(sips -g pixelHeight "$icon" | awk '/pixelHeight/{print $2}')" = 1024
+          echo "Original 1024px app icon generated."
+
+      - name: Generate the iOS project
+        working-directory: ultttt
+        run: xcodegen generate
+
+      - name: Check shared Apple signing credentials
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID"
+          test -n "$ASC_ISSUER_ID"
+          test -n "$ASC_KEY_P8"
+          test -n "$APPLE_TEAM_ID"
+          echo "Existing EZTrivia Apple secrets are present."
+
+      - name: Normalize existing App Store Connect API key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/private_keys"
+          key="$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          if ! grep -q 'BEGIN' "$key" && grep -q '\\n' "$key"; then
+            printf '%b' "$(cat "$key")" > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          if ! grep -q 'BEGIN' "$key" && base64 -D < "$key" > "$key.tmp" 2>/dev/null; then
+            if grep -q 'BEGIN' "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi
+          fi
+          if ! grep -q 'BEGIN' "$key"; then
+            body=$(tr -d '\n\r ' < "$key")
+            { echo "-----BEGIN PRIVATE KEY-----"
+              echo "$body" | fold -w 64
+              echo "-----END PRIVATE KEY-----"; } > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          chmod 600 "$key"
+          openssl pkey -in "$key" -noout 2>/dev/null || {
+            echo "::error::Shared Apple key could not be parsed."
+            exit 1
+          }
+
+      - name: Allocate unique build number
+        env:
+          RELEASE_VERSION: ${{ steps.approved.outputs.version }}
+        run: |
+          echo "ULTTTT_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
+          echo "ULTTTT_BUILD=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+
+      - name: Archive with Apple-managed signing
+        working-directory: ultttt
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project UltimateTTT.xcodeproj \
+            -scheme UltimateTTT \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/UltimateTTT.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$ULTTTT_BUILD" \
+            MARKETING_VERSION="$ULTTTT_VERSION" \
+            INFOPLIST_KEY_ITSAppUsesNonExemptEncryption=NO \
+            2>&1 | tee "$RUNNER_TEMP/ultttt-archive.log" | xcbeautify
+
+      - name: Validate signed archive identity and signature
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/UltimateTTT.xcarchive/Products/Applications/UltimateTTT.app"
+          plist="$app/Info.plist"
+          test -f "$plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = "com.killjoy00.ultttt"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = "$ULTTTT_VERSION"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "$ULTTTT_BUILD"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :GADApplicationIdentifier' "$plist")" = "ca-app-pub-3940256099942544~1458002511"
+          codesign --verify --deep --strict "$app"
+          echo "Signed, pinned iOS archive identity verified."
+
+      - name: Preserve signed archive on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: UltimateTTT-archive-${{ github.run_number }}
+          path: ${{ runner.temp }}/UltimateTTT.xcarchive
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Export and upload to App Store Connect for TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/UltimateTTTExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>destination</key><string>upload</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/UltimateTTT.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/UltimateTTTExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/UltimateTTTExport" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee "$RUNNER_TEMP/ultttt-upload.log" | xcbeautify
+          echo "Ultimate Tic/Tac/Toe uploaded to Apple; TestFlight processing may continue."
+
+      - name: Report TestFlight upload
+        if: success()
+        run: |
+          {
+            echo "## Ultimate Tic/Tac/Toe TestFlight upload"
+            echo "- Bundle: com.killjoy00.ultttt"
+            echo "- Version: $ULTTTT_VERSION"
+            echo "- Build: $ULTTTT_BUILD"
+            echo "- Source commit: ${{ steps.approved.outputs.sha }}"
+            echo "- Status: uploaded to App Store Connect; Apple processing may be pending"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Show signing or upload errors only
+        if: failure()
+        run: |
+          for f in "$RUNNER_TEMP/ultttt-archive.log" "$RUNNER_TEMP/ultttt-upload.log"; do
+            if [ -f "$f" ]; then
+              echo "Issues from $(basename "$f"):"
+              grep -E 'error:|ERROR:|ITMS-|409' "$f" | head -30 || true
+            fi
+          done
+
+      - name: Remove temporary Apple credentials
+        if: always()
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          if [ -n "$ASC_KEY_ID" ]; then
+            rm -f "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          fi
