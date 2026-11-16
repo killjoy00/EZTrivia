@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "ee881b885edd956ddce60e4d045f2ebb8b0b08fe",
-  "version": "0.9.5",
+  "sha": "5efff80088329ab6ad93582fb5d8b3dd088835f6",
+  "version": "0.9.6",
   "destination": "TestFlight",
-  "purpose": "Upload merged Star/Run PR #28 as the next private TestFlight beta. Includes Shielded Passage rebalancing, Shieldstorm, revised Hard/Insane progression and projectile pressure, stronger situational passives, refined native UI and non-live staged AdMob code. No public App Store release and no live ads.",
-  "attempt": 20,
-  "reason": "User explicitly requested getting the verified Star/Run changes onto iPhone on 2026-11-16. PR #28 merged into main as ee881b885edd956ddce60e4d045f2ebb8b0b08fe; all PR-branch checks passed (playable 9/9, unsigned native iPhone, expanded balance 33/33, matched study 13/13). The only independent main commit was a published PRIVACY.md. Preserve existing bundle ID com.rsm.starrun, existing shared Apple signing secrets, Game Center settings and exact immutable source. Main post-merge checks are underway. Disabled data/admob.json means no Google ads or tracking are enabled in this beta. Upload to TestFlight only; do not submit the public App Store draft, activate real ads, or create an additional app. Apple's processing and tester installability remain separate verification gates."
+  "purpose": "Private TestFlight sandbox build for verified $1.99 Remove Ads non-consumable, Restore Purchases, and Google sample test banners. Includes merged PR #29. No live ads or public App Store submission.",
+  "attempt": 21,
+  "reason": "User requested fully configuring Remove Ads including screenshot. App Store Connect non-consumable com.rsm.starrun.remove_ads (ID 6835610167) is READY_TO_SUBMIT, price $1.99, Apple review screenshot COMPLETE and review note set. PR #29 merged into main; premerge 9/9 playable and unsigned iPhone build passed. TestFlight upload only, for on-device Apple sandbox QA, consent and restore validation. data/admob.json test_mode=true; live ad serving prohibited. Preserve existing bundle, signing, Game Center app identity. No public release or IAP submission."
 }
