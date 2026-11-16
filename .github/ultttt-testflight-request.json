@@ -1,0 +1,8 @@
+{
+  "repository": "killjoy00/Ultttt",
+  "bundleID": "com.killjoy00.ultttt",
+  "appName": "Ultimate Tic/Tac/Toe",
+  "sha": "2b43111931fb1615fd00c70ddf4ec477d99bacb4",
+  "version": "1.0",
+  "target": "testflight"
+}
