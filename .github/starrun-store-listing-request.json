@@ -1,9 +1,9 @@
 {
   "repository": "killjoy00/StarRun",
   "sha": "2bb60ba03511ca1140a028065ec03d36579061d2",
-  "mode": "apply",
+  "mode": "inspect",
   "bundleID": "com.rsm.starrun",
-  "intent": "Apply Star/Run en-US subtitle, name if Apple permits, description, keywords, promotional text and public GitHub support URL to existing editable iOS 1.0 metadata. Do not submit for review, attach builds, publish, or change pricing, App Privacy or age rating.",
-  "attempt": 3,
+  "intent": "Read back en-US Star/Run App Store metadata after successful Apple PATCH operations; do not modify listing",
+  "attempt": 4,
   "reason": "Rerun inspection after fixing filter[bundleId] to com.rsm.starrun. Do not modify listing yet."
 }
