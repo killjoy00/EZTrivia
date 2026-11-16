@@ -3,7 +3,7 @@
 import json,os,urllib.parse
 from pathlib import Path
 from setup_starrun_iap import apple,SKU
-PID="6835610167"; PRICE="2.99"; BASE="USA"
+PID="6835610167"; PRICE="1.99"; BASE="USA"
 def missing404(path):
     try:return apple("GET",path)
     except SystemExit as exc:
@@ -56,7 +56,7 @@ def main():
         if chosen is None:
             raise SystemExit(f"Apple has no listed USD {PRICE} price point in first 200 tiers; no price submitted")
         priceid=chosen["id"]
-        reference="starrun-remove-ads-USA-299"
+        reference="starrun-remove-ads-USA-199"
         price_payload={"data":{"type":"inAppPurchasePriceSchedules","relationships":{
           "inAppPurchase":{"data":{"type":"inAppPurchases","id":PID}},
           "baseTerritory":{"data":{"type":"territories","id":BASE}},
