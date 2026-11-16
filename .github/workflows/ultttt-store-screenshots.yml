@@ -1,0 +1,161 @@
+name: Ultimate Tic/Tac/Toe real App Store screenshots
+
+# Use real SwiftUI simulator captures instead of inaccurate concept mockups.
+# Only the existing Apple iOS 1.0 draft is changed; no release or review.
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/ultttt-screenshots-request.json"
+      - ".github/workflows/ultttt-store-screenshots.yml"
+      - "Scripts/compose_ultttt_screenshots.py"
+      - "Scripts/upload_ultttt_screenshots.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ultttt-store-screenshots
+  cancel-in-progress: false
+jobs:
+  capture-and-upload:
+    name: Capture actual iOS game and upload five Apple draft screenshots
+    runs-on: macos-26
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact immutable release source
+        id: approved
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json,pathlib,re
+          d=json.loads(pathlib.Path(".github/ultttt-screenshots-request.json").read_text())
+          assert d["repository"]=="killjoy00/Ultttt"
+          assert d["bundleID"]=="com.killjoy00.ultttt"
+          assert d["appName"]=="Ultimate Tic/Tac/Toe"
+          assert d["version"]=="1.0" and d["mode"]=="apply"
+          assert re.fullmatch(r"[0-9a-f]{40}",d["sha"])
+          print("sha="+d["sha"])
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: ${{ steps.approved.outputs.sha }}
+          path: ultttt
+          persist-credentials: false
+      - name: Confirm bundle, display name and screenshot entrypoint
+        working-directory: ultttt
+        env:
+          PINNED_SHA: ${{ steps.approved.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PINNED_SHA"
+          grep -Fq 'CFBundleDisplayName: Ultimate Tic/Tac/Toe' project.yml
+          grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER: com.killjoy00.ultttt' project.yml
+          grep -Fq 'MARKETING_VERSION: "1.0"' project.yml
+          grep -Fq 'AppStoreScreenshotHost' UltimateTTTApp/UltimateTTTApp.swift
+      - name: Install XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Run game tests
+        working-directory: ultttt
+        run: swift test
+      - name: Build native iOS app for simulator
+        working-directory: ultttt
+        run: |
+          set -euo pipefail
+          swift tools/generate-app-icon.swift
+          xcodegen generate
+          xcodebuild build \
+            -project UltimateTTT.xcodeproj \
+            -scheme UltimateTTT -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/ultttt-dd" \
+            CODE_SIGNING_ALLOWED=NO \
+            > "$RUNNER_TEMP/ultttt-build.log" 2>&1 || {
+              tail -100 "$RUNNER_TEMP/ultttt-build.log"
+              exit 1
+            }
+          test -d "$RUNNER_TEMP/ultttt-dd/Build/Products/Debug-iphonesimulator/UltimateTTT.app"
+      - name: Choose an available modern iPhone simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          xcrun simctl list devices available -j > "$RUNNER_TEMP/devices.json"
+          python3 - "$RUNNER_TEMP/devices.json" >> "$GITHUB_OUTPUT" <<'PY'
+          import json,sys
+          entries=json.load(open(sys.argv[1]))["devices"]
+          devices=[d for group in entries.values() for d in group if d.get("isAvailable",True)]
+          for name in ("iPhone 17 Pro Max","iPhone 16 Pro Max","iPhone 17 Pro",
+                       "iPhone 16 Pro","iPhone 15 Pro Max"):
+              match=next((d for d in devices if d["name"]==name),None)
+              if match:
+                  print("udid="+match["udid"])
+                  print("name="+name,file=sys.stderr)
+                  sys.exit(0)
+          sys.exit("No supported iOS simulator available")
+          PY
+      - name: Boot, install and capture five real app screens
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ultttt-raw"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override \
+            --time "9:41" --batteryState charged --batteryLevel 100 \
+            --cellularMode active --cellularBars 4 --wifiMode active --wifiBars 3 || true
+          xcrun simctl install "$UDID" "$RUNNER_TEMP/ultttt-dd/Build/Products/Debug-iphonesimulator/UltimateTTT.app"
+          capture() {
+            scene="$1"
+            theme="$2"
+            xcrun simctl terminate "$UDID" com.killjoy00.ultttt 2>/dev/null || true
+            xcrun simctl ui "$UDID" appearance "$theme"
+            xcrun simctl launch "$UDID" com.killjoy00.ultttt -UltimateStoreScreenshot "$scene"
+            sleep 6
+            xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/ultttt-raw/$scene.png"
+            echo "Captured real SwiftUI view: $scene"
+          }
+          capture board light
+          capture setup light
+          capture tutorial light
+          capture statistics light
+          capture settings dark
+      - name: Create compliant App Store marketing images from captures
+        env:
+          SCREENSHOT_SOURCE: ${{ runner.temp }}/ultttt-raw
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 Scripts/compose_ultttt_screenshots.py
+      - name: Upload to existing iOS 1.0 App Store draft
+        env:
+          SCREENSHOT_SOURCE: ${{ runner.temp }}/ultttt-appstore
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID"
+          test -n "$ASC_ISSUER_ID"
+          test -n "$ASC_KEY_P8"
+          python3 -m pip install --quiet 'PyJWT[crypto]'
+          python3 Scripts/upload_ultttt_screenshots.py
+      - name: Keep real screenshots for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: UltimateTicTacToe-real-ios-captures
+          path: ${{ runner.temp }}/ultttt-raw/*.png
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Keep five App Store-size exports for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: UltimateTicTacToe-AppStore-images
+          path: ${{ runner.temp }}/ultttt-appstore/*.png
+          if-no-files-found: ignore
+          retention-days: 30
