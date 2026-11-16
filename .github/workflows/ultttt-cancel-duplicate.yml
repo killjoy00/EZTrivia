@@ -1,0 +1,22 @@
+name: Stop duplicate Ultttt screenshot job
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ultttt-cancel-duplicate.yml"
+permissions:
+  actions: write
+  contents: read
+jobs:
+  cancel-redundant-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Cancel older duplicate before it reaches Apple's screenshot API
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "Keeping new screenshot run 43983523938; cancel older 43983361535."
+          gh api -X POST repos/killjoy00/eztrivia/actions/runs/43983361535/cancel
+          echo "GitHub accepted cancellation of duplicate run."
