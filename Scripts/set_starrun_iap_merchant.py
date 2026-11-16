@@ -38,6 +38,16 @@ def main():
         manual=data(f"/v1/inAppPurchasePriceSchedules/{sid}/manualPrices?limit=50")
         if manual:
             print("Existing purchase price schedule preserved. Price entries:",len(manual))
+            detail=apple("GET",f"/v1/inAppPurchasePriceSchedules/{sid}/manualPrices?include=inAppPurchasePricePoint,territory&limit=50")
+            refs={z["id"]:z.get("attributes",{}).get("customerPrice") for z in detail.get("included",[]) if z.get("type")=="inAppPurchasePricePoints"}
+            prices=[]
+            for row in detail.get("data",[]):
+                r=row.get("relationships",{})
+                point=r.get("inAppPurchasePricePoint",{}).get("data") or {}
+                territory=r.get("territory",{}).get("data") or {}
+                prices.append({"territory":territory.get("id"),"pricePointID":point.get("id"),
+                    "customerPrice":refs.get(point.get("id"))})
+            print("APPLE ACTUAL PRICE SCHEDULE",json.dumps(prices,sort_keys=True))
             configured=True
     if not configured:
         qs=urllib.parse.urlencode({"filter[territory]":BASE,"limit":200})
