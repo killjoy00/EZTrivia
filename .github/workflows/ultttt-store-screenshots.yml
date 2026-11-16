@@ -14,7 +14,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ultttt-store-screenshots
+  group: ultttt-store-screenshots-recovery-v2
   cancel-in-progress: true
 jobs:
   capture-and-upload:
