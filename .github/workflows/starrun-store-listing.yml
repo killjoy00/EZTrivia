@@ -117,8 +117,8 @@ jobs:
               if os.environ["SYNC_MODE"]=="apply":
                   api("PATCH",resource+"/"+item["id"],{"data":{"type":resource,"id":item["id"],"attributes":changed}})
                   print(resource+" saved to Apple")
-          items=get("apps?"+urllib.parse.urlencode({"filter[bundleId]":"pro.starrun.story","limit":1}))
-          if not items:raise RuntimeError("App pro.starrun.story not visible in this Apple team")
+          items=get("apps?"+urllib.parse.urlencode({"filter[bundleId]":"com.rsm.starrun","limit":1}))
+          if not items:raise RuntimeError("App com.rsm.starrun not visible in this Apple team")
           app=items[0]; appid=app["id"]
           print("Apple record:",app["attributes"].get("name"),"app ID",appid)
           builds=get("builds?"+urllib.parse.urlencode({"filter[app]":appid,"sort":"-uploadedDate","limit":10}))
