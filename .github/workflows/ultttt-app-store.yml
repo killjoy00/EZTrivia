@@ -6,6 +6,7 @@ on:
       - ".github/ultttt-release-request.json"
       - ".github/workflows/ultttt-app-store.yml"
       - "Scripts/ultttt_preflight.py"
+      - "Scripts/ultttt_configure.py"
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,7 +31,8 @@ jobs:
           assert r["repository"]=="killjoy00/Ultttt"
           assert r["bundleID"]=="com.killjoy00.ultttt"
           assert r["appName"]=="Ultimate Tic/Tac/Toe"
-          assert r["mode"]=="inspect"
+          assert r["mode"] in ("inspect","configure")
+          print("mode="+r["mode"])
           assert re.fullmatch(r"[a-f0-9]{40}",r["sha"])
           print("sha="+r["sha"])
           PY
@@ -67,10 +69,17 @@ jobs:
           test -n "$APPLE_TEAM_ID" || { echo "::error::Missing APPLE_TEAM_ID"; exit 1; }
           echo "All four shared Apple credentials are available."
       - name: Install App Store Connect API client
-        run: python3 -m pip install --quiet 'PyJWT[crypto]' requests
+        run: python3 -m pip install --quiet 'PyJWT[crypto]' requests pillow
       - name: Inspect Apple resources without changing anything
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
         run: python3 Scripts/ultttt_preflight.py
+      - name: Prepare App Store listing, Game Center and Remove Ads draft
+        if: steps.approved.outputs.mode == 'configure'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: python3 Scripts/ultttt_configure.py
