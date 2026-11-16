@@ -5,7 +5,9 @@ Use the existing EZTrivia Apple API key, never create another key or change
 the app's own free price. Leave all existing schedules untouched unless
 verified exactly equal to the approved price.
 """
+import base64
 import json
+import os
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -30,7 +32,29 @@ def get_optional(path):
         raise
 
 
+def normalize_shared_key():
+    """Use the normalization proven by Ultttt's successful Apple preflight."""
+    raw = os.environ["ASC_KEY_P8"].replace("\r", "").strip()
+    if "BEGIN PRIVATE KEY" not in raw:
+        if "\\n" in raw:
+            raw = raw.replace("\\n", "\n")
+        else:
+            try:
+                decoded = base64.b64decode(raw).decode()
+                if "BEGIN PRIVATE KEY" in decoded:
+                    raw = decoded
+            except (ValueError, UnicodeDecodeError):
+                pass
+    if "BEGIN PRIVATE KEY" not in raw:
+        compact = "".join(raw.split())
+        raw = ("-----BEGIN PRIVATE KEY-----\n"
+               + "\n".join(compact[i:i+64] for i in range(0, len(compact), 64))
+               + "\n-----END PRIVATE KEY-----\n")
+    os.environ["ASC_KEY_P8"] = raw
+
+
 def main():
+    normalize_shared_key()
     r = json.loads(Path(".github/ultttt-release-request.json").read_text())
     expected = {
         "repository": "killjoy00/Ultttt",
@@ -144,7 +168,7 @@ def main():
     print("SUCCESS: Apple confirms one-time Remove Ads = USD $1.99 in USA")
     print("Apple auto-generates corresponding non-USA prices from the base market.")
     print("No public App Review submission or app price changes were made.")
-    with Path(__import__("os").environ.get("GITHUB_STEP_SUMMARY", "/dev/null")).open("a") as out:
+    with Path(os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")).open("a") as out:
         out.write("### Ultimate Tic/Tac/Toe Remove Ads\n")
         out.write(f"- Apple product ID: \x60{SKU}\x60\n")
         out.write("- US customer price: **$1.99**, verified via Apple's pricing API\n")
