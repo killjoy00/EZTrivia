@@ -7,6 +7,7 @@ on:
       - ".github/workflows/ultttt-app-store.yml"
       - "Scripts/ultttt_preflight.py"
       - "Scripts/ultttt_configure.py"
+      - "Scripts/ultttt_iap_price.py"
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,7 +32,7 @@ jobs:
           assert r["repository"]=="killjoy00/Ultttt"
           assert r["bundleID"]=="com.killjoy00.ultttt"
           assert r["appName"]=="Ultimate Tic/Tac/Toe"
-          assert r["mode"] in ("inspect","configure")
+          assert r["mode"] in ("inspect","configure","price")
           print("mode="+r["mode"])
           assert re.fullmatch(r"[a-f0-9]{40}",r["sha"])
           print("sha="+r["sha"])
@@ -83,3 +84,10 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
         run: python3 Scripts/ultttt_configure.py
+      - name: Apply approved $1.99 Remove Ads price and verify Apple readback
+        if: steps.approved.outputs.mode == 'price'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: python3 Scripts/ultttt_iap_price.py
