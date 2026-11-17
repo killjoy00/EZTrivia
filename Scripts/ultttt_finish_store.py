@@ -315,8 +315,37 @@ def verify_testflight_build():
     else:
         print("Apple processing continues; the internal group will get the build when ready.")
 
+def set_developer_website():
+    # Existing GitHub Pages user site already publishes the correct
+    # AdMob seller line at its ROOT (/app-ads.txt). The app landing page is
+    # under /Ultttt/, so Google can resolve the publisher from the root.
+    url="https://killjoy00.github.io/Ultttt/"
+    versions=rows(f"/apps/{APP_ID}/appStoreVersions",{"limit":30}) or []
+    target=next((v for v in versions if v["attributes"].get("platform")=="IOS" and
+                 v["attributes"].get("versionString")=="1.0" and
+                 v["attributes"].get("appStoreState")=="PREPARE_FOR_SUBMISSION"),None)
+    if not target:
+        raise RuntimeError("No editable Apple iOS 1.0 version")
+    locs=rows(f"/appStoreVersions/{target['id']}/appStoreVersionLocalizations",
+              {"limit":50})
+    loc=next((x for x in locs if x["attributes"].get("locale")=="en-US"),None)
+    if not loc:raise RuntimeError("No English store localization")
+    if loc["attributes"].get("marketingUrl")!=url:
+        call("PATCH",f"/appStoreVersionLocalizations/{loc['id']}",{
+            "data":{"type":"appStoreVersionLocalizations","id":loc["id"],
+                    "attributes":{"marketingUrl":url}}
+        })
+        print("Saved Apple Marketing URL for existing developer website.")
+    final=data(f"/appStoreVersionLocalizations/{loc['id']}")
+    if final["attributes"].get("marketingUrl")!=url:
+        raise RuntimeError("Apple Marketing URL readback mismatch")
+    print("Verified Marketing URL:",url)
+    print("Google app-ads.txt seller entry already in the developer site's root repo.")
+    print("Google AdMob still needs the app and live banner unit IDs before public release.")
+
 stage("Age rating",apply_age_rating)
 stage("Category",apply_categories)
+stage("Developer website for AdMob",set_developer_website)
 stage("Internal TestFlight group",ensure_internal_group)
 stage("App price audit",inspect_app_price)
 stage("Account Holder internal tester invitation",invite_account_holder_if_available)
