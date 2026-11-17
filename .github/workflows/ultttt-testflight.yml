@@ -8,7 +8,6 @@ on:
       - ".github/ultttt-testflight-request.json"
       - ".github/workflows/ultttt-testflight.yml"
   workflow_dispatch:
-  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
