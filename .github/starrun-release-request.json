@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "a8783f2d8b900bea6ff1951250738bcce63ab0ed",
-  "version": "1.0",
+  "sha": "1509dcad9092cf9a2d4660886bfecb121662df64",
+  "version": "1.1",
   "destination": "TestFlight",
-  "purpose": "Private TestFlight build for initial public App Store review candidate: free Star/Run, no ad SDK, no Google sample or live banners, and no Remove Ads IAP offer. Source is merged StarRun PR #31, with both playable and iPhone compile CI passing. Do not submit publicly until device testing and Apple metadata/privacy review.",
-  "attempt": 22,
-  "reason": "Prepare Apple App Store 1.0 draft release candidate so publisher can select the correct build instead of outdated 0.9.5 (1020). AdMob approval requires public app listing; 1.0 launches without ads or paid Remove Ads. Later update can enable reviewed ads and submit the already-created $1.99 non-consumable alongside that app version. No public submission, no live ads, no changes to Apple keys/identifiers."
+  "purpose": "Private TestFlight release candidate for the first App Store review: Star/Run 1.1 with clear heavy-beam source/cancellation cues, Prism lance reliability fix, and modestly faster enemy ordinary projectile volleys. Free and ad-free; no Google sample or live ads, no Remove Ads purchase offer. Source is merged PR #34 plus documentation/CI cleanup. Green native iPhone build, playable suite and 108-trial paired balance review. Not an automatic public App Store submission.",
+  "attempt": 23,
+  "reason": "User explicitly requested 1.1 and slightly more enemy gunfire while reviewing balance. Matched study retained 4/18 timed-policy complete-campaign victories across six representative configurations, unchanged from baseline; fixed World 1 timing remains meaningful. Queue signed 1.1 for physical iPhone TestFlight QA, replacing the obsolete 1.0 candidate. Do not enable AdMob live ads or submit to App Review automatically. Keep existing shared Apple credentials and Game Center identifiers."
 }
