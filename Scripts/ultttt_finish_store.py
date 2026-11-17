@@ -227,10 +227,100 @@ def inspect_app_price():
                 print("Price point",p["id"],detail.get("attributes",{}).get("customerPrice") if detail else "unavailable")
     print("No change made to the app's sale price.")
 
+def invite_account_holder_if_available():
+    # The Account Holder is the unique owner of this Apple developer account.
+    # The connected API key may not have Users & Access scope; if so, leave
+    # selection to the user in the App Store Connect user interface.
+    groups=rows(f"/apps/{APP_ID}/betaGroups",{"limit":100}) or []
+    selected=next((g for g in groups if g["attributes"].get("isInternalGroup") and
+                   g["attributes"].get("name")=="Internal Testing"),None)
+    if not selected:raise RuntimeError("Internal testing group is missing")
+    gid=selected["id"]
+    existing=rows(f"/betaGroups/{gid}/betaTesters",{"limit":100},optional=True)
+    if existing:
+        print("Internal beta group already has",len(existing),"tester(s); no new invitations")
+        return
+    holders=rows("/users",{"filter[roles]":"ACCOUNT_HOLDER","limit":10},optional=True)
+    if holders is None:
+        print("Apple API key cannot list account users; owner must select their tester from App Store Connect.")
+        return
+    if len(holders)!=1:
+        print("Account Holder selection is ambiguous; manual tester selection required.")
+        return
+    person=holders[0]["attributes"]
+    email=person.get("username","").strip()
+    if "@" not in email:
+        print("Apple Account Holder user has no email username in this API response; invite in App Store Connect.")
+        return
+    # Do not disclose or log the owner's Apple Account email.
+    matches=rows("/betaTesters",{"filter[email]":email,"limit":10},optional=True)
+    if matches is None:
+        print("Could not check existing TestFlight testers; owner must join in App Store Connect.")
+        return
+    try:
+        if matches:
+            tester=matches[0]
+            call("POST",f"/betaGroups/{gid}/relationships/betaTesters",{
+                "data":[{"type":"betaTesters","id":tester["id"]}]
+            })
+            print("Added existing Account Holder beta tester to Internal Testing.")
+        else:
+            payload={"data":{"type":"betaTesters",
+                "attributes":{"email":email,
+                              "firstName":person.get("firstName") or "",
+                              "lastName":person.get("lastName") or ""},
+                "relationships":{
+                    "betaGroups":{"data":[{"type":"betaGroups","id":gid}]},
+                    "apps":{"data":[{"type":"apps","id":APP_ID}]}
+                }
+            }}
+            call("POST","/betaTesters",payload)
+            print("Invited the account's only Account Holder to Internal Testing.")
+        verified=rows(f"/betaGroups/{gid}/betaTesters",{"limit":100}) or []
+        print("Verified TestFlight tester count:",len(verified))
+    except Exception as exc:
+        # A tester invite can be prevented by this credential's role even when
+        # game metadata and group creation are permitted. Preserve all other
+        # successful configuration and leave a precise user-side step.
+        print("Could not auto-invite Account Holder:",str(exc)[:250])
+        print("Manual: TestFlight → Internal Testing → Testers (+) → select your Apple account.")
+
+def verify_testflight_build():
+    builds=rows("/builds",{"filter[app]":APP_ID,"sort":"-uploadedDate","limit":25},optional=True)
+    if builds is None:
+        print("Cannot query TestFlight builds with this API key; use the TestFlight page.")
+        return
+    wanted=next((x for x in builds if x["attributes"].get("version")=="100006"),None)
+    if not wanted:
+        print("Build 100006 has been uploaded but is not yet returned by Apple's processed build list.")
+        return
+    attrs=wanted["attributes"]
+    print("Apple registered TestFlight build 100006, state:",attrs.get("processingState"))
+    if attrs.get("processingState")=="VALID":
+        print("Build 100006 is processed and valid for TestFlight.")
+        group=next((g for g in rows(f"/apps/{APP_ID}/betaGroups",{"limit":100}) or []
+                    if g["attributes"].get("name")=="Internal Testing" and
+                    g["attributes"].get("isInternalGroup")),None)
+        if group:
+            eligible=rows(f"/betaGroups/{group['id']}/builds",{"limit":50},optional=True) or []
+            linked=any(x["id"]==wanted["id"] for x in eligible)
+            if not linked and not group["attributes"].get("hasAccessToAllBuilds"):
+                call("POST",f"/builds/{wanted['id']}/relationships/betaGroups",{
+                    "data":[{"type":"betaGroups","id":group["id"]}]
+                })
+                print("Associated processed TestFlight build with internal group.")
+            else:
+                print("Internal group auto-access:",group["attributes"].get("hasAccessToAllBuilds"),
+                      "build listed in group:",linked)
+    else:
+        print("Apple processing continues; the internal group will get the build when ready.")
+
 stage("Age rating",apply_age_rating)
 stage("Category",apply_categories)
 stage("Internal TestFlight group",ensure_internal_group)
 stage("App price audit",inspect_app_price)
+stage("Account Holder internal tester invitation",invite_account_holder_if_available)
+stage("TestFlight build processing verification",verify_testflight_build)
 if errors:raise SystemExit("Incomplete Apple setup (safe to rerun): "+", ".join(errors))
 print("\nFinished age rating, Games/Board category and internal beta setup.")
 print("No public App Review or TestFlight external beta submission.")
