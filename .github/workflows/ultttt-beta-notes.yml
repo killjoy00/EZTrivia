@@ -1,0 +1,33 @@
+name: Ultttt TestFlight what to test and IAP review notes
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ultttt-beta-notes.yml"
+      - "Scripts/ultttt_beta_notes.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  complete-notes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install secure Apple API client
+        run: |
+          python3 -m venv "$RUNNER_TEMP/asc-env"
+          "$RUNNER_TEMP/asc-env/bin/python" -m pip install --quiet 'PyJWT[crypto]' requests
+      - name: Verify build and save beta/purchase review notes
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID"
+          test -n "$ASC_ISSUER_ID"
+          test -n "$ASC_KEY_P8"
+          "$RUNNER_TEMP/asc-env/bin/python" Scripts/ultttt_beta_notes.py
