@@ -4,7 +4,10 @@ name: Ultimate Tic/Tac/Toe TestFlight (shared Apple credentials)
 on:
   push:
     branches: [main]
-    paths: [".github/ultttt-testflight-request.json"]
+    paths:
+      - ".github/ultttt-testflight-request.json"
+      - ".github/workflows/ultttt-testflight.yml"
+  workflow_dispatch:
   workflow_dispatch:
 permissions:
   contents: read
@@ -149,6 +152,22 @@ jobs:
           echo "ULTTTT_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
           echo "ULTTTT_BUILD=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
 
+      - name: Correct version in the generated Info.plist before archive
+        working-directory: ultttt
+        run: |
+          set -euo pipefail
+          plist=UltimateTTTApp/Info.plist
+          test -f "$plist"
+          # XcodeGen emits CFBundleVersion as a literal. xcodebuild setting
+          # overrides do not alter this already-generated plist.
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $ULTTTT_BUILD" "$plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $ULTTTT_VERSION" "$plist"
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$plist" || \
+            /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$plist"
+          echo "Generated Info.plist build: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")"
+          echo "Generated Info.plist version: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "$ULTTTT_BUILD"
+
       - name: Archive with Apple-managed signing
         working-directory: ultttt
         env:
@@ -182,8 +201,12 @@ jobs:
           test -f "$plist"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = "com.killjoy00.ultttt"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = "$ULTTTT_VERSION"
+          echo "Archive CFBundleIdentifier: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")"
+          echo "Archive CFBundleShortVersionString: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")"
+          echo "Archive CFBundleVersion: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "$ULTTTT_BUILD"
           test "$(/usr/libexec/PlistBuddy -c 'Print :GADApplicationIdentifier' "$plist")" = "ca-app-pub-3940256099942544~1458002511"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' "$plist")" = false
           codesign --verify --deep --strict "$app"
           echo "Signed, pinned iOS archive identity verified."
 
@@ -223,7 +246,7 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             2>&1 | tee "$RUNNER_TEMP/ultttt-upload.log" | xcbeautify
-          echo "Ultimate Tic/Tac/Toe uploaded to Apple; TestFlight processing may continue."
+          echo "TestFlight upload command completed for version $ULTTTT_VERSION build $ULTTTT_BUILD; Apple processing may continue."
 
       - name: Report TestFlight upload
         if: success()
