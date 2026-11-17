@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "5efff80088329ab6ad93582fb5d8b3dd088835f6",
-  "version": "0.9.6",
+  "sha": "a8783f2d8b900bea6ff1951250738bcce63ab0ed",
+  "version": "1.0",
   "destination": "TestFlight",
-  "purpose": "Private TestFlight sandbox build for verified $1.99 Remove Ads non-consumable, Restore Purchases, and Google sample test banners. Includes merged PR #29. No live ads or public App Store submission.",
-  "attempt": 21,
-  "reason": "User requested fully configuring Remove Ads including screenshot. App Store Connect non-consumable com.rsm.starrun.remove_ads (ID 6835610167) is READY_TO_SUBMIT, price $1.99, Apple review screenshot COMPLETE and review note set. PR #29 merged into main; premerge 9/9 playable and unsigned iPhone build passed. TestFlight upload only, for on-device Apple sandbox QA, consent and restore validation. data/admob.json test_mode=true; live ad serving prohibited. Preserve existing bundle, signing, Game Center app identity. No public release or IAP submission."
+  "purpose": "Private TestFlight build for initial public App Store review candidate: free Star/Run, no ad SDK, no Google sample or live banners, and no Remove Ads IAP offer. Source is merged StarRun PR #31, with both playable and iPhone compile CI passing. Do not submit publicly until device testing and Apple metadata/privacy review.",
+  "attempt": 22,
+  "reason": "Prepare Apple App Store 1.0 draft release candidate so publisher can select the correct build instead of outdated 0.9.5 (1020). AdMob approval requires public app listing; 1.0 launches without ads or paid Remove Ads. Later update can enable reviewed ads and submit the already-created $1.99 non-consumable alongside that app version. No public submission, no live ads, no changes to Apple keys/identifiers."
 }
