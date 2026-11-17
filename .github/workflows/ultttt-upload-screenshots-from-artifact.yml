@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/ultttt-upload-screenshots-from-artifact.yml"
+      - "Scripts/upload_ultttt_screenshots.py"
   workflow_dispatch:
 permissions:
   actions: read
