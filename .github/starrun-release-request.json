@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "1509dcad9092cf9a2d4660886bfecb121662df64",
+  "sha": "52f0daf6467744e37f2e5c7c30bcbf7d322d4a55",
   "version": "1.1",
   "destination": "TestFlight",
-  "purpose": "Private TestFlight release candidate for the first App Store review: Star/Run 1.1 with clear heavy-beam source/cancellation cues, Prism lance reliability fix, and modestly faster enemy ordinary projectile volleys. Free and ad-free; no Google sample or live ads, no Remove Ads purchase offer. Source is merged PR #34 plus documentation/CI cleanup. Green native iPhone build, playable suite and 108-trial paired balance review. Not an automatic public App Store submission.",
-  "attempt": 23,
-  "reason": "User explicitly requested 1.1 and slightly more enemy gunfire while reviewing balance. Matched study retained 4/18 timed-policy complete-campaign victories across six representative configurations, unchanged from baseline; fixed World 1 timing remains meaningful. Queue signed 1.1 for physical iPhone TestFlight QA, replacing the obsolete 1.0 candidate. Do not enable AdMob live ads or submit to App Review automatically. Keep existing shared Apple credentials and Game Center identifiers."
+  "purpose": "Updated private Star/Run 1.1 TestFlight release candidate with five-part balance pass (merged PR #35): rewarding precise Aegis/Flak/Jammer timing, rank-two Hangar sustain, legal fusion-partner drafts, reduced secondary simultaneous beam hit damage, and threat/boss diagnostics. Existing red-beam cancellation clarity and more enemy gunfire retained. Free and ad-free, no public review submission. PR passed all 1,588 simulation assertions, 6 ship campaign smoke checks, genuine Normal four-world completion, 14-job paired route/progression study and unsigned iPhone build. No ads or IAP offer.",
+  "attempt": 24,
+  "reason": "User requested implementing all five Star/Run balance followups before first approval. This supersedes prior 1.1 source but stays at 1.1 with a new build number. Pair study showed no consistent route dominance, so route constants unchanged; maxed-out late-boss phase pacing tracked in issue #36 instead of introducing hidden invulnerability. Sign and upload via shared existing Apple keys. Do not submit to public App Review, enable ads, or make paid Remove Ads available."
 }
