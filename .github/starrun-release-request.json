@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "913713b2bd6bd2c144cd50ff6be180667f4a6064",
-  "version": "1.2",
+  "sha": "a685a9dccc9575f016216820748c4616c6631d3d",
+  "version": "1.3",
   "destination": "TestFlight",
-  "purpose": "Private Star/Run 1.2 TestFlight candidate from merged PR #37. Harder bosses that scale more steeply than regular enemies with difficulty (boss cores and modules, projectiles); future Hangar rank costs compounded by another 10%; five extended maximum ranks; optional Breach Sensors and Point Defense tracks. Existing 1.1 red charging-beam clarity and gameplay fixes preserved. Free and ad-free; no Google sample/live ads, no Remove Ads purchase offer, and no automatic public App Store submission. All gameplay and iPhone CI checks green, 1,757 deterministic assertions with no failures, seven paired 1.1-versus-1.2 balance study jobs passed.",
-  "attempt": 25,
-  "reason": "User explicitly requested tougher bosses, steeper boss difficulty scaling, another 10% Hangar price increase, extra ranks, and review of new Hangar upgrade choices. Reviewed and merged PR #37 as version 1.2 after verifying unupgraded Normal and mid/max Hard/Insane balance, genuine Normal four-world completion, 9/21 matched baseline wins vs 9/21 candidate wins, 1,757 unit/regression assertions, screen/UI checks and unsigned iPhone build. Only queue private signed TestFlight with existing Apple credentials. Do not submit to App Review, enable live ads or offer ad removal until reviewed and authorized."
+  "purpose": "Private Star/Run 1.3 TestFlight release candidate from merged PR #39. In Worlds 2+, selected slower ordinary ranged enemies have 12-25% more health by stage/difficulty and shoot their opening volley sooner (0.95-1.80s World 2, 0.85-1.65s later), firing only when at the visible top edge. Repeated fire cadence, enemy spawns, XP, bosses and all World 1 gameplay unchanged. Keeps 1.1 beam clarity and 1.2 boss/Hangar balance. Free and ad-free; no sample/live ads, no Remove Ads purchase, and no public App Store submission. All four paired pressure studies green, 1,966 full simulation assertions with zero failures, six ship campaign checks, genuine Normal four-world completion, UI screenshots and unsigned iPhone build green.",
+  "attempt": 26,
+  "reason": "User approved combining the selective shooter HP increase with shorter opening-shot windups. After correcting an overly conservative offscreen first-shot hold, matched real combat showed +5% to +49% visible later-world enemy bullets across four ship/difficulty groups, with total 5/12 full-campaign completions unchanged. Merged PR #39 only after full CI was green. Queue version 1.3 from the final merged+README commit using existing Apple signing keys; leave public app review, AdMob monetization and IAP unchanged."
 }
