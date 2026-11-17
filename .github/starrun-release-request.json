@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "52f0daf6467744e37f2e5c7c30bcbf7d322d4a55",
-  "version": "1.1",
+  "sha": "913713b2bd6bd2c144cd50ff6be180667f4a6064",
+  "version": "1.2",
   "destination": "TestFlight",
-  "purpose": "Updated private Star/Run 1.1 TestFlight release candidate with five-part balance pass (merged PR #35): rewarding precise Aegis/Flak/Jammer timing, rank-two Hangar sustain, legal fusion-partner drafts, reduced secondary simultaneous beam hit damage, and threat/boss diagnostics. Existing red-beam cancellation clarity and more enemy gunfire retained. Free and ad-free, no public review submission. PR passed all 1,588 simulation assertions, 6 ship campaign smoke checks, genuine Normal four-world completion, 14-job paired route/progression study and unsigned iPhone build. No ads or IAP offer.",
-  "attempt": 24,
-  "reason": "User requested implementing all five Star/Run balance followups before first approval. This supersedes prior 1.1 source but stays at 1.1 with a new build number. Pair study showed no consistent route dominance, so route constants unchanged; maxed-out late-boss phase pacing tracked in issue #36 instead of introducing hidden invulnerability. Sign and upload via shared existing Apple keys. Do not submit to public App Review, enable ads, or make paid Remove Ads available."
+  "purpose": "Private Star/Run 1.2 TestFlight candidate from merged PR #37. Harder bosses that scale more steeply than regular enemies with difficulty (boss cores and modules, projectiles); future Hangar rank costs compounded by another 10%; five extended maximum ranks; optional Breach Sensors and Point Defense tracks. Existing 1.1 red charging-beam clarity and gameplay fixes preserved. Free and ad-free; no Google sample/live ads, no Remove Ads purchase offer, and no automatic public App Store submission. All gameplay and iPhone CI checks green, 1,757 deterministic assertions with no failures, seven paired 1.1-versus-1.2 balance study jobs passed.",
+  "attempt": 25,
+  "reason": "User explicitly requested tougher bosses, steeper boss difficulty scaling, another 10% Hangar price increase, extra ranks, and review of new Hangar upgrade choices. Reviewed and merged PR #37 as version 1.2 after verifying unupgraded Normal and mid/max Hard/Insane balance, genuine Normal four-world completion, 9/21 matched baseline wins vs 9/21 candidate wins, 1,757 unit/regression assertions, screen/UI checks and unsigned iPhone build. Only queue private signed TestFlight with existing Apple credentials. Do not submit to App Review, enable live ads or offer ad removal until reviewed and authorized."
 }
