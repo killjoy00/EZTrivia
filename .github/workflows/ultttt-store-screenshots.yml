@@ -146,8 +146,8 @@ jobs:
           }
           xcrun simctl list devices booted || true
           run_with_timeout 75 xcrun simctl boot "$UDID" || echo "Boot request already handled or was slow"
-          if ! run_with_timeout 240 xcrun simctl bootstatus "$UDID" -b; then
-            echo "::error::Simulator failed to boot within four minutes"
+          if ! run_with_timeout 600 xcrun simctl bootstatus "$UDID" -b; then
+            echo "::error::Simulator failed to boot within ten minutes"
             xcrun simctl list devices || true
             exit 1
           fi
@@ -160,9 +160,9 @@ jobs:
             theme="$2"
             run_with_timeout 15 xcrun simctl terminate "$UDID" com.killjoy00.ultttt || true
             run_with_timeout 30 xcrun simctl ui "$UDID" appearance "$theme"
-            run_with_timeout 60 xcrun simctl launch "$UDID" com.killjoy00.ultttt -UltimateStoreScreenshot "$scene"
+            run_with_timeout 120 xcrun simctl launch "$UDID" com.killjoy00.ultttt -UltimateStoreScreenshot "$scene"
             sleep 5
-            run_with_timeout 60 xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/ultttt-raw/$scene.png"
+            run_with_timeout 150 xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/ultttt-raw/$scene.png"
             echo "Captured real SwiftUI view: $scene"
           }
           capture board light
