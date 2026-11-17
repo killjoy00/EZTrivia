@@ -135,15 +135,21 @@ out_dir.mkdir(parents=True,exist_ok=True)
 pending=[]
 hashes=set()
 for input_name,slug in SELECTION:
-    src=source_dir/(input_name+".png")
+    # The compositor saves marketing artwork under its final App Store name.
+    # Also accept raw SwiftUI captures for backwards-compatible inspection.
+    src=source_dir/("ultttt-"+slug+".png")
     if not src.is_file():
-        raise RuntimeError("Missing captured Godot UI screenshot "+input_name)
+        src=source_dir/(input_name+".png")
+    if not src.is_file():
+        raise RuntimeError("Missing actual SwiftUI screenshot "+input_name)
     with Image.open(src) as im:
         if im.size!=(1290,2796):
             raise RuntimeError("Unexpected source screen dimensions "+str(im.size))
         image=im.convert("RGB")
     output=out_dir/("ultttt-"+slug+".png")
-    image.save(output,format="PNG",optimize=True)
+    if src.resolve()!=output.resolve():
+        image.save(output,format="PNG",optimize=True)
+    # When the source is the final export, keep its exact reviewed bytes.
     digest=hashlib.sha256(output.read_bytes()).hexdigest()
     if digest in hashes:
         raise RuntimeError("Duplicate screenshot pixels detected: "+slug)
