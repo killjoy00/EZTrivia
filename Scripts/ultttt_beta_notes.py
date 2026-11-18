@@ -71,12 +71,21 @@ def stage(name,fn):
         print("::error::"+name+": "+str(exc))
 
 def testflight_metadata():
-    builds=data("/v1/builds",{"filter[app]":APP_ID,"sort":"-uploadedDate","limit":40})
-    build=next((x for x in builds if x["attributes"].get("version")==BUILD),None)
-    if not build:
-        raise RuntimeError("No registered TestFlight build "+BUILD)
-    if build["attributes"].get("processingState")!="VALID":
-        raise RuntimeError("TestFlight build is not VALID; refusing to set beta metadata")
+    # Apple's build processing can continue after a successful Xcode upload.
+    # Wait for the exact version rather than wrongly editing the prior build.
+    build=None
+    for attempt in range(48):
+        builds=data("/v1/builds",{"filter[app]":APP_ID,"sort":"-uploadedDate","limit":40})
+        build=next((x for x in builds if x["attributes"].get("version")==BUILD),None)
+        state=build["attributes"].get("processingState") if build else "NOT_LISTED_YET"
+        print(f"Apple build {BUILD}: {state} (check {attempt+1}/48)",flush=True)
+        if state=="VALID":
+            break
+        if state in ("INVALID","FAILED"):
+            raise RuntimeError("Apple rejected TestFlight build "+BUILD+": "+str(state))
+        time.sleep(15)
+    if not build or build["attributes"].get("processingState")!="VALID":
+        raise RuntimeError("Apple has not finished processing build "+BUILD+"; no beta metadata changed")
     bid=build["id"]
     print("Confirmed VALID iOS build",BUILD,"Apple build ID",bid)
     current=data(f"/v1/builds/{bid}/betaBuildLocalizations",{"limit":20})
