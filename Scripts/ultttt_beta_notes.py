@@ -16,7 +16,7 @@ APP_ID="6835609349"
 BUNDLE="com.killjoy00.ultttt"
 NAME="Ultimate Tic/Tac/Toe"
 IAP="com.killjoy00.ultttt.remove_ads"
-BUILD="100006"
+BUILD="100007"
 BASE="https://api.appstoreconnect.apple.com"
 key=os.environ["ASC_KEY_P8"].replace("\r","").strip()
 if "BEGIN PRIVATE KEY" not in key:
@@ -71,24 +71,35 @@ def stage(name,fn):
         print("::error::"+name+": "+str(exc))
 
 def testflight_metadata():
-    builds=data("/v1/builds",{"filter[app]":APP_ID,"sort":"-uploadedDate","limit":40})
-    build=next((x for x in builds if x["attributes"].get("version")==BUILD),None)
-    if not build:
-        raise RuntimeError("No registered TestFlight build "+BUILD)
-    if build["attributes"].get("processingState")!="VALID":
-        raise RuntimeError("TestFlight build is not VALID; refusing to set beta metadata")
+    # Apple's build processing can continue after a successful Xcode upload.
+    # Wait for the exact version rather than wrongly editing the prior build.
+    build=None
+    for attempt in range(48):
+        builds=data("/v1/builds",{"filter[app]":APP_ID,"sort":"-uploadedDate","limit":40})
+        build=next((x for x in builds if x["attributes"].get("version")==BUILD),None)
+        state=build["attributes"].get("processingState") if build else "NOT_LISTED_YET"
+        print(f"Apple build {BUILD}: {state} (check {attempt+1}/48)",flush=True)
+        if state=="VALID":
+            break
+        if state in ("INVALID","FAILED"):
+            raise RuntimeError("Apple rejected TestFlight build "+BUILD+": "+str(state))
+        time.sleep(15)
+    if not build or build["attributes"].get("processingState")!="VALID":
+        raise RuntimeError("Apple has not finished processing build "+BUILD+"; no beta metadata changed")
     bid=build["id"]
     print("Confirmed VALID iOS build",BUILD,"Apple build ID",bid)
     current=data(f"/v1/builds/{bid}/betaBuildLocalizations",{"limit":20})
     en=next((x for x in current if x["attributes"].get("locale")=="en-US"),None)
     what=(
-      "Please test the interactive tutorial and make moves on the highlighted "
-      "board. Try Easy, Medium and Hard computer opponents, then local two-player "
-      "mode. If possible, try an online Game Center match with a second tester, "
-      "including turn handoffs and rematch. Check game replays, statistics and "
-      "light/dark settings. The $1.99 Remove Ads purchase is a non-consumable; "
-      "sandbox purchases should remove banner ads and Restore Purchases should "
-      "restore access. Use TestFlight to report any confusing behavior or crashes."
+      "NEW: On first launch, choose Show me how or Skip tutorial. Check that "
+      "Skip takes you straight to the game and that the welcome screen does "
+      "not reappear after relaunch. From More > Interactive tutorial, run "
+      "all three lessons: place X anywhere, place O in its highlighted forced "
+      "board, then choose an open board when the center is won. Finish and "
+      "confirm the live game and stats remain untouched. Try dark mode, "
+      "VoiceOver and Reduce Motion. Also test AI difficulties, Game Center "
+      "turns/rematches, $1.99 sandbox Remove Ads and Restore Purchases. "
+      "Please report any confusing behavior or crashes through TestFlight."
     )
     if en:
         if en["attributes"].get("whatsNew")!=what:
