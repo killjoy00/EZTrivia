@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "8bcd85914fafa60c69856bbb2d41d142591abfde",
+  "sha": "6c58aff03bb0729ff180941392b94836829da128",
   "version": "1.3",
   "destination": "TestFlight",
-  "purpose": "Private iPhone TestFlight playtesting of Star/Run build-synergy overhaul (#60): all six passive engines, eight rank-5 weapon evolutions, explicit Fuse/Keep choices, build-aware draft hands, pilot/Prototype/route synergies and 3x readability. No public App Store submission.",
-  "attempt": 31,
-  "reason": "PR #61 and PR #62 merged to StarRun main; post-merge Playable build and unsigned iPhone build succeeded at immutable commit 8bcd859. PR #62 validation includes 72 mechanics checks, 620 mobile UI checks, 2250 gameplay assertions, real campaign and Archive victories, 6 zero-cast build identities, and boss phase and reliability checks. Authorized private TestFlight device QA."
+  "purpose": "Private iPhone TestFlight build for Star/Run merged build-payoff & clarity PR #63: observed engine impact recap; rate-limited 3x-friendly evolution payoff cues; compact rank-5 specialization roles and truthful fusion rank; six-ship World 2-4 payoff validation. No public App Store submission.",
+  "attempt": 32,
+  "reason": "PR #63 squash merged to StarRun main at 6c58aff. Exact reviewed PR head e405c1c passed Playable build (2,250 simulation assertions, 628 phone UI, 126 visual, 115 fusion, 47 touch, real 4-world win), 1,234 payoff matrix checks, zero-cast build suite, boss and reliability suites, and unsigned iPhone compilation. Only private TestFlight device QA requested."
 }
