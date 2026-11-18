@@ -128,7 +128,7 @@ def testflight_metadata():
     attrs={
        "description":"A twist on tic tac toe: nine connected boards, computer opponents, pass-and-play and Game Center turn-based matches.",
        "marketingUrl":"https://killjoy00.github.io/Ultttt/",
-       "privacyPolicyUrl":"https://github.com/killjoy00/Ultttt/blob/main/PRIVACY.md"
+       "privacyPolicyUrl":"https://killjoy00.github.io/Ultttt/privacy/"
     }
     if loc:
         changed={k:v for k,v in attrs.items() if loc["attributes"].get(k)!=v}
