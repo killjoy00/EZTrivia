@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "4a144f89cc6af0cccc7d8d99f761c14f9bf71533",
+  "sha": "8bcd85914fafa60c69856bbb2d41d142591abfde",
   "version": "1.3",
   "destination": "TestFlight",
-  "purpose": "Private iPhone playtesting for StarRun 1.3 after PR #59: improved World 2-4 encounter pacing, real mutation and boss-phase visual feedback, restrained audio/haptics, clearer upgrade cards, and observational build-identity tests. No public App Store submission.",
-  "attempt": 30,
-  "reason": "PR #59 was squash-merged into StarRun main and its exact head passed Playable build (8/8), iPhone unsigned build (1/1), boss-phase review (8/8), iPhone reliability audit (11/11), and excitement/build-identity contracts (7/7). Reviewed merged source pinned here for an automated private TestFlight upload."
+  "purpose": "Private iPhone TestFlight playtesting of Star/Run build-synergy overhaul (#60): all six passive engines, eight rank-5 weapon evolutions, explicit Fuse/Keep choices, build-aware draft hands, pilot/Prototype/route synergies and 3x readability. No public App Store submission.",
+  "attempt": 31,
+  "reason": "PR #61 and PR #62 merged to StarRun main; post-merge Playable build and unsigned iPhone build succeeded at immutable commit 8bcd859. PR #62 validation includes 72 mechanics checks, 620 mobile UI checks, 2250 gameplay assertions, real campaign and Archive victories, 6 zero-cast build identities, and boss phase and reliability checks. Authorized private TestFlight device QA."
 }
