@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "c16257919b6470759118bb63710d03b8140dfe2d",
+  "sha": "4a144f89cc6af0cccc7d8d99f761c14f9bf71533",
   "version": "1.3",
   "destination": "TestFlight",
-  "purpose": "Private iPhone balance/feature QA for Star/Run 1.3 (1029). Includes reviewed PR #56: significantly increased damage for all five bosses, a responsive three-phase Custodian without 32 seconds of forced rearm, extra dodgeable phase surges, checkpoint restore isolation, tested daily behavior, mutations, Quartermaster and Silent Archive. Does not submit a public App Store release or change monetization.",
-  "attempt": 29,
-  "reason": "User explicitly requested boss-damage escalation and no artificial Custodian waits before the next TestFlight. The source merged after the final PR head passed 2,234 simulation assertions, all six campaign smoke jobs, genuine four-world and Silent Archive completion, all eight cross-ship Archive CI jobs, 60 direct boss checks, 602 UI checks and unsigned iPhone/Web/Windows/Linux exports. This immutable commit matches the approved change."
+  "purpose": "Private iPhone playtesting for StarRun 1.3 after PR #59: improved World 2-4 encounter pacing, real mutation and boss-phase visual feedback, restrained audio/haptics, clearer upgrade cards, and observational build-identity tests. No public App Store submission.",
+  "attempt": 30,
+  "reason": "PR #59 was squash-merged into StarRun main and its exact head passed Playable build (8/8), iPhone unsigned build (1/1), boss-phase review (8/8), iPhone reliability audit (11/11), and excitement/build-identity contracts (7/7). Reviewed merged source pinned here for an automated private TestFlight upload."
 }
