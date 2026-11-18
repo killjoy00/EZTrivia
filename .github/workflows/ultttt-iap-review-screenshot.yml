@@ -98,12 +98,12 @@ jobs:
           }
           bounded 90 xcrun simctl boot "$UDID" || true
           bounded 650 xcrun simctl bootstatus "$UDID" -b
-          bounded 95 xcrun simctl install "$UDID" \
+          bounded 360 xcrun simctl install "$UDID" \
             "$RUNNER_TEMP/ultttt-dd/Build/Products/Debug-iphonesimulator/UltimateTTT.app"
-          bounded 120 xcrun simctl launch "$UDID" com.killjoy00.ultttt \
+          bounded 180 xcrun simctl launch "$UDID" com.killjoy00.ultttt \
             -UltimateStoreScreenshot iap
           sleep 9
-          bounded 120 xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/iap-review/raw-iap.png"
+          bounded 180 xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/iap-review/raw-iap.png"
 
       - name: Verify Apple-compliant screenshot file
         run: |
