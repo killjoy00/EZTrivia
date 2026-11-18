@@ -2,8 +2,8 @@
   "repository": "killjoy00/Ultttt",
   "bundleID": "com.killjoy00.ultttt",
   "appName": "Ultimate Tic/Tac/Toe",
-  "sha": "1e377d6b3660a7afcbb9bb7d0bdc296556e4ed9f",
+  "sha": "c1bbef0fa2a7174d40c84b653f844bf2a6f5a048",
   "version": "1.0",
   "target": "testflight",
-  "note": "Optional first-launch tutorial, skip and replay, real engine practice"
+  "note": "Stronger X/O claimed-board contrast, active destination highlight, light/dark QA"
 }
