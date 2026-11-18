@@ -2,8 +2,8 @@
   "repository": "killjoy00/Ultttt",
   "bundleID": "com.killjoy00.ultttt",
   "appName": "Ultimate Tic/Tac/Toe",
-  "sha": "c1bbef0fa2a7174d40c84b653f844bf2a6f5a048",
+  "sha": "241a6c6075307038f4749f250d051b260d871dfd",
   "version": "1.0",
   "target": "testflight",
-  "note": "Stronger X/O claimed-board contrast, active destination highlight, light/dark QA"
+  "note": "Board readability: won boards use fill only; active destination is outlined. Submitted for physical QA before next App Review."
 }
