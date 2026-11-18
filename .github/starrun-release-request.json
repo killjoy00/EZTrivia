@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "a685a9dccc9575f016216820748c4616c6631d3d",
+  "sha": "0a16b2340347a328a2792103c980aa04dc7d10b1",
   "version": "1.3",
   "destination": "TestFlight",
-  "purpose": "Private Star/Run 1.3 TestFlight release candidate from merged PR #39. In Worlds 2+, selected slower ordinary ranged enemies have 12-25% more health by stage/difficulty and shoot their opening volley sooner (0.95-1.80s World 2, 0.85-1.65s later), firing only when at the visible top edge. Repeated fire cadence, enemy spawns, XP, bosses and all World 1 gameplay unchanged. Keeps 1.1 beam clarity and 1.2 boss/Hangar balance. Free and ad-free; no sample/live ads, no Remove Ads purchase, and no public App Store submission. All four paired pressure studies green, 1,966 full simulation assertions with zero failures, six ship campaign checks, genuine Normal four-world completion, UI screenshots and unsigned iPhone build green.",
-  "attempt": 26,
-  "reason": "User approved combining the selective shooter HP increase with shorter opening-shot windups. After correcting an overly conservative offscreen first-shot hold, matched real combat showed +5% to +49% visible later-world enemy bullets across four ship/difficulty groups, with total 5/12 full-campaign completions unchanged. Merged PR #39 only after full CI was green. Queue version 1.3 from the final merged+README commit using existing Apple signing keys; leave public app review, AdMob monetization and IAP unchanged."
+  "purpose": "Private physical-device acceptance build of merged Star/Run PR #50: deliberate World 1 first thirty seconds, all eight real weapon mutations, and the optional traveling Quartermaster. Also includes the earlier rival and Silent Archive work. No gameplay balance changes from pre-TestFlight PR #52's test-only audit. No ads, IAP changes, public App Store submission or version bump.",
+  "attempt": 27,
+  "reason": "Owner requested a pre-TestFlight balance pass before physical playtesting. Merged StarRun main SHA 0a16b23 passed 2,192 simulation assertions, 602 UI checks, 126 screenshots, six full campaigns, a genuine four-world victory and unsigned iPhone compile. Expanded pre-TestFlight automated World 1 and merchant bot audits found no confirmed blocker; corrected eight-mutation comparisons run green across Vanguard, Wraith and Arcwing. Package this immutable merged SHA with existing shared Apple signing credentials for private TestFlight testers only."
 }
