@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "56e086a2653adea224ef643dc65b580e74074ab2",
+  "sha": "c16257919b6470759118bb63710d03b8140dfe2d",
   "version": "1.3",
   "destination": "TestFlight",
-  "purpose": "Private physical-device QA replacement for 1.3 (1027). Includes previously merged PRs #39, #40, #41, #46, #47, #48 (Silent Archive), #50 (World 1 opener, 8 mutations and Quartermaster), plus PR #53 Daily challenge timing/crowd isolation and PR #52 test-only audits. No public App Store submission or change to ads/IAP. Remains marketing version 1.3.",
-  "attempt": 28,
-  "reason": "Post-merge code review identified PR #46 unintentionally affecting UTC Daily first-formation timing, non-reward director waves, and World 1 cap. Fix #53 merged after fully green playable and iPhone workflows, including 2,222 simulation assertions, 602 UI checks, 126 screenshots, genuine four-world/Archive completion, six ship campaigns and multi-platform exports. Upload immutable fix SHA 56e086a as a new private TestFlight build for the physical Silent Archive and all-features playtest."
+  "purpose": "Private iPhone balance/feature QA for Star/Run 1.3 (1029). Includes reviewed PR #56: significantly increased damage for all five bosses, a responsive three-phase Custodian without 32 seconds of forced rearm, extra dodgeable phase surges, checkpoint restore isolation, tested daily behavior, mutations, Quartermaster and Silent Archive. Does not submit a public App Store release or change monetization.",
+  "attempt": 29,
+  "reason": "User explicitly requested boss-damage escalation and no artificial Custodian waits before the next TestFlight. The source merged after the final PR head passed 2,234 simulation assertions, all six campaign smoke jobs, genuine four-world and Silent Archive completion, all eight cross-ship Archive CI jobs, 60 direct boss checks, 602 UI checks and unsigned iPhone/Web/Windows/Linux exports. This immutable commit matches the approved change."
 }
