@@ -1,0 +1,33 @@
+name: Ultttt publish privacy, privacy choices and support links to Apple
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ultttt-store-links.yml"
+      - "Scripts/ultttt_store_links.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  update-apple-links:
+    name: Verify published pages and save exact URLs to App Store Connect
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare Apple API client
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/ultttt-asc"
+          "$RUNNER_TEMP/ultttt-asc/bin/python" -m pip install --quiet requests 'PyJWT[crypto]'
+      - name: Verify public pages and update app privacy/support URLs
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID" && test -n "$ASC_ISSUER_ID" && test -n "$ASC_KEY_P8"
+          "$RUNNER_TEMP/ultttt-asc/bin/python" Scripts/ultttt_store_links.py
