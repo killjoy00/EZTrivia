@@ -1,0 +1,140 @@
+name: Inspect Remove Ads Price
+
+on:
+  push:
+    branches:
+      - android-launch-console-setup-3
+    paths:
+      - .github/workflows/inspect-remove-ads-price.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Normalise App Store Connect key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID"
+          test -n "$ASC_KEY_P8"
+          mkdir -p "$HOME/private_keys"
+          key="$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          if ! grep -q 'BEGIN' "$key" && grep -q '\\n' "$key"; then
+            printf '%b' "$(cat "$key")" > "$key.tmp" && mv "$key.tmp" "$key"
+          fi
+          if ! grep -q 'BEGIN' "$key" && base64 -d < "$key" > "$key.tmp" 2>/dev/null; then
+            if grep -q 'BEGIN' "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi
+          fi
+          if ! grep -q 'BEGIN' "$key"; then
+            body=$(tr -d '\n\r ' < "$key")
+            { echo '-----BEGIN PRIVATE KEY-----'; echo "$body" | fold -w 64; echo '-----END PRIVATE KEY-----'; } > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          chmod 600 "$key"
+          openssl pkey -in "$key" -noout
+
+      - name: Install dependencies
+        run: pip install --quiet "pyjwt[crypto]" requests
+
+      - name: Inspect iOS Remove Ads product and current US price
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          python3 <<'PY'
+          import json, os, sys, time
+          import jwt, requests
+
+          PRODUCT_ID = "com.rsm.eztrivia.removeads"
+          BUNDLE_ID = "com.rsm.eztrivia"
+          key_id = os.environ["ASC_KEY_ID"]
+          issuer = os.environ["ASC_ISSUER_ID"]
+          key_path = os.path.expanduser(f"~/private_keys/AuthKey_{key_id}.p8")
+          with open(key_path) as fh:
+              private_key = fh.read()
+          now = int(time.time())
+          token = jwt.encode(
+              {"iss": issuer, "iat": now, "exp": now + 1200, "aud": "appstoreconnect-v1"},
+              private_key,
+              algorithm="ES256",
+              headers={"kid": key_id},
+          )
+          headers = {"Authorization": f"Bearer {token}"}
+          base = "https://api.appstoreconnect.apple.com"
+
+          def get(path, params=None, allow=()):
+              r = requests.get(base + path, headers=headers, params=params or {}, timeout=30)
+              print(f"GET {path} -> {r.status_code}")
+              if r.status_code >= 300 and r.status_code not in allow:
+                  print(r.text[:1500])
+                  sys.exit(1)
+              try:
+                  return r.status_code, r.json()
+              except Exception:
+                  return r.status_code, {"raw": r.text[:1500]}
+
+          _, apps = get("/v1/apps", {"filter[bundleId]": BUNDLE_ID})
+          app_id = apps["data"][0]["id"]
+          _, iaps = get(
+              f"/v1/apps/{app_id}/inAppPurchasesV2",
+              {"filter[productId]": PRODUCT_ID, "limit": 50},
+          )
+          rows = [x for x in iaps.get("data", []) if x.get("attributes", {}).get("productId") == PRODUCT_ID]
+          if not rows:
+              print("::error::Remove Ads IAP not found in App Store Connect")
+              sys.exit(1)
+          iap = rows[0]
+          iap_id = iap["id"]
+          print("IAP:", iap_id, iap.get("attributes"))
+
+          _, schedule = get(
+              f"/v2/inAppPurchases/{iap_id}/iapPriceSchedule",
+              {
+                  "include": "baseTerritory,manualPrices,automaticPrices",
+                  "fields[inAppPurchasePrices]": "startDate,endDate,manual,inAppPurchasePricePoint,territory",
+                  "fields[territories]": "currency",
+                  "limit[manualPrices]": 50,
+                  "limit[automaticPrices]": 50,
+              },
+          )
+          print("PRICE_SCHEDULE_JSON=" + json.dumps(schedule, separators=(",", ":")))
+
+          _, manual = get(
+              f"/v1/inAppPurchasePriceSchedules/{iap_id}/manualPrices",
+              {
+                  "filter[territory]": "USA",
+                  "include": "inAppPurchasePricePoint,territory",
+                  "fields[inAppPurchasePricePoints]": "customerPrice,proceeds,territory",
+                  "fields[inAppPurchasePrices]": "startDate,endDate,manual,inAppPurchasePricePoint,territory",
+                  "fields[territories]": "currency",
+                  "limit": 200,
+              },
+          )
+          print("US_MANUAL_PRICE_JSON=" + json.dumps(manual, separators=(",", ":")))
+
+          # If the base territory is USA the current price is usually a manual
+          # entry. Otherwise inspect auto-generated USA pricing as well.
+          _, automatic = get(
+              f"/v1/inAppPurchasePriceSchedules/{iap_id}/automaticPrices",
+              {
+                  "filter[territory]": "USA",
+                  "include": "inAppPurchasePricePoint,territory",
+                  "fields[inAppPurchasePricePoints]": "customerPrice,proceeds,territory",
+                  "fields[inAppPurchasePrices]": "startDate,endDate,manual,inAppPurchasePricePoint,territory",
+                  "fields[territories]": "currency",
+                  "limit": 200,
+              },
+          )
+          print("US_AUTOMATIC_PRICE_JSON=" + json.dumps(automatic, separators=(",", ":")))
+          PY
