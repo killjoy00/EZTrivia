@@ -1,0 +1,131 @@
+name: Android Play v2 smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Launch exact Play-generated v2 APK
+    runs-on: macos-15-intel
+    timeout-minutes: 20
+    env:
+      PACKAGE_NAME: com.rsm.eztrivia
+      VERSION_CODE: "2"
+
+    steps:
+      - name: Authenticate to Google Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Download exact Play-generated v2 universal APK
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/generatedApks/${VERSION_CODE}"
+          metadata="$RUNNER_TEMP/generated-apks-v2.json"
+
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Accept: application/json" \
+            "$base" > "$metadata"
+
+          signing_keys="$(jq '(.generatedApks // []) | length' "$metadata")"
+          download_id="$(jq -r '[.generatedApks[]?.generatedUniversalApk.downloadId // empty] | first // ""' "$metadata")"
+          certificate="$(jq -r '[.generatedApks[]? | select(.generatedUniversalApk.downloadId != null) | .certificateSha256Hash // ""] | first // ""' "$metadata")"
+
+          echo "Generated APK signing-key groups: ${signing_keys}"
+          echo "Play signing certificate SHA-256: ${certificate:-unknown}"
+
+          if [ -z "$download_id" ]; then
+            echo "::error::Google Play did not expose a universal APK for versionCode ${VERSION_CODE}."
+            jq '{generatedApks: [.generatedApks[]? | {certificateSha256Hash, splitCount: ((.generatedSplitApks // [])|length), standaloneCount: ((.generatedStandaloneApks // [])|length), hasUniversal: (.generatedUniversalApk != null)}]}' "$metadata"
+            exit 1
+          fi
+
+          apk="$RUNNER_TEMP/eztrivia-play-v2.apk"
+          curl --fail-with-body --silent --show-error \
+            -L \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            "${base}/downloads/${download_id}:download?alt=media" \
+            -o "$apk"
+
+          test -s "$apk"
+          bytes="$(wc -c < "$apk" | tr -d ' ')"
+          echo "Downloaded exact Play-generated v2 APK (${bytes} bytes)."
+
+          {
+            echo "## Exact Google Play v2 binary"
+            echo
+            echo "- versionCode: **${VERSION_CODE}**"
+            echo "- APK source: **Google Play Generated APKs API**"
+            echo "- Play signing certificate SHA-256: \`${certificate:-unknown}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive exact Play v2 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-exact-play-v2-apk
+          path: ${{ runner.temp }}/eztrivia-play-v2.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Launch exact Play v2 APK
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis_playstore
+          profile: pixel_6
+          script: |
+            set -eu
+            apk="$RUNNER_TEMP/eztrivia-play-v2.apk"
+            adb install -r -i com.android.vending "$apk"
+            adb logcat -c
+
+            set +e
+            launch_output="$(adb shell am start -W -n com.rsm.eztrivia/.MainActivity 2>&1)"
+            launch_status=$?
+            set -e
+            printf '%s\n' "$launch_output"
+
+            sleep 12
+            adb logcat -d -v threadtime > "$RUNNER_TEMP/play-v2-logcat.txt"
+            pid="$(adb shell pidof com.rsm.eztrivia | tr -d '\r')"
+
+            fatal=0
+            if grep -A140 -B50 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to start activity.*com\.rsm\.eztrivia|Unable to instantiate application.*com\.pairip|com\.pairip' "$RUNNER_TEMP/play-v2-logcat.txt" > "$RUNNER_TEMP/play-v2-fatal.txt"; then
+              fatal=1
+              cat "$RUNNER_TEMP/play-v2-fatal.txt"
+            fi
+
+            if [ "$launch_status" -ne 0 ] || [ -z "$pid" ] || [ "$fatal" -ne 0 ]; then
+              echo "::error::Exact Google Play v2 failed its startup smoke test."
+              if [ "$fatal" -eq 0 ]; then
+                tail -n 600 "$RUNNER_TEMP/play-v2-logcat.txt"
+              fi
+              exit 1
+            fi
+
+            if ! adb shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
+              echo "::error::Exact Google Play v2 process is alive but MainActivity is not active."
+              tail -n 600 "$RUNNER_TEMP/play-v2-logcat.txt"
+              exit 1
+            fi
+
+            echo "Exact Google Play v2 startup smoke test passed; process ${pid} is alive."
+            {
+              echo
+              echo "- Emulator startup result: **passed**"
+              echo "- Process after 12 seconds: **alive**"
+            } >> "$GITHUB_STEP_SUMMARY"

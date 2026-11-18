@@ -1,0 +1,358 @@
+name: Android Play v2 differential smoke
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/android-play-v2-differential-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  compare:
+    name: Compare exact protected vs unprotected v2 startup
+    runs-on: macos-26-intel
+    timeout-minutes: 20
+    env:
+      PACKAGE_NAME: com.rsm.eztrivia
+      VERSION_CODE: "2"
+      V2_ARTIFACT_ID: "10356030348"
+
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Authenticate to Google Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Download exact Google-protected v2 APK
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/generatedApks/${VERSION_CODE}"
+          metadata="$RUNNER_TEMP/generated-apks-v2.json"
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Accept: application/json" \
+            "$base" > "$metadata"
+
+          protected_id="$(jq -r '[.generatedApks[]?.generatedUniversalApk.downloadId // empty] | first // ""' "$metadata")"
+          test -n "$protected_id"
+          curl --fail-with-body --silent --show-error -L \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            "${base}/downloads/${protected_id}:download?alt=media" \
+            -o "$RUNNER_TEMP/v2-protected.apk"
+          test -s "$RUNNER_TEMP/v2-protected.apk"
+          shasum -a 256 "$RUNNER_TEMP/v2-protected.apk"
+
+      - name: Download exact original v2 AAB
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/v2-original.zip"
+          curl --fail-with-body --silent --show-error -L \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${V2_ARTIFACT_ID}/zip" \
+            -o "$zip"
+          mkdir -p "$RUNNER_TEMP/v2-original"
+          unzip -q "$zip" -d "$RUNNER_TEMP/v2-original"
+          aab="$RUNNER_TEMP/v2-original/bundle/release/app-release.aab"
+          test -s "$aab"
+          shasum -a 256 "$aab"
+
+      - name: Build exact v2 without Automatic Protection
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error -L \
+            "https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar" \
+            -o "$RUNNER_TEMP/bundletool.jar"
+
+          keytool -genkeypair \
+            -keystore "$RUNNER_TEMP/v2-smoke.jks" \
+            -storepass android \
+            -keypass android \
+            -alias smoke \
+            -dname "CN=EZ Trivia v2 Differential,O=EZ Trivia,C=US" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 30
+
+          java -jar "$RUNNER_TEMP/bundletool.jar" build-apks \
+            --bundle="$RUNNER_TEMP/v2-original/bundle/release/app-release.aab" \
+            --output="$RUNNER_TEMP/v2-unprotected.apks" \
+            --mode=universal \
+            --ks="$RUNNER_TEMP/v2-smoke.jks" \
+            --ks-key-alias=smoke \
+            --ks-pass=pass:android \
+            --key-pass=pass:android \
+            --overwrite
+          unzip -p "$RUNNER_TEMP/v2-unprotected.apks" universal.apk > "$RUNNER_TEMP/v2-unprotected.apk"
+          test -s "$RUNNER_TEMP/v2-unprotected.apk"
+          shasum -a 256 "$RUNNER_TEMP/v2-unprotected.apk"
+
+      - name: Resolve Android SDK tools and install emulator image
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+          sdkmanager_bin="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          avdmanager_bin="$sdk_root/cmdline-tools/latest/bin/avdmanager"
+
+          if [ ! -x "$sdkmanager_bin" ]; then
+            sdkmanager_bin="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager -perm -111 2>/dev/null | head -1)"
+          fi
+          if [ ! -x "$avdmanager_bin" ]; then
+            avdmanager_bin="$(find "$sdk_root/cmdline-tools" -type f -name avdmanager -perm -111 2>/dev/null | head -1)"
+          fi
+
+          if [ -z "$sdkmanager_bin" ] || [ ! -x "$sdkmanager_bin" ]; then
+            echo "::error::Could not resolve sdkmanager under $sdk_root."
+            find "$sdk_root" -maxdepth 4 -type f -name sdkmanager -print 2>/dev/null || true
+            exit 1
+          fi
+          if [ -z "$avdmanager_bin" ] || [ ! -x "$avdmanager_bin" ]; then
+            echo "::error::Could not resolve avdmanager under $sdk_root."
+            find "$sdk_root" -maxdepth 4 -type f -name avdmanager -print 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Using sdkmanager: $sdkmanager_bin"
+          echo "Using avdmanager: $avdmanager_bin"
+          printf 'SDK_ROOT=%s\nSDKMANAGER_BIN=%s\nAVDMANAGER_BIN=%s\n' \
+            "$sdk_root" "$sdkmanager_bin" "$avdmanager_bin" >> "$GITHUB_ENV"
+
+          yes | "$sdkmanager_bin" --licenses >/dev/null || true
+          "$sdkmanager_bin" --install \
+            'build-tools;37.0.0' \
+            platform-tools \
+            'platforms;android-35' \
+            emulator \
+            'system-images;android-35;google_apis_playstore;x86_64' >/dev/null
+
+          echo no | "$avdmanager_bin" create avd \
+            --force \
+            --name eztrivia-v2 \
+            --package 'system-images;android-35;google_apis_playstore;x86_64' \
+            --device pixel_6 >/dev/null
+
+          test -x "$sdk_root/platform-tools/adb"
+          test -x "$sdk_root/emulator/emulator"
+
+      - name: Run exact protected/unprotected startup comparison
+        id: compare
+        shell: bash
+        run: |
+          set -u
+          sdk_root="${SDK_ROOT:-${ANDROID_HOME:-$HOME/Library/Android/sdk}}"
+          adb_bin="$sdk_root/platform-tools/adb"
+          emulator_bin="$sdk_root/emulator/emulator"
+          emulator_log="$RUNNER_TEMP/emulator.log"
+          status_file="$RUNNER_TEMP/comparison-status.txt"
+
+          if [ ! -x "$adb_bin" ] || [ ! -x "$emulator_bin" ]; then
+            echo "::error::Resolved Android SDK is missing adb or emulator."
+            echo "INFRASTRUCTURE_FAIL" > "$status_file"
+            exit 0
+          fi
+
+          "$emulator_bin" \
+            -avd eztrivia-v2 \
+            -port 5554 \
+            -no-window \
+            -noaudio \
+            -no-boot-anim \
+            -no-snapshot \
+            -gpu swiftshader_indirect \
+            >"$emulator_log" 2>&1 &
+          emulator_pid=$!
+
+          cleanup() {
+            "$adb_bin" -s emulator-5554 emu kill >/dev/null 2>&1 || true
+            kill "$emulator_pid" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          "$adb_bin" start-server >/dev/null 2>&1 || true
+          booted=0
+          for attempt in $(seq 1 320); do
+            state="$("$adb_bin" -s emulator-5554 get-state 2>/dev/null || true)"
+            boot="$("$adb_bin" -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+            if [ "$state" = "device" ] && [ "$boot" = "1" ]; then
+              booted=1
+              break
+            fi
+            if ! kill -0 "$emulator_pid" >/dev/null 2>&1; then
+              echo "::error::Android emulator exited before boot completed."
+              tail -n 300 "$emulator_log" || true
+              echo "INFRASTRUCTURE_FAIL" > "$status_file"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          if [ "$booted" -ne 1 ]; then
+            echo "::error::Android emulator did not complete boot."
+            tail -n 300 "$emulator_log" || true
+            echo "INFRASTRUCTURE_FAIL" > "$status_file"
+            exit 0
+          fi
+
+          sleep 12
+          ready=0
+          for attempt in $(seq 1 30); do
+            if "$adb_bin" -s emulator-5554 shell pm path com.android.vending >/dev/null 2>&1 && \
+               "$adb_bin" -s emulator-5554 shell cmd package list packages >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::Emulator booted but Android services never became ready."
+            tail -n 300 "$emulator_log" || true
+            echo "INFRASTRUCTURE_FAIL" > "$status_file"
+            exit 0
+          fi
+
+          adbdev() {
+            "$adb_bin" -s emulator-5554 "$@"
+          }
+
+          capture_result() {
+            label="$1"
+            log="$RUNNER_TEMP/${label}.logcat"
+            sleep 10
+            adbdev logcat -d -v threadtime > "$log"
+            pid="$(adbdev shell pidof com.rsm.eztrivia 2>/dev/null | tr -d '\r' || true)"
+
+            if grep -q -E 'Process: com\.rsm\.eztrivia' "$log" || \
+               grep -q -E 'Unable to (instantiate|create|start).*(com\.pairip|com\.rsm\.eztrivia)' "$log"; then
+              grep -A180 -B80 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*(com\.pairip|com\.rsm\.eztrivia)' \
+                "$log" > "$RUNNER_TEMP/${label}.fatal" || true
+              echo "${label}=FATAL"
+              cat "$RUNNER_TEMP/${label}.fatal"
+              return 1
+            fi
+
+            if [ -z "$pid" ]; then
+              echo "${label}=PROCESS_DIED"
+              tail -n 700 "$log"
+              return 1
+            fi
+
+            if ! adbdev shell dumpsys activity activities | grep -Fq 'com.rsm.eztrivia/.MainActivity'; then
+              echo "${label}=PROCESS_ALIVE_MAIN_ACTIVITY_NOT_PRESENT pid=${pid}"
+              grep -E 'pairip|LicenseClient|LicenseCheck|AndroidRuntime|ActivityTaskManager|com\.rsm\.eztrivia' "$log" | tail -n 300 || true
+              return 2
+            fi
+
+            echo "${label}=ALIVE pid=${pid}"
+            return 0
+          }
+
+          echo '=== EXACT V2 WITHOUT AUTOMATIC PROTECTION ==='
+          if ! adbdev install -r "$RUNNER_TEMP/v2-unprotected.apk"; then
+            echo "UNPROTECTED_INSTALL_FAIL" > "$status_file"
+            exit 0
+          fi
+          adbdev logcat -c
+          adbdev shell am start -W -n com.rsm.eztrivia/.MainActivity > "$RUNNER_TEMP/unprotected-start.txt" 2>&1 || true
+          cat "$RUNNER_TEMP/unprotected-start.txt"
+          if capture_result unprotected; then unprotected_status=PASS; else unprotected_status=FAIL; fi
+          adbdev uninstall com.rsm.eztrivia >/dev/null 2>&1 || true
+          sleep 2
+
+          echo '=== EXACT GOOGLE-PROTECTED V2 ==='
+          if ! adbdev install -r -i com.android.vending "$RUNNER_TEMP/v2-protected.apk"; then
+            echo "PROTECTED_INSTALL_FAIL" > "$status_file"
+            exit 0
+          fi
+          adbdev logcat -c
+          adbdev shell am start -W -n com.rsm.eztrivia/.MainActivity > "$RUNNER_TEMP/protected-start.txt" 2>&1 || true
+          cat "$RUNNER_TEMP/protected-start.txt"
+          if capture_result protected; then protected_status=PASS; else protected_status=FAIL; fi
+
+          echo "unprotected_status=${unprotected_status}"
+          echo "protected_status=${protected_status}"
+          printf 'UNPROTECTED=%s\nPROTECTED=%s\n' "$unprotected_status" "$protected_status" > "$status_file"
+
+          {
+            echo '## Exact v2 protected/unprotected differential'
+            echo
+            echo "- Exact uploaded v2 without Automatic Protection: **${unprotected_status}**"
+            echo "- Exact Google-protected v2: **${protected_status}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive exact-v2 startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-v2-startup-differential
+          path: |
+            ${{ runner.temp }}/comparison-status.txt
+            ${{ runner.temp }}/emulator.log
+            ${{ runner.temp }}/*-start.txt
+            ${{ runner.temp }}/*.logcat
+            ${{ runner.temp }}/*.fatal
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Evaluate exact-v2 startup comparison
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          status_file="$RUNNER_TEMP/comparison-status.txt"
+          if [ ! -s "$status_file" ]; then
+            echo "::error::Comparison produced no status file."
+            exit 10
+          fi
+          cat "$status_file"
+
+          if grep -Fqx 'INFRASTRUCTURE_FAIL' "$status_file"; then
+            echo "::error::Emulator infrastructure failed before app comparison."
+            exit 11
+          fi
+          if grep -Fqx 'UNPROTECTED_INSTALL_FAIL' "$status_file"; then
+            echo "::error::The exact unprotected v2 APK could not be installed."
+            exit 12
+          fi
+          if grep -Fqx 'PROTECTED_INSTALL_FAIL' "$status_file"; then
+            echo "::error::The exact protected v2 APK could not be installed."
+            exit 13
+          fi
+
+          unprotected="$(sed -n 's/^UNPROTECTED=//p' "$status_file")"
+          protected="$(sed -n 's/^PROTECTED=//p' "$status_file")"
+          if [ "$unprotected" = PASS ] && [ "$protected" = PASS ]; then
+            echo 'Both exact v2 variants launched in this environment.'
+            exit 0
+          fi
+          if [ "$unprotected" = PASS ] && [ "$protected" = FAIL ]; then
+            echo 'The protected distribution path is the startup-breaking difference in this environment.'
+            exit 2
+          fi
+          if [ "$unprotected" = FAIL ]; then
+            echo 'The underlying exact v2 app also fails without Automatic Protection.'
+            exit 3
+          fi
+          echo 'Unexpected comparison result.'
+          exit 4

@@ -1,0 +1,116 @@
+name: Android Play v2 unprotected smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Launch Google-generated unprotected v2 splits
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PACKAGE_NAME: com.rsm.eztrivia
+      VERSION_CODE: "2"
+      VARIANT_ID: "4"
+
+    steps:
+      - name: Authenticate to Google Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Download unprotected v2 split set
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/generatedApks/${VERSION_CODE}"
+          metadata="$RUNNER_TEMP/generated-apks-v2.json"
+          split_dir="$RUNNER_TEMP/v2-unprotected-splits"
+          mkdir -p "$split_dir"
+
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Accept: application/json" \
+            "$base" > "$metadata"
+
+          jq -r --argjson variant "$VARIANT_ID" '
+            .generatedApks[0].unprotectedGeneratedSplitApks[] |
+            select(.variantId == $variant) |
+            [.downloadId, (.splitId // "")] | @tsv
+          ' "$metadata" > "$RUNNER_TEMP/unprotected.tsv"
+
+          count="$(wc -l < "$RUNNER_TEMP/unprotected.tsv")"
+          echo "Downloading ${count} unprotected split APK(s) for variant ${VARIANT_ID}."
+          test "$count" -gt 0
+
+          index=0
+          while IFS=$'\t' read -r download_id split_id; do
+            index=$((index + 1))
+            safe_id="$(printf '%s' "${split_id:-base}" | tr -c 'A-Za-z0-9._-' '_')"
+            apk="$split_dir/$(printf '%03d' "$index")-${safe_id}.apk"
+            curl --fail-with-body --silent --show-error \
+              -L \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -H "Accept: application/octet-stream" \
+              "${base}/downloads/${download_id}:download?alt=media" \
+              -o "$apk"
+            test -s "$apk"
+          done < "$RUNNER_TEMP/unprotected.tsv"
+
+          echo "Downloaded $(find "$split_dir" -type f -name '*.apk' | wc -l) APK(s)."
+          ls -lh "$split_dir" | head -30
+
+      - name: Archive unprotected v2 splits
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-play-v2-unprotected-splits
+          path: ${{ runner.temp }}/v2-unprotected-splits/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Launch unprotected v2 split set
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          script: |
+            set -euo pipefail
+            split_dir="$RUNNER_TEMP/v2-unprotected-splits"
+            mapfile -t apks < <(find "$split_dir" -type f -name '*.apk' | sort)
+            echo "Installing ${#apks[@]} Google-generated unprotected APK splits."
+            adb install-multiple -r "${apks[@]}"
+            adb logcat -c
+
+            set +e
+            launch_output="$(adb shell am start -W -n com.rsm.eztrivia/.MainActivity 2>&1)"
+            launch_status=$?
+            set -e
+            printf '%s\n' "$launch_output"
+
+            sleep 12
+            adb logcat -d -v threadtime > "$RUNNER_TEMP/v2-unprotected-logcat.txt"
+            pid="$(adb shell pidof com.rsm.eztrivia | tr -d '\r')"
+            fatal=0
+            if grep -A100 -B30 -E 'FATAL EXCEPTION:.*|Process: com\.rsm\.eztrivia|Unable to (instantiate|create|start).*com\.rsm\.eztrivia' "$RUNNER_TEMP/v2-unprotected-logcat.txt" > "$RUNNER_TEMP/v2-unprotected-fatal.txt"; then
+              fatal=1
+              cat "$RUNNER_TEMP/v2-unprotected-fatal.txt"
+            fi
+
+            if [ "$launch_status" -ne 0 ] || [ -z "$pid" ] || [ "$fatal" -ne 0 ]; then
+              echo "::error::Unprotected Google-generated v2 failed startup."
+              if [ "$fatal" -eq 0 ]; then tail -n 500 "$RUNNER_TEMP/v2-unprotected-logcat.txt"; fi
+              exit 1
+            fi
+
+            echo "Unprotected Google-generated v2 launched successfully; process ${pid} is alive."
