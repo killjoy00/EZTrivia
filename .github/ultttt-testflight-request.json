@@ -2,8 +2,8 @@
   "repository": "killjoy00/Ultttt",
   "bundleID": "com.killjoy00.ultttt",
   "appName": "Ultimate Tic/Tac/Toe",
-  "sha": "241a6c6075307038f4749f250d051b260d871dfd",
+  "sha": "215697c61d659a71e741b2deca1580f8184947e6",
   "version": "1.0",
   "target": "testflight",
-  "note": "Board readability: won boards use fill only; active destination is outlined. Submitted for physical QA before next App Review."
+  "note": "No-IAP launch: Remove Ads deferred and hidden; updated board contrast retained. For physical device and App Review QA."
 }
