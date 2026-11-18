@@ -290,14 +290,14 @@ def verify_testflight_build():
     if builds is None:
         print("Cannot query TestFlight builds with this API key; use the TestFlight page.")
         return
-    wanted=next((x for x in builds if x["attributes"].get("version")=="100006"),None)
+    wanted=next((x for x in builds if x["attributes"].get("version")=="100007"),None)
     if not wanted:
-        print("Build 100006 has been uploaded but is not yet returned by Apple's processed build list.")
+        print("Build 100007 has been uploaded but is not yet returned by Apple's processed build list.")
         return
     attrs=wanted["attributes"]
-    print("Apple registered TestFlight build 100006, state:",attrs.get("processingState"))
+    print("Apple registered TestFlight build 100007, state:",attrs.get("processingState"))
     if attrs.get("processingState")=="VALID":
-        print("Build 100006 is processed and valid for TestFlight.")
+        print("Build 100007 is processed and valid for TestFlight.")
         group=next((g for g in rows(f"/apps/{APP_ID}/betaGroups",{"limit":100}) or []
                     if g["attributes"].get("name")=="Internal Testing" and
                     g["attributes"].get("isInternalGroup")),None)
