@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "0a16b2340347a328a2792103c980aa04dc7d10b1",
+  "sha": "56e086a2653adea224ef643dc65b580e74074ab2",
   "version": "1.3",
   "destination": "TestFlight",
-  "purpose": "Private physical-device acceptance build of merged Star/Run PR #50: deliberate World 1 first thirty seconds, all eight real weapon mutations, and the optional traveling Quartermaster. Also includes the earlier rival and Silent Archive work. No gameplay balance changes from pre-TestFlight PR #52's test-only audit. No ads, IAP changes, public App Store submission or version bump.",
-  "attempt": 27,
-  "reason": "Owner requested a pre-TestFlight balance pass before physical playtesting. Merged StarRun main SHA 0a16b23 passed 2,192 simulation assertions, 602 UI checks, 126 screenshots, six full campaigns, a genuine four-world victory and unsigned iPhone compile. Expanded pre-TestFlight automated World 1 and merchant bot audits found no confirmed blocker; corrected eight-mutation comparisons run green across Vanguard, Wraith and Arcwing. Package this immutable merged SHA with existing shared Apple signing credentials for private TestFlight testers only."
+  "purpose": "Private physical-device QA replacement for 1.3 (1027). Includes previously merged PRs #39, #40, #41, #46, #47, #48 (Silent Archive), #50 (World 1 opener, 8 mutations and Quartermaster), plus PR #53 Daily challenge timing/crowd isolation and PR #52 test-only audits. No public App Store submission or change to ads/IAP. Remains marketing version 1.3.",
+  "attempt": 28,
+  "reason": "Post-merge code review identified PR #46 unintentionally affecting UTC Daily first-formation timing, non-reward director waves, and World 1 cap. Fix #53 merged after fully green playable and iPhone workflows, including 2,222 simulation assertions, 602 UI checks, 126 screenshots, genuine four-world/Archive completion, six ship campaigns and multi-platform exports. Upload immutable fix SHA 56e086a as a new private TestFlight build for the physical Silent Archive and all-features playtest."
 }
