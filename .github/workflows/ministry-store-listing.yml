@@ -19,7 +19,7 @@ jobs:
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json, pathlib, re
           r=json.loads(pathlib.Path(".github/ministry-metadata-request.json").read_text())
-          assert r["repository"]=="killjoy00/Ministry"
+          assert r["repository"]=="killjoy00/ministry"
           assert re.fullmatch("[0-9a-f]{40}",r["sha"])
           assert r["mode"] in ("inspect","apply")
           print("sha="+r["sha"])
@@ -27,7 +27,7 @@ jobs:
           PY
       - uses: actions/checkout@v4
         with:
-          repository: killjoy00/Ministry
+          repository: killjoy00/ministry
           ref: ${{ steps.request.outputs.sha }}
           path: ministry
           persist-credentials: false
