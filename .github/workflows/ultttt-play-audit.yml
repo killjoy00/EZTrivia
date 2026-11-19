@@ -1,0 +1,49 @@
+name: Ultimate TTT Google Play readback audit
+on:
+  push:
+    branches: [bootstrap/ultttt-play]
+    paths: [.github/workflows/ultttt-play-audit.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: google-github-actions/auth@v3
+        id: auth
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Verify Google Play internal draft, listing and image counts
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt"
+          AUTH=(-H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json")
+          EDIT="$(curl --fail-with-body -sS -X POST "$APP/edits" "${AUTH[@]}" -d '{}')"
+          ID="$(jq -er .id <<< "$EDIT")"
+          trap 'curl -sS -X DELETE "$APP/edits/$ID" "${AUTH[@]}" > /dev/null || true' EXIT
+          echo '=== Actual Google Play internal track ==='
+          curl --fail-with-body -sS "$APP/edits/$ID/tracks/internal" "${AUTH[@]}" > "$RUNNER_TEMP/track.json"
+          jq '{track, releases: [.releases[]? | {name,status,versionCodes}]}' "$RUNNER_TEMP/track.json"
+          jq -e 'any(.releases[]?.versionCodes[]?; . == "1")' "$RUNNER_TEMP/track.json" > /dev/null
+          echo '=== Actual English listing ==='
+          curl --fail-with-body -sS "$APP/edits/$ID/listings/en-US" "${AUTH[@]}" > "$RUNNER_TEMP/listing.json"
+          jq '{language,title,shortDescription,descriptionLength:(.fullDescription|length)}' "$RUNNER_TEMP/listing.json"
+          jq -e '.title == "Ultimate Tic/Tac/Toe"' "$RUNNER_TEMP/listing.json" > /dev/null
+          for kind in icon featureGraphic phoneScreenshots; do
+            curl --fail-with-body -sS "$APP/edits/$ID/listings/en-US/$kind" "${AUTH[@]}" > "$RUNNER_TEMP/$kind.json"
+            echo "$kind: $(jq '(.images // []) | length' "$RUNNER_TEMP/$kind.json") image(s)"
+          done
+          test "$(jq '(.images // []) | length' "$RUNNER_TEMP/icon.json")" -ge 1
+          test "$(jq '(.images // []) | length' "$RUNNER_TEMP/featureGraphic.json")" -ge 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UltimateTTT-GooglePlay-store-readback
+          path: ${{ runner.temp }}/*.json
+          retention-days: 10
+          if-no-files-found: warn
