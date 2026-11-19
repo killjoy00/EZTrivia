@@ -74,8 +74,8 @@ jobs:
             request='.github/ministry-android-release-request.json'
             test -f "$request"
             test "$(jq -r '.enabled // false' "$request")" = true || {
-              echo 'Ministry Android release request is disabled; no release requested.'
-              exit 0
+              echo '::error::The approved Ministry Android release request is not enabled'
+              exit 1
             }
             SOURCE_SHA="$(jq -r '.source_sha // empty' "$request")"
             VERSION_CODE="$(jq -r '.version_code | tostring' "$request")"
