@@ -1,0 +1,173 @@
+name: StarRun Android Google Play Internal
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: 'Full 40-character StarRun main-branch commit SHA'
+        required: true
+        type: string
+      version_code:
+        description: 'Play versionCode (must always increase)'
+        required: true
+        default: '1'
+        type: string
+      version_name:
+        description: 'Player-facing Android versionName'
+        required: true
+        default: '1.3'
+        type: string
+      release_notes:
+        description: 'Internal testing release notes'
+        required: true
+        default: 'Initial Android internal test of Star/Run.'
+        type: string
+      publish_internal:
+        description: 'Upload signed AAB to StarRun Google Play INTERNAL testing only'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: starrun-play-internal
+  cancel-in-progress: false
+
+jobs:
+  android:
+    name: Build Play-signed StarRun from approved main commit
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out immutable StarRun source
+        uses: actions/checkout@v4
+        with:
+          repository: killjoy00/StarRun
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          path: starrun
+
+      - name: Verify requested SHA is already on StarRun main
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          VERSION_NAME: ${{ inputs.version_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Source must be a 40-hex SHA"; exit 1; }
+          [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]] || { echo "::error::version_code must be a positive integer"; exit 1; }
+          (( VERSION_CODE <= 2100000000 )) || { echo "::error::version_code exceeds Play maximum"; exit 1; }
+          [[ "$VERSION_NAME" =~ ^[0-9][A-Za-z0-9.+_-]{0,31}$ ]] || { echo "::error::Invalid version_name"; exit 1; }
+          test "$(git -C starrun rev-parse HEAD)" = "$SOURCE_SHA"
+          git -C starrun fetch --quiet origin main
+          git -C starrun merge-base --is-ancestor "$SOURCE_SHA" origin/main || {
+            echo "::error::Refusing Android release from a StarRun commit not merged into main"
+            exit 1
+          }
+          grep -Fq 'name="Android"' starrun/export_presets.cfg
+          grep -Fq 'gradle_build/target_sdk="36"' starrun/export_presets.cfg
+          grep -Fq 'package/unique_name="com.rsm.starrun"' starrun/export_presets.cfg
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android 16 SDK and pinned Godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_HOME:-}" || { echo "::error::GitHub runner is missing ANDROID_HOME"; exit 1; }
+          sdkmanager_bin="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -x "$sdkmanager_bin" || { echo "::error::Android command line tools missing"; exit 1; }
+          "$sdkmanager_bin" --sdk_root="$ANDROID_HOME" --install 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.1.13356709' 'cmake;3.10.2.4988404'
+          cd starrun
+          bash tools/install-godot.sh
+
+      - name: Verify existing shared Play upload-key secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          PLAY_CREDENTIALS: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64" || { echo "::error::Missing shared Android upload key"; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "::error::Missing shared Android upload key password"; exit 1; }
+          test -n "$PLAY_CREDENTIALS" || { echo "::error::Missing existing Google Play service account"; exit 1; }
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/starrun-upload.p12"
+          keytool -list -keystore "$RUNNER_TEMP/starrun-upload.p12" \
+            -storetype PKCS12 -storepass "$KEY_PASSWORD" -alias upload >/dev/null
+          chmod 600 "$RUNNER_TEMP/starrun-upload.p12"
+
+      - name: Build signed StarRun Android App Bundle
+        working-directory: starrun
+        env:
+          STARRUN_ANDROID_VERSION_CODE: ${{ inputs.version_code }}
+          STARRUN_ANDROID_VERSION_NAME: ${{ inputs.version_name }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/starrun-upload.p12
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: upload
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tools/android-export.sh
+          jarsigner -verify build/android/StarRun.aab
+
+      - name: Archive signed Play candidate and original launcher mark
+        uses: actions/upload-artifact@v4
+        with:
+          name: starrun-play-${{ inputs.version_code }}-${{ github.run_number }}
+          path: |
+            starrun/build/android/StarRun.aab
+            starrun/assets/android-icon.png
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Prepare internal-only release notes
+        if: inputs.publish_internal == true
+        env:
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/starrun-play-notes"
+          printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/starrun-play-notes/whatsnew-en-US"
+
+      - name: Upload ONLY to StarRun Play Internal Testing
+        if: inputs.publish_internal == true
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.rsm.starrun
+          releaseFiles: starrun/build/android/StarRun.aab
+          track: internal
+          status: completed
+          releaseName: Star/Run ${{ inputs.version_name }} (v${{ inputs.version_code }})
+          whatsNewDirectory: ${{ runner.temp }}/starrun-play-notes
+
+      - name: Release summary
+        if: always()
+        env:
+          SHA: ${{ inputs.source_sha }}
+          VERSION: ${{ inputs.version_name }}
+          CODE: ${{ inputs.version_code }}
+          PUBLISH: ${{ inputs.publish_internal }}
+        run: |
+          echo "## Star/Run Android Play candidate" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source SHA: $SHA (must be on StarRun main)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Android version: $VERSION (versionCode $CODE)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Target: Google Play Internal Testing ONLY" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Upload requested: $PUBLISH" >> "$GITHUB_STEP_SUMMARY"
+          echo "- No production track modifications are possible in this workflow." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete temporary upload keystore
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/starrun-upload.p12"
