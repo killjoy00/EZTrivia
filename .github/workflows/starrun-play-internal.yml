@@ -1,5 +1,9 @@
 name: StarRun Android Google Play Internal
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/starrun-android-release-request.json'
   workflow_dispatch:
     inputs:
       source_sha:
@@ -43,35 +47,69 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check out immutable StarRun source
+      - name: Check out StarRun before pinning approved source
         uses: actions/checkout@v4
         with:
           repository: killjoy00/StarRun
-          ref: ${{ inputs.source_sha }}
+          ref: main
           fetch-depth: 0
           path: starrun
 
-      - name: Verify requested SHA is already on StarRun main
+      - name: Resolve versioned release request and verify StarRun main
+        id: approved
         env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
-          VERSION_CODE: ${{ inputs.version_code }}
-          VERSION_NAME: ${{ inputs.version_name }}
+          DISPATCH_SHA: ${{ inputs.source_sha }}
+          DISPATCH_CODE: ${{ inputs.version_code }}
+          DISPATCH_NAME: ${{ inputs.version_name }}
+          DISPATCH_NOTES: ${{ inputs.release_notes }}
+          DISPATCH_PUBLISH: ${{ inputs.publish_internal }}
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == 'push' ]]; then
+            request='.github/starrun-android-release-request.json'
+            jq -e '.enabled == true' "$request" >/dev/null || {
+              echo "::error::The automated StarRun Android release request is disabled"
+              exit 1
+            }
+            SOURCE_SHA="$(jq -r '.source_sha // empty' "$request")"
+            VERSION_CODE="$(jq -r '.version_code // empty | tostring' "$request")"
+            VERSION_NAME="$(jq -r '.version_name // empty' "$request")"
+            RELEASE_NOTES="$(jq -r '.release_notes // empty' "$request")"
+            PUBLISH="$(jq -r '.publish_internal // false | tostring' "$request")"
+          else
+            SOURCE_SHA="$DISPATCH_SHA"
+            VERSION_CODE="$DISPATCH_CODE"
+            VERSION_NAME="$DISPATCH_NAME"
+            RELEASE_NOTES="$DISPATCH_NOTES"
+            PUBLISH="$DISPATCH_PUBLISH"
+          fi
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Source must be a 40-hex SHA"; exit 1; }
           [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]] || { echo "::error::version_code must be a positive integer"; exit 1; }
           (( VERSION_CODE <= 2100000000 )) || { echo "::error::version_code exceeds Play maximum"; exit 1; }
           [[ "$VERSION_NAME" =~ ^[0-9][A-Za-z0-9.+_-]{0,31}$ ]] || { echo "::error::Invalid version_name"; exit 1; }
-          test "$(git -C starrun rev-parse HEAD)" = "$SOURCE_SHA"
+          [[ "$PUBLISH" == 'true' || "$PUBLISH" == 'false' ]] || { echo "::error::publish_internal must be boolean"; exit 1; }
+          [[ -n "$RELEASE_NOTES" && ${#RELEASE_NOTES} -le 500 && "$RELEASE_NOTES" != *$'\n'* ]] || {
+            echo "::error::Release notes must be a single line of at most 500 characters"
+            exit 1
+          }
           git -C starrun fetch --quiet origin main
           git -C starrun merge-base --is-ancestor "$SOURCE_SHA" origin/main || {
             echo "::error::Refusing Android release from a StarRun commit not merged into main"
             exit 1
           }
+          git -C starrun checkout --quiet --detach "$SOURCE_SHA"
+          test "$(git -C starrun rev-parse HEAD)" = "$SOURCE_SHA"
           grep -Fq 'name="Android"' starrun/export_presets.cfg
           grep -Fq 'gradle_build/target_sdk="36"' starrun/export_presets.cfg
           grep -Fq 'package/unique_name="com.rsm.starrun"' starrun/export_presets.cfg
+          {
+            echo "source_sha=$SOURCE_SHA"
+            echo "version_code=$VERSION_CODE"
+            echo "version_name=$VERSION_NAME"
+            echo "release_notes=$RELEASE_NOTES"
+            echo "publish_internal=$PUBLISH"
+          } >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v4
         with:
@@ -109,8 +147,8 @@ jobs:
       - name: Build signed StarRun Android App Bundle
         working-directory: starrun
         env:
-          STARRUN_ANDROID_VERSION_CODE: ${{ inputs.version_code }}
-          STARRUN_ANDROID_VERSION_NAME: ${{ inputs.version_name }}
+          STARRUN_ANDROID_VERSION_CODE: ${{ steps.approved.outputs.version_code }}
+          STARRUN_ANDROID_VERSION_NAME: ${{ steps.approved.outputs.version_name }}
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/starrun-upload.p12
           GODOT_ANDROID_KEYSTORE_RELEASE_USER: upload
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
@@ -123,7 +161,7 @@ jobs:
       - name: Archive signed Play candidate and original launcher mark
         uses: actions/upload-artifact@v4
         with:
-          name: starrun-play-${{ inputs.version_code }}-${{ github.run_number }}
+          name: starrun-play-${{ steps.approved.outputs.version_code }}-${{ github.run_number }}
           path: |
             starrun/build/android/StarRun.aab
             starrun/assets/android-icon.png
@@ -131,9 +169,9 @@ jobs:
           retention-days: 30
 
       - name: Prepare internal-only release notes
-        if: inputs.publish_internal == true
+        if: steps.approved.outputs.publish_internal == 'true'
         env:
-          RELEASE_NOTES: ${{ inputs.release_notes }}
+          RELEASE_NOTES: ${{ steps.approved.outputs.release_notes }}
         shell: bash
         run: |
           set -euo pipefail
@@ -141,7 +179,7 @@ jobs:
           printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/starrun-play-notes/whatsnew-en-US"
 
       - name: Upload ONLY to StarRun Play Internal Testing
-        if: inputs.publish_internal == true
+        if: steps.approved.outputs.publish_internal == 'true'
         uses: r0adkll/upload-google-play@v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
@@ -149,16 +187,16 @@ jobs:
           releaseFiles: starrun/build/android/StarRun.aab
           track: internal
           status: completed
-          releaseName: Star/Run ${{ inputs.version_name }} (v${{ inputs.version_code }})
+          releaseName: Star/Run ${{ steps.approved.outputs.version_name }} (v${{ steps.approved.outputs.version_code }})
           whatsNewDirectory: ${{ runner.temp }}/starrun-play-notes
 
       - name: Release summary
         if: always()
         env:
-          SHA: ${{ inputs.source_sha }}
-          VERSION: ${{ inputs.version_name }}
-          CODE: ${{ inputs.version_code }}
-          PUBLISH: ${{ inputs.publish_internal }}
+          SHA: ${{ steps.approved.outputs.source_sha }}
+          VERSION: ${{ steps.approved.outputs.version_name }}
+          CODE: ${{ steps.approved.outputs.version_code }}
+          PUBLISH: ${{ steps.approved.outputs.publish_internal }}
         run: |
           echo "## Star/Run Android Play candidate" >> "$GITHUB_STEP_SUMMARY"
           echo "- Source SHA: $SHA (must be on StarRun main)" >> "$GITHUB_STEP_SUMMARY"
