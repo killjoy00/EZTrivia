@@ -34,11 +34,10 @@ def build() -> str:
     answer(idx, "PSL_DATA_COLLECTION_COLLECTS_PERSONAL_DATA", "", False)
     # No outbound user-data transfer in the Android game. Transit encryption is
     # conditional on a YES answer to collection; do not assert a nonexistent flow.
-    select(idx, "PSL_SUPPORTED_ACCOUNT_CREATION_METHODS", "PSL_ACM_NONE")
+    # Google's live API forbids account-creation and deletion selections
+    # when no personal/user data is collected. Leave both conditional groups blank.
+    # The local-only game has no account or backend.
     answer(idx, "PSL_HAS_OUTSIDE_APP_ACCOUNTS", "", False)
-    # Local progress can be removed via clearing app storage or uninstalling,
-    # not via a developer data-deletion request service.
-    select(idx, "PSL_SUPPORT_DATA_DELETION_BY_USER", "DATA_DELETION_NO")
     types = [r[R] for r in rows if r.get(V) == "TRUE" and r.get(R, "").startswith("PSL_DATA_TYPES_")]
     if types:
         raise RuntimeError("No Star/Run Android data categories may be declared collected")
