@@ -60,9 +60,6 @@ jobs:
               row[helper.V] = ""
           index=helper.index_rows(rows)
           helper.answer(index, "PSL_DATA_COLLECTION_COLLECTS_PERSONAL_DATA", "", False)
-          helper.select(index, "PSL_SUPPORTED_ACCOUNT_CREATION_METHODS", "PSL_ACM_NONE")
-          helper.answer(index, "PSL_HAS_OUTSIDE_APP_ACCOUNTS", "", False)
-          helper.select(index, "PSL_SUPPORT_DATA_DELETION_BY_USER", "DATA_DELETION_NO")
           old=index.get(("PSL_DATA_COLLECTION_USER_REQUEST_DELETE",""))
           if old: old[helper.V]=""
           contents=helper.render(rows,names)
@@ -74,13 +71,12 @@ jobs:
           ) if (q,r) not in index]
           if asserted: raise RuntimeError("Missing Google CSV rows: "+repr(asserted))
           true_rows=[(row[helper.Q],row[helper.R]) for row in rows if row[helper.V]=="TRUE"]
-          if set(true_rows)!={("PSL_SUPPORTED_ACCOUNT_CREATION_METHODS","PSL_ACM_NONE"),
-                               ("PSL_SUPPORT_DATA_DELETION_BY_USER","DATA_DELETION_NO")}:
+          if true_rows:
               raise RuntimeError("Unexpected user-data declaration: "+repr(true_rows))
           dest=Path("ultttt-data-safety.csv")
           dest.write_text(contents,encoding="utf-8")
           print("Data Safety generated from Google template, rows:",len(rows))
-          print("Collect/share user data: NO; accounts: NONE; developer deletion request: NO")
+          print("Collect/share user data: NO; conditional account/deletion questions omitted")
           response=requests.post(
               "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt/dataSafety",
               headers={"Authorization":"Bearer "+os.environ["GOOGLE_PLAY_ACCESS_TOKEN"],
