@@ -1,0 +1,115 @@
+name: Ultimate TTT Android Google Play bootstrap
+on:
+  push:
+    branches: [bootstrap/ultttt-play]
+    paths: [.github/workflows/ultttt-play-bootstrap.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ultttt-android-bootstrap
+  cancel-in-progress: false
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: 9cfd1d4a870e7f4932d5f6d8a88c092f63d4c932
+          path: ultimate
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Verify existing encrypted Android upload key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          test -n "$KEYSTORE_PASSWORD"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ultttt-upload.p12"
+          chmod 600 "$RUNNER_TEMP/ultttt-upload.p12"
+          keytool -list -keystore "$RUNNER_TEMP/ultttt-upload.p12" -storetype PKCS12 -storepass "$KEYSTORE_PASSWORD" -alias upload > /dev/null
+      - name: Test and build signed release bundle
+        env:
+          ULTTTT_VERSION_CODE: '1'
+          ULTTTT_VERSION_NAME: '1.0.0-alpha01'
+          ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/ultttt-upload.p12
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -p ultimate/android testDebugUnitTest bundleRelease
+          jarsigner -verify ultimate/android/app/build/outputs/bundle/release/app-release.aab
+          cp ultimate/android/app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/UltimateTTT-v1-signed.aab"
+      - name: Archive signed AAB for first Play Console upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: UltimateTTT-v1-signed-AAB-and-store-drafts
+          path: |
+            ${{ runner.temp }}/UltimateTTT-v1-signed.aab
+            ultimate/android/play-store/en-US.json
+            ultimate/android/play-store/APP_CONTENT.md
+            ultimate/android/PRIVACY.md
+          retention-days: 30
+          if-no-files-found: error
+      - name: Create release notes
+        run: |
+          mkdir -p "$RUNNER_TEMP/play-notes"
+          echo "Initial Android build: solo, local multiplayer, replay, saved scores, and light/dark modes." > "$RUNNER_TEMP/play-notes/whatsnew-en-US"
+      - name: Attempt internal draft upload (never production)
+        id: play_upload
+        continue-on-error: true
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.killjoy00.ultttt
+          releaseFiles: ultimate/android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: draft
+          releaseName: Ultimate TTT 1.0.0-alpha01
+          whatsNewDirectory: ${{ runner.temp }}/play-notes
+      - name: Acquire Google Play Developer API token
+        id: play_auth
+        continue-on-error: true
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Try updating English store listing
+        if: steps.play_auth.outcome == 'success'
+        id: listing
+        continue-on-error: true
+        env:
+          ACCESS_TOKEN: ${{ steps.play_auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt"
+          EDIT="$(curl --fail-with-body --silent --show-error -X POST "$APP/edits" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{}')"
+          ID="$(jq -er .id <<< "$EDIT")"
+          jq '{language,title,shortDescription,fullDescription}' ultimate/android/play-store/en-US.json > "$RUNNER_TEMP/listing.json"
+          curl --fail-with-body --silent --show-error -X PUT "$APP/edits/$ID/listings/en-US" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" --data-binary @"$RUNNER_TEMP/listing.json"
+          curl --fail-with-body --silent --show-error -X POST "$APP/edits/$ID:commit" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -d '{}'
+      - name: Report Play publishing outcomes
+        if: always()
+        env:
+          UPLOAD: ${{ steps.play_upload.outcome }}
+          LISTING: ${{ steps.listing.outcome }}
+        run: |
+          echo "Initial Play internal draft upload: $UPLOAD"
+          echo "Google Play listing update: $LISTING"
+          if [ "$UPLOAD" != success ]; then
+            echo "::warning::First Google Play AAB may require manual upload to initialize the app. Download the signed AAB artifact from this workflow and upload to Play Console Internal testing."
+          fi
