@@ -3,7 +3,6 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/ultttt-iap-review-screenshot.yml"
       - "Scripts/ultttt_iap_review_image.py"
   workflow_dispatch:
 permissions:
