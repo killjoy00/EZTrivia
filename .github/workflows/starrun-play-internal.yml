@@ -77,13 +77,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
 
       - name: Install Android 16 SDK and pinned Godot
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager --install 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'cmdline-tools;latest' 'ndk;28.1.13356709' 'cmake;3.10.2.4988404'
+          test -n "${ANDROID_HOME:-}" || { echo "::error::GitHub runner is missing ANDROID_HOME"; exit 1; }
+          sdkmanager_bin="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -x "$sdkmanager_bin" || { echo "::error::Android command line tools missing"; exit 1; }
+          "$sdkmanager_bin" --sdk_root="$ANDROID_HOME" --install 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.1.13356709' 'cmake;3.10.2.4988404'
           cd starrun
           bash tools/install-godot.sh
 
