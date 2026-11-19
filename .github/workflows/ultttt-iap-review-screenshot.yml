@@ -3,7 +3,6 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/ultttt-iap-review-screenshot.yml"
       - "Scripts/ultttt_iap_review_image.py"
   workflow_dispatch:
 permissions:
@@ -14,7 +13,7 @@ concurrency:
 jobs:
   review-image:
     name: Capture real StoreKit paywall SwiftUI screen and upload to Apple IAP
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 95
     steps:
       - uses: actions/checkout@v4
@@ -36,10 +35,17 @@ jobs:
           grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER: com.killjoy00.ultttt' project.yml
           grep -Fq 'case "iap":' UltimateTTTApp/AppStoreScreenshotHost.swift
           grep -Fq 'RemoveAdsSheet(purchases: purchases, ads: ads, reviewPreviewPrice: "$1.99")' UltimateTTTApp/AppStoreScreenshotHost.swift
-      - name: Select Xcode 26 and XcodeGen
+      - name: Select Xcode 27 and XcodeGen
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "26"
+          xcode-version: "27"
+      - name: Verify App Store iOS SDK floor
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          major="${sdk%%.*}"
+          if (( major < 27 )); then echo "::error::iOS 27 SDK required, found $sdk"; exit 1; fi
       - run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
       - name: Run rules tests
         working-directory: ultttt
