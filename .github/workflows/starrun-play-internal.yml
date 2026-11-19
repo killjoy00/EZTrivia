@@ -169,7 +169,7 @@ jobs:
           retention-days: 30
 
       - name: Prepare internal-only release notes
-        if: inputs.publish_internal == true
+        if: steps.approved.outputs.publish_internal == 'true'
         env:
           RELEASE_NOTES: ${{ steps.approved.outputs.release_notes }}
         shell: bash
@@ -179,7 +179,7 @@ jobs:
           printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/starrun-play-notes/whatsnew-en-US"
 
       - name: Upload ONLY to StarRun Play Internal Testing
-        if: inputs.publish_internal == true
+        if: steps.approved.outputs.publish_internal == 'true'
         uses: r0adkll/upload-google-play@v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
