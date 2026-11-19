@@ -41,6 +41,7 @@ jobs:
           done
           test "$(jq '(.images // []) | length' "$RUNNER_TEMP/icon.json")" -ge 1
           test "$(jq '(.images // []) | length' "$RUNNER_TEMP/featureGraphic.json")" -ge 1
+          test "$(jq '(.images // []) | length' "$RUNNER_TEMP/phoneScreenshots.json")" -ge 6
       - uses: actions/upload-artifact@v4
         with:
           name: UltimateTTT-GooglePlay-store-readback
