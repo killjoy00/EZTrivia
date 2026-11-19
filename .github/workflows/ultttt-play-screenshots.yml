@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: killjoy00/Ultttt
-          ref: 744e92ce776505db5d32cdf8ceb2e31699ebe2ca
+          ref: 8d016a458b44ecb7eac32ce6806c14d8c93f4be1
           path: ultimate
           persist-credentials: false
       - uses: actions/setup-java@v4
