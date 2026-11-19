@@ -16,6 +16,8 @@ def get(session, url, label):
     return r.json()
 
 def main():
+    request = json.loads(Path(".github/starrun-android-release-request.json").read_text())
+    expected_code = str(request["version_code"])
     token = os.environ.get("GOOGLE_PLAY_ACCESS_TOKEN", "")
     if not token:
         raise SystemExit("Missing Play API token")
@@ -49,15 +51,22 @@ def main():
         print("feature_graphic_count=" + str(len(images["featureGraphic"])))
         print("phone_screenshots_count=" + str(len(images["phoneScreenshots"])))
         print("STAR_RUN_PLAY_AUDIT_END")
-        if "1" not in codes or "1" not in bundle_codes:
-            raise SystemExit("Android versionCode 1 was not confirmed in both uploaded bundles and Internal track")
+        if expected_code not in bundle_codes or not any(
+            expected_code in [str(c) for c in release.get("versionCodes", [])]
+            and release.get("status") == "completed"
+            for release in track.get("releases", [])
+        ):
+            raise SystemExit(
+                f"Expected Android v{expected_code} was not confirmed in uploaded "
+                "bundles and a completed Internal testing release"
+            )
         if listing.get("title") != "Star/Run":
             raise SystemExit("Play listing title is not Star/Run")
         if len(images["icon"]) != 1 or len(images["featureGraphic"]) != 1 or len(images["phoneScreenshots"]) != 8:
             raise SystemExit("Expected icon/feature graphic/eight screenshots were not all present")
         if not listing.get("shortDescription") or not listing.get("fullDescription") or not details.get("contactEmail"):
             raise SystemExit("Play listing/support fields incomplete")
-        print("PASS: Google Play independently confirms Star/Run Android v1 on Internal track and all listing media.")
+        print(f"PASS: Google Play independently confirms Star/Run Android v{expected_code} on Internal track and all listing media.")
     finally:
         s.delete(f"{BASE}/edits/{edit}", timeout=30)
 
