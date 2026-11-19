@@ -1,9 +1,8 @@
 name: StarRun Play post-upload audit
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/starrun-play-audit.yml'
+  workflow_run:
+    workflows: ["StarRun Android Google Play Internal"]
+    types: [completed]
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,7 +11,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   audit:
-    name: Verify StarRun v1 is on Play Internal and listing is populated
+    name: Verify latest StarRun release is on Play Internal with full listing
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
