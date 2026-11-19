@@ -1,0 +1,99 @@
+name: Ultimate TTT Google Play Data safety - no collection
+on:
+  push:
+    branches: [bootstrap/ultttt-play]
+    paths: [.github/workflows/ultttt-play-data-safety.yml]
+permissions:
+  contents: read
+jobs:
+  data-safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/EZTrivia
+          ref: main
+          path: eztrivia
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: 9cfd1d4a870e7f4932d5f6d8a88c092f63d4c932
+          path: ultimate
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install requests==2.32.5
+      - name: Authenticate to Google Play API
+        uses: google-github-actions/auth@v3
+        id: auth
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Build and submit data safety from Google's current CSV template
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eqi '(firebase|admob|play-services|billingclient)' ultimate/android/app/build.gradle.kts; then
+            echo "::error::The inspected Android version has new network/data SDKs; stop and re-review disclosures."
+            exit 2
+          fi
+          if grep -Eqi 'android.permission.(INTERNET|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION)' ultimate/android/app/src/main/AndroidManifest.xml; then
+            echo "::error::Android permissions differ from the offline policy; stop."
+            exit 3
+          fi
+          python3 - <<'PY'
+          import importlib.util, os, json
+          from pathlib import Path
+          import requests
+          spec = importlib.util.spec_from_file_location("play_helper", "eztrivia/Scripts/configure_play_data_safety.py")
+          helper = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(helper)
+          rows, names = helper.fetch_template()
+          for row in rows:
+              row[helper.V] = ""
+          index=helper.index_rows(rows)
+          helper.answer(index, "PSL_DATA_COLLECTION_COLLECTS_PERSONAL_DATA", "", False)
+          helper.select(index, "PSL_SUPPORTED_ACCOUNT_CREATION_METHODS", "PSL_ACM_NONE")
+          helper.answer(index, "PSL_HAS_OUTSIDE_APP_ACCOUNTS", "", False)
+          helper.select(index, "PSL_SUPPORT_DATA_DELETION_BY_USER", "DATA_DELETION_NO")
+          old=index.get(("PSL_DATA_COLLECTION_USER_REQUEST_DELETE",""))
+          if old: old[helper.V]=""
+          contents=helper.render(rows,names)
+          asserted=[(q,r) for (q,r) in (
+              ("PSL_DATA_COLLECTION_COLLECTS_PERSONAL_DATA", ""),
+              ("PSL_SUPPORTED_ACCOUNT_CREATION_METHODS", "PSL_ACM_NONE"),
+              ("PSL_HAS_OUTSIDE_APP_ACCOUNTS", ""),
+              ("PSL_SUPPORT_DATA_DELETION_BY_USER", "DATA_DELETION_NO"),
+          ) if (q,r) not in index]
+          if asserted: raise RuntimeError("Missing Google CSV rows: "+repr(asserted))
+          true_rows=[(row[helper.Q],row[helper.R]) for row in rows if row[helper.V]=="TRUE"]
+          if set(true_rows)!={("PSL_SUPPORTED_ACCOUNT_CREATION_METHODS","PSL_ACM_NONE"),
+                               ("PSL_SUPPORT_DATA_DELETION_BY_USER","DATA_DELETION_NO")}:
+              raise RuntimeError("Unexpected user-data declaration: "+repr(true_rows))
+          dest=Path("ultttt-data-safety.csv")
+          dest.write_text(contents,encoding="utf-8")
+          print("Data Safety generated from Google template, rows:",len(rows))
+          print("Collect/share user data: NO; accounts: NONE; developer deletion request: NO")
+          response=requests.post(
+              "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt/dataSafety",
+              headers={"Authorization":"Bearer "+os.environ["GOOGLE_PLAY_ACCESS_TOKEN"],
+                       "Content-Type":"application/json"},
+              data=json.dumps({"safetyLabels":contents}),timeout=120)
+          if not response.ok: raise RuntimeError(
+              "Google Play Data safety response "+str(response.status_code)+": "+response.text[:2500])
+          print("Google Play accepted Ultimate TTT Data Safety declaration, HTTP",response.status_code)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: UltimateTTT-GooglePlay-DataSafety-declaration
+          path: ultttt-data-safety.csv
+          if-no-files-found: warn
+          retention-days: 30
