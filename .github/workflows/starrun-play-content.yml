@@ -1,0 +1,147 @@
+name: StarRun Google Play listing and policy setup
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/starrun-play-content.yml'
+      - 'play-store-starrun/en-US.json'
+      - 'Scripts/starrun_play_assets.py'
+      - 'Scripts/sync_starrun_play_listing.py'
+      - 'Scripts/configure_starrun_play_data_safety.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Share concurrency with Play Internal release; never invalidate an active edit.
+concurrency:
+  group: starrun-play-internal
+  cancel-in-progress: false
+
+jobs:
+  listing:
+    name: StarRun real game art, metadata, and Play listing
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out StarRun
+        uses: actions/checkout@v4
+        with:
+          repository: killjoy00/StarRun
+          ref: main
+          fetch-depth: 0
+          path: starrun
+      - name: Pin source to approved Android release request
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(jq -r '.source_sha' .github/starrun-android-release-request.json)"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Invalid StarRun source SHA"; exit 1; }
+          git -C starrun merge-base --is-ancestor "$sha" origin/main
+          git -C starrun checkout --quiet --detach "$sha"
+          test "$(git -C starrun rev-parse HEAD)" = "$sha"
+          grep -Fq 'package/unique_name="com.rsm.starrun"' starrun/export_presets.cfg
+          grep -Fq 'permissions/internet=false' starrun/export_presets.cfg
+          jq -e '.enabled == false' starrun/data/admob.json >/dev/null
+          echo "Using exact ad-free StarRun Android release source $sha"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Play image and HTTP dependencies
+        run: python -m pip install --quiet pillow requests
+      - name: Install pinned Godot engine
+        working-directory: starrun
+        run: bash tools/install-godot.sh
+      - name: Generate the original StarRun Android icon
+        working-directory: starrun
+        shell: bash
+        run: |
+          set -euo pipefail
+          godot --headless --path . --script tools/generate-android-icon.gd
+          test -s assets/android-icon.png
+      - name: Render actual game screens using StarRun screenshot harness
+        working-directory: starrun
+        shell: bash
+        run: |
+          set -euo pipefail
+          godot --headless --path . --editor --import --quit
+          xvfb-run -a godot --path . --audio-driver Dummy \
+            --script tests/screenshot_harness.gd \
+            -- --output="$RUNNER_TEMP/starrun-store-captures" \
+            2>&1 | tee "$RUNNER_TEMP/starrun-store-screenshot.log"
+          test -s "$RUNNER_TEMP/starrun-store-captures/390x844/opening-strike.png"
+          test -s "$RUNNER_TEMP/starrun-store-captures/390x844/cards.png"
+      - name: Prepare faithful Play screenshots and feature graphic
+        env:
+          STARRUN_SOURCE: starrun
+          STARRUN_SCREENSHOT_SOURCE: \${{ runner.temp }}/starrun-store-captures
+        run: python Scripts/starrun_play_assets.py
+      - name: Authenticate to Google Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: \${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Save en-US listing, support contact, and images in Play
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: \${{ steps.auth.outputs.access_token }}
+        run: python Scripts/sync_starrun_play_listing.py
+      - name: Archive real source screenshots and prepared listing assets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starrun-play-listing-images
+          path: |
+            play-store-starrun/en-US.json
+            play-store-starrun/generated/icon.png
+            play-store-starrun/generated/feature-graphic.png
+            play-store-starrun/generated/screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 30
+
+  data_safety:
+    name: StarRun ad-free Android Data safety submission
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/StarRun
+          ref: main
+          path: starrun
+      - name: Verify current release is Android ad-free
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.enabled == false' starrun/data/admob.json >/dev/null
+          grep -Fq 'permissions/internet=false' starrun/export_presets.cfg
+          grep -Fq 'package/unique_name="com.rsm.starrun"' starrun/export_presets.cfg
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CSV and API dependencies
+        run: python -m pip install --quiet requests
+      - name: Authenticate to Google Play
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: \${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Submit truthful ad-free Data safety answers
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: \${{ steps.auth.outputs.access_token }}
+        run: python Scripts/configure_starrun_play_data_safety.py --submit
+      - name: Archive exact Data safety answers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starrun-play-data-safety-answers
+          path: play-store-starrun/data-safety.csv
+          if-no-files-found: warn
+          retention-days: 30

@@ -1,0 +1,20 @@
+{
+  "packageName": "com.rsm.starrun",
+  "language": "en-US",
+  "title": "Star/Run",
+  "shortDescription": "Build a powerful ship in a four-world tactical space roguelite.",
+  "fullDescription": "Your ship flies. Your weapons fire. Your choices decide the run.\n\nStar/Run is a build-first space roguelite with no steering or aiming. Pick the upgrades that change how your ship fights, use your active abilities at the right moment, and find out how far your build can go.\n\n• Fly through four distinct worlds, each with new enemies, hazards, and bosses.\n• Choose from six ships and six pilots with different strengths.\n• Combine active abilities, passive upgrades, and rare weapon evolutions into powerful builds.\n• Make real tradeoffs at every upgrade, Prototype, and route decision.\n• Spend earned Cores on permanent Hangar upgrades.\n• Play the Daily Challenge and chase your own personal best.\n• Try Normal, Hard, or Insane, then keep flying in Endless mode.\n\nA strong build can carry you far. Figuring out how to make it is the game.\n\nFree to play. No ads in this release.",
+  "contactEmail": "killjoy00@yahoo.com",
+  "contactWebsite": "https://github.com/killjoy00/StarRun",
+  "privacyPolicyUrl": "https://github.com/killjoy00/StarRun/blob/main/PRIVACY.md",
+  "screenshots": [
+    "opening-strike",
+    "cards",
+    "beam-charging",
+    "route",
+    "prototypes",
+    "ships",
+    "hangar-weapons",
+    "menu"
+  ]
+}
