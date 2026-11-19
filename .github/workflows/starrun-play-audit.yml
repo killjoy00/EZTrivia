@@ -1,0 +1,35 @@
+name: StarRun Play post-upload audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/starrun-play-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: starrun-play-internal
+  cancel-in-progress: false
+jobs:
+  audit:
+    name: Verify StarRun v1 is on Play Internal and listing is populated
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet requests
+      - name: Authenticate to Google Play Publisher API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Verify uploaded bundle, Internal track, listing, and 10 images
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: python Scripts/audit_starrun_play.py
