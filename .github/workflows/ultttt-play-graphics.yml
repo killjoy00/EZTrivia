@@ -1,0 +1,78 @@
+name: Ultimate TTT Play Store icon and feature graphic
+on:
+  push:
+    branches: [bootstrap/ultttt-play]
+    paths: [.github/workflows/ultttt-play-graphics.yml]
+permissions:
+  contents: read
+jobs:
+  graphics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: 370db027e306ed65732f7d6c851adfeda79771d6
+          path: ultimate
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Draw authentic graphics from original app icon artwork
+        run: |
+          python -m pip install pillow==11.3.0
+          python ultimate/android/play-store/generate_assets.py
+          python - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          base=Path('ultimate/android/play-store/generated')
+          assert Image.open(base/'play-icon-512.png').size==(512,512)
+          assert Image.open(base/'feature-graphic-1024x500.png').size==(1024,500)
+          print([(p.name,p.stat().st_size) for p in base.glob('*.png')])
+          PY
+      - name: Archive artwork and previewable originals
+        uses: actions/upload-artifact@v4
+        with:
+          name: UltimateTTT-PlayStore-icon-feature-graphics
+          path: ultimate/android/play-store/generated/*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Authorize Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Upload icon and feature graphic if slots are empty
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt"
+          UPLOAD="https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/com.killjoy00.ultttt"
+          EDIT="$(curl --fail-with-body -sS -X POST "$APP/edits" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{}')"
+          ID="$(jq -er '.id' <<< "$EDIT")"
+          for kind in icon featureGraphic; do
+            url="$APP/edits/$ID/listings/en-US/$kind"
+            existing="$(curl --fail-with-body -sS "$url" -H "Authorization: Bearer $TOKEN" | jq '(.images // []) | length')"
+            if [ "$existing" -gt 0 ]; then
+              echo "Keeping existing Play listing $kind ($existing images)"
+              continue
+            fi
+            if [ "$kind" = icon ]; then
+              file=ultimate/android/play-store/generated/play-icon-512.png
+            else
+              file=ultimate/android/play-store/generated/feature-graphic-1024x500.png
+            fi
+            curl --fail-with-body -sS -X POST "$UPLOAD/edits/$ID/listings/en-US/$kind?uploadType=media" \
+              -H "Authorization: Bearer $TOKEN" -H "Content-Type: image/png" \
+              --data-binary @"$file" > /dev/null
+            echo "Uploaded Play listing $kind"
+          done
+          curl --fail-with-body -sS -X POST "$APP/edits/$ID:commit" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' > /dev/null
+          echo "Committed Play icon/feature graphic edit."
