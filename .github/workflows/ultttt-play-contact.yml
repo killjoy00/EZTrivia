@@ -1,0 +1,33 @@
+name: Ultimate TTT Play Store developer details
+on:
+  push:
+    branches: [bootstrap/ultttt-play]
+    paths: [.github/workflows/ultttt-play-contact.yml]
+permissions:
+  contents: read
+jobs:
+  details:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: google-github-actions/auth@v3
+        id: auth
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Set default language and public support website, preserve contact details
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt"
+          EDIT="$(curl --fail-with-body -sS -X POST "$APP/edits" -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' -d '{}')"
+          ID="$(jq -er .id <<< "$EDIT")"
+          curl --fail-with-body -sS -X PATCH "$APP/edits/$ID/details" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
+            -d '{"defaultLanguage":"en-US","contactWebsite":"https://killjoy00.github.io/Ultttt/support/"}' > /dev/null
+          curl --fail-with-body -sS -X POST "$APP/edits/$ID:commit" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' -d '{}' > /dev/null
+          echo "Set Ultimate Tic/Tac/Toe Play app defaultLanguage=en-US and support website; left contactEmail/contactPhone untouched."
