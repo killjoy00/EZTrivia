@@ -43,10 +43,12 @@ def build() -> str:
         raise RuntimeError("No Star/Run Android data categories may be declared collected")
     if idx[("PSL_DATA_COLLECTION_COLLECTS_PERSONAL_DATA", "")][V] != "FALSE":
         raise RuntimeError("No-data-collected declaration failed")
+    # For a no-collection app, Google's API requires account creation and
+    # deletion sections to have NO selected answers (not even "None").
     selected = [(r.get("Question ID (machine readable)", ""), r.get(R, ""))
                 for r in rows if r[V] == "TRUE"]
-    if not selected:
-        raise RuntimeError("Missing account/deletion choices")
+    if selected:
+        raise RuntimeError(f"Unexpected affirmative Data safety answers: {selected}")
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     result = render(rows, fields)
     OUTPUT.write_text(result, encoding="utf-8")
