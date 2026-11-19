@@ -48,7 +48,7 @@ jobs:
 
   app:
     name: Build and archive app
-    runs-on: macos-15
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
 
@@ -69,7 +69,14 @@ jobs:
           # to the 26 major so patch updates to the runner image are tolerated
           # but the SDK floor is never crossed downward. The probe step reports
           # what is actually installed if this ever needs raising.
-          xcode-version: '26'
+          xcode-version: '27'
+      - name: Verify App Store iOS SDK floor
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          major="${sdk%%.*}"
+          if (( major < 27 )); then echo "::error::iOS 27 SDK required, found $sdk"; exit 1; fi
 
       - name: Install xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
