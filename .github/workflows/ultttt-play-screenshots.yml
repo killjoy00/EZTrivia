@@ -1,0 +1,96 @@
+name: Ultimate TTT real Play screenshots
+on:
+  push:
+    branches: [bootstrap/ultttt-play]
+    paths: [.github/workflows/ultttt-play-screenshots.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ultttt-play-screenshots
+  cancel-in-progress: false
+jobs:
+  screenshots:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: 744e92ce776505db5d32cdf8ceb2e31699ebe2ca
+          path: ultimate
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Build actual app debug APK
+        run: gradle --no-daemon -p ultimate/android assembleDebug
+      - name: Enable KVM on Ubuntu runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Capture genuine Android UI in Pixel emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_7
+          disable-animations: true
+          script: |
+            adb install ultimate/android/app/build/outputs/apk/debug/app-debug.apk
+            python3 ultimate/android/play-store/capture_screenshots.py
+      - name: Validate captured screenshots
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          base=Path("ultimate/android/play-store/screenshots")
+          screenshots=sorted(base.glob("*.png"))
+          assert len(screenshots)>=2, "Google Play requires real phone screenshots"
+          assert all(p.read_bytes()[:8]==b"\x89PNG\r\n\x1a\n" for p in screenshots)
+          print("Real captures:",[p.name for p in screenshots])
+          PY
+      - name: Archive genuine Android phone screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: UltimateTTT-Android-real-phone-screenshots
+          path: ultimate/android/play-store/screenshots/*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Authenticate to Google Play Developer API
+        uses: google-github-actions/auth@v3
+        id: auth
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Upload phone screenshots if slot is empty
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt"
+          UPLOAD="https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/com.killjoy00.ultttt"
+          EDIT="$(curl --fail-with-body -sS -X POST "$APP/edits" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{}')"
+          ID="$(jq -er .id <<< "$EDIT")"
+          EXISTING="$(curl --fail-with-body -sS "$APP/edits/$ID/listings/en-US/phoneScreenshots" -H "Authorization: Bearer $TOKEN" | jq '(.images // []) | length')"
+          if [ "$EXISTING" -eq 0 ]; then
+            for image in ultimate/android/play-store/screenshots/*.png; do
+              curl --fail-with-body -sS -X POST "$UPLOAD/edits/$ID/listings/en-US/phoneScreenshots?uploadType=media" \
+                -H "Authorization: Bearer $TOKEN" -H 'Content-Type: image/png' --data-binary @"$image" > /dev/null
+              echo "Uploaded genuine screenshot: $image"
+            done
+          else
+            echo "Retained $EXISTING existing Play phone screenshots"
+          fi
+          curl --fail-with-body -sS -X POST "$APP/edits/$ID:commit" -H "Authorization: Bearer $TOKEN" \
+            -H 'Content-Type: application/json' -d '{}' > /dev/null
+          echo "Google Play genuine screenshot edit committed."
