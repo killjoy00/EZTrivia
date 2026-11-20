@@ -2,8 +2,9 @@ name: TestFlight
 
 # Uploads a signed build to TestFlight.
 #
-# Runs only on manual dispatch or a v* tag — never on ordinary pushes. Every
-# upload consumes a build number and notifies testers.
+# Runs on manual dispatch, a v* tag, or a reviewed release-request file merged
+# into main. Ordinary app-code pushes and pull requests never upload a build.
+# Every upload consumes a build number and notifies testers.
 #
 # Signing is entirely cloud-based: -allowProvisioningUpdates with an App Store
 # Connect API key creates the certificate and provisioning profile on demand.
@@ -19,6 +20,16 @@ on:
   workflow_dispatch:
   push:
     tags: ["v*"]
+    branches: [main]
+    paths:
+      - ".github/eztrivia-testflight-request.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eztrivia-testflight-upload
+  cancel-in-progress: false
 
 jobs:
   testflight:
@@ -27,6 +38,34 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Main-branch release requests are reviewable PR changes. A changed
+      # request file is the only additional automatic TestFlight trigger.
+      - name: Validate reviewed EZ Trivia TestFlight request
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import re
+
+          path = pathlib.Path(".github/eztrivia-testflight-request.json")
+          request = json.loads(path.read_text())
+          expected = {
+              "app": "EZTrivia",
+              "bundleID": "com.rsm.eztrivia",
+              "channel": "testflight",
+          }
+          for name, value in expected.items():
+              if request.get(name) != value:
+                  raise SystemExit(f"Unexpected TestFlight request {name}; refusing upload")
+          if not re.fullmatch(r"[a-z0-9][a-z0-9-]{8,79}", request.get("releaseReason", "")):
+              raise SystemExit("TestFlight releaseReason must be a descriptive release identifier")
+          print("Approved in-repository EZ Trivia TestFlight request verified.")
+          PY
 
       # Fail early and readably rather than as a cryptic signing error forty
       # lines into an xcodebuild log.

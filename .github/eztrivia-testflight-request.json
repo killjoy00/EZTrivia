@@ -1,0 +1,8 @@
+{
+  "app": "EZTrivia",
+  "bundleID": "com.rsm.eztrivia",
+  "channel": "testflight",
+  "releaseReason": "ios-mixed-question-category-context-20261120",
+  "audit": "MOBILE_PARITY.md",
+  "description": "Build and upload validated iOS mixed-round category labels after PR checks and main merge; no App Store submission"
+}

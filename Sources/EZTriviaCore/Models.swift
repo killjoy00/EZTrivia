@@ -69,6 +69,21 @@ public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendabl
     }
 }
 
+/** A round's navigation context determines whether its current question needs its own category label. */
+public enum TriviaRoundKind: CaseIterable, Sendable {
+    case category
+    case quickPlay
+    case dailyChallenge
+    case friendChallenge
+
+    public var showsQuestionCategory: Bool {
+        switch self {
+        case .category: false
+        case .quickPlay, .dailyChallenge, .friendChallenge: true
+        }
+    }
+}
+
 public enum TriviaDifficulty: String, CaseIterable, Codable, Identifiable, Sendable {
     case easy, medium, hard
 

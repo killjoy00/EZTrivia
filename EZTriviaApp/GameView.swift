@@ -32,6 +32,7 @@ struct GameView: View {
             else if engine.currentQuestion != nil {
                 RoundPlayer(
                     engine: $engine,
+                    roundKind: .category,
                     tint: AppTheme.color(for: category),
                     finishTitle: "See results",
                     onAnswer: { correct in
@@ -131,6 +132,7 @@ struct QuickPlayView: View {
             } else if engine.currentQuestion != nil {
                 RoundPlayer(
                     engine: $engine,
+                    roundKind: .quickPlay,
                     tint: .indigo,
                     finishTitle: "See results",
                     onAnswer: { correct in
