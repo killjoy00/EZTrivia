@@ -64,7 +64,17 @@ jobs:
                   raise SystemExit(f"Unexpected TestFlight request {name}; refusing upload")
           if not re.fullmatch(r"[a-z0-9][a-z0-9-]{8,79}", request.get("releaseReason", "")):
               raise SystemExit("TestFlight releaseReason must be a descriptive release identifier")
-          print("Approved in-repository EZ Trivia TestFlight request verified.")
+          requested_version = request.get("version", "")
+          if not re.fullmatch(r"[1-9][0-9]*\.[0-9]+\.[0-9]+", requested_version):
+              raise SystemExit("TestFlight request must specify a numeric iOS version such as 1.3.1")
+          # Check both Release and Debug Xcode marketing versions. A stale
+          # version can archive successfully, but Apple rejects upload if its
+          # pre-release train has already closed after approval.
+          project = pathlib.Path("EZTrivia.xcodeproj/project.pbxproj").read_text()
+          project_versions = re.findall(r"MARKETING_VERSION\s*=\s*([0-9]+\.[0-9]+\.[0-9]+);", project)
+          if len(project_versions) != 2 or any(v != requested_version for v in project_versions):
+              raise SystemExit(f"TestFlight requested {requested_version}, but Xcode marketing versions are {project_versions}")
+          print(f"Approved in-repository EZ Trivia TestFlight request verified: iOS {requested_version}.")
           PY
 
       # Fail early and readably rather than as a cryptic signing error forty

@@ -2,7 +2,8 @@
   "app": "EZTrivia",
   "bundleID": "com.rsm.eztrivia",
   "channel": "testflight",
-  "releaseReason": "ios-mixed-question-category-context-20261120",
+  "releaseReason": "ios-category-labels-version-131-20261120",
   "audit": "MOBILE_PARITY.md",
-  "description": "Build and upload validated iOS mixed-round category labels after PR checks and main merge; no App Store submission"
+  "description": "Retry signed iOS category-label TestFlight upload on the new 1.3.1 train after Apple rejected 1.3.0 as closed; no Android or App Store production release",
+  "version": "1.3.1"
 }
