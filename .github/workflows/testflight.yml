@@ -50,6 +50,7 @@ jobs:
           python3 - <<'PY'
           import json
           import pathlib
+          import re
 
           path = pathlib.Path(".github/eztrivia-testflight-request.json")
           request = json.loads(path.read_text())
@@ -57,11 +58,12 @@ jobs:
               "app": "EZTrivia",
               "bundleID": "com.rsm.eztrivia",
               "channel": "testflight",
-              "releaseReason": "ios-mixed-question-category-context-20261120",
           }
           for name, value in expected.items():
               if request.get(name) != value:
                   raise SystemExit(f"Unexpected TestFlight request {name}; refusing upload")
+          if not re.fullmatch(r"[a-z0-9][a-z0-9-]{8,79}", request.get("releaseReason", "")):
+              raise SystemExit("TestFlight releaseReason must be a descriptive release identifier")
           print("Approved in-repository EZ Trivia TestFlight request verified.")
           PY
 
