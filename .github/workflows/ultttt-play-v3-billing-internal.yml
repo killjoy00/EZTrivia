@@ -1,0 +1,153 @@
+name: Ultimate TTT v3 Billing permission internal-test bundle
+# Keep Android upload-keystore and Play API secrets in EZTrivia only.
+# This workflow triggers solely from an explicit versioned release request on main.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/ultttt-android-v3-internal-request.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ultttt-android-play-v3-internal-shared-signing
+  cancel-in-progress: false
+
+jobs:
+  internal:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Read approved release request
+        uses: actions/checkout@v4
+      - name: Check out immutable Ultttt Android source
+        uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: main
+          fetch-depth: 0
+          path: ultttt
+
+      - name: Verify app identity, request and merged source
+        id: approved
+        shell: bash
+        run: |
+          set -euo pipefail
+          request=.github/ultttt-android-v3-internal-request.json
+          test -f "$request"
+          test "$(jq -r '.enabled' "$request")" = true
+          test "$(jq -r '.publish_internal' "$request")" = true
+          test "$(jq -r '.package_name' "$request")" = "com.killjoy00.ultttt"
+          test "$(jq -r '.version_code' "$request")" = "3"
+          test "$(jq -r '.version_name' "$request")" = "1.1.0-beta01"
+          test "$(jq -r '.track' "$request")" = "internal"
+          source_sha="$(jq -r '.source_sha' "$request")"
+          [[ "$source_sha" =~ ^[a-f0-9]{40}$ ]] || { echo "::error::Invalid source SHA"; exit 1; }
+          git -C ultttt fetch --quiet origin main
+          git -C ultttt merge-base --is-ancestor "$source_sha" origin/main || {
+            echo "::error::Release source is not merged into Ultttt/main"
+            exit 1
+          }
+          git -C ultttt checkout --quiet --detach "$source_sha"
+          test "$(git -C ultttt rev-parse HEAD)" = "$source_sha"
+          grep -Fq 'applicationId = "com.killjoy00.ultttt"' ultttt/android/app/build.gradle.kts
+          grep -Fq 'android:icon="@mipmap/ic_launcher"' ultttt/android/app/src/main/AndroidManifest.xml
+          grep -Fq 'isMinifyEnabled = true' ultttt/android/app/build.gradle.kts
+          grep -Fq 'com.android.vending.BILLING' ultttt/android/app/src/main/AndroidManifest.xml
+          grep -Fq 'ADMOB_CONFIGURED' ultttt/android/app/build.gradle.kts
+          release_notes="$(jq -r '.release_notes' "$request")"
+          [[ -n "$release_notes" && ${#release_notes} -le 500 && "$release_notes" != *$'\n'* ]] || {
+            echo "::error::Release notes must be one nonempty line under 500 characters"
+            exit 1
+          }
+          echo "Validated Ultttt/main SHA $source_sha for Android 1.1.0-beta01 (code 3)."
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Validate existing shared signing and Play credentials
+        env:
+          UPLOAD_KEY_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          UPLOAD_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          PLAY_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$UPLOAD_KEY_B64" || { echo "::error::Missing EZTrivia Android upload keystore"; exit 1; }
+          test -n "$UPLOAD_PASSWORD" || { echo "::error::Missing EZTrivia Android upload key password"; exit 1; }
+          test -n "$PLAY_JSON" || { echo "::error::Missing EZTrivia Google Play service account"; exit 1; }
+          umask 077
+          printf '%s' "$UPLOAD_KEY_B64" | base64 --decode > "$RUNNER_TEMP/ultttt-upload.p12"
+          chmod 600 "$RUNNER_TEMP/ultttt-upload.p12"
+          keytool -list -keystore "$RUNNER_TEMP/ultttt-upload.p12" \
+            -storetype PKCS12 -storepass "$UPLOAD_PASSWORD" -alias upload >/dev/null
+
+      - name: Build tested, signed, optimized Android 1.1.0-beta01 AAB
+        working-directory: ultttt
+        env:
+          ULTTTT_VERSION_CODE: '3'
+          ULTTTT_VERSION_NAME: '1.1.0-beta01'
+          ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/ultttt-upload.p12
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -p android testDebugUnitTest assembleDebug bundleRelease
+          aapt="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          "$aapt" dump badging android/app/build/outputs/apk/debug/app-debug.apk > "$RUNNER_TEMP/ultttt-app-badging.txt"
+          grep -q '^application-icon' "$RUNNER_TEMP/ultttt-app-badging.txt"
+          "$aapt" dump permissions android/app/build/outputs/apk/debug/app-debug.apk | grep -Fq 'com.android.vending.BILLING'
+          echo "Verified Google Play billing permission in app."
+          grep -Fq 'Ultimate Tic/Tac/Toe' "$RUNNER_TEMP/ultttt-app-badging.txt"
+          aab=android/app/build/outputs/bundle/release/app-release.aab
+          test -s "$aab"
+          test -s android/app/build/outputs/mapping/release/mapping.txt
+          unzip -Z1 "$aab" > "$RUNNER_TEMP/ultttt-aab-files.txt"
+          grep -Fq 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map' "$RUNNER_TEMP/ultttt-aab-files.txt"
+          jarsigner -verify "$aab"
+          if grep -q '^BUNDLE-METADATA/com.android.tools.build.debugsymbols/' "$RUNNER_TEMP/ultttt-aab-files.txt"; then
+            echo "Native debug metadata included in AAB."
+          else
+            echo "::notice::Some third-party native libraries may be pre-stripped; symbol warning is advisory."
+          fi
+
+      - name: Archive exact signed release and its mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultttt-google-play-v3-billing-internal-signed
+          path: |
+            ultttt/android/app/build/outputs/bundle/release/app-release.aab
+            ultttt/android/app/build/outputs/mapping/release/mapping.txt
+            ultttt/android/app/build/outputs/native-debug-symbols/release/*.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Prepare Google Play release notes
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/play-notes"
+          jq -r '.release_notes' .github/ultttt-android-v3-internal-request.json > "$RUNNER_TEMP/play-notes/whatsnew-en-US"
+
+      - name: Upload Android 1.1.0-beta01 to Google Play internal testing
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.killjoy00.ultttt
+          releaseFiles: ultttt/android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
+          releaseName: Ultimate Tic/Tac/Toe 1.1.0 billing permission test
+          whatsNewDirectory: ${{ runner.temp }}/play-notes
+
+      - name: Destroy temporary upload keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ultttt-upload.p12"
