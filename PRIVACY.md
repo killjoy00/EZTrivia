@@ -1,6 +1,6 @@
 # EZTrivia Privacy Policy
 
-**Effective date: September 17, 2026**
+**Effective date: November 20, 2026**
 
 EZTrivia is a trivia game. This policy explains the information used when you play, sync progress, view ads, make a purchase, report a problem or question, or use platform gaming services.
 
