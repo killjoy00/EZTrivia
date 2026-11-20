@@ -1,0 +1,45 @@
+name: Ultimate TTT - Discover or create Android AdMob banner
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ultttt-admob-inventory.yml'
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate Ultttt AdMob configurator
+        run: |
+          python -m py_compile Scripts/configure_ultttt_admob_android.py
+          python Scripts/configure_ultttt_admob_android.py --help >/dev/null
+      - name: Verify AdMob OAuth grant exists
+        env:
+          ADMOB_OAUTH_CREDENTIALS_JSON: ${{ secrets.ADMOB_OAUTH_CREDENTIALS_JSON }}
+        run: |
+          set -euo pipefail
+          test -n "$ADMOB_OAUTH_CREDENTIALS_JSON" || {
+            echo "::error::No existing AdMob user OAuth secret. Real app/ad unit IDs must be copied from AdMob UI."
+            exit 1
+          }
+      - name: Retrieve Ultttt AdMob App ID and banner unit ID
+        env:
+          ADMOB_OAUTH_CREDENTIALS_JSON: ${{ secrets.ADMOB_OAUTH_CREDENTIALS_JSON }}
+        run: |
+          set -euo pipefail
+          python Scripts/configure_ultttt_admob_android.py --create \
+            --publisher-id pub-1217971050094766 \
+            --output "$RUNNER_TEMP/ultttt-android-admob.json"
+      - name: Archive non-secret Android AdMob identifiers
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultttt-android-admob-inventory
+          path: ${{ runner.temp }}/ultttt-android-admob.json
+          if-no-files-found: error
+          retention-days: 30
