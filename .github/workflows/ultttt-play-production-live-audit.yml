@@ -1,0 +1,38 @@
+name: Ultimate TTT - Read-only Google Play production release audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ultttt-play-production-live-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Authenticate using existing Google Play publisher account
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Read current production and test track release states - no edits committed
+        shell: bash
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          app=com.killjoy00.ultttt
+          api="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$app"
+          edit_id=$(curl --fail-with-body -sS -X POST -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' -d '{}' "$api/edits" | jq -r '.id')
+          test -n "$edit_id"
+          test "$edit_id" != null
+          curl --fail-with-body -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$api/edits/$edit_id/tracks" > "$RUNNER_TEMP/play-tracks.json"
+          echo "PRODUCTION AND OTHER TRACK STATUS AS OBSERVED BY ANDROID PUBLISHER API:"
+          jq -c '{tracks: [.tracks[] | {track: .track, releases: [(.releases // [])[] | {name: .name, versionCodes: .versionCodes, status: .status, userFraction: .userFraction, releaseNotes: .releaseNotes}]}]}' "$RUNNER_TEMP/play-tracks.json"
+          jq -e '[.tracks[] | select(.track == "production") | (.releases // [])[] | select((.versionCodes // []) | index("5"))] | length > 0' "$RUNNER_TEMP/play-tracks.json" && echo "CODE_5_ON_PRODUCTION_TRACK=YES" || echo "CODE_5_ON_PRODUCTION_TRACK=NO"
+          echo "AUDIT_IS_READ_ONLY=YES (temporary edit created only; never committed)"
