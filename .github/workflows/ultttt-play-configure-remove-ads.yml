@@ -1,4 +1,5 @@
 name: Ultimate TTT - Configure Android Remove Ads
+# Android app code 3 containing com.android.vending.BILLING has now been uploaded to the internal testing track.
 
 on:
   push:
