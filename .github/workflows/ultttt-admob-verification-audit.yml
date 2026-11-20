@@ -1,0 +1,65 @@
+name: Ultimate TTT AdMob app-ads.txt verification audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ultttt-admob-verification-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify published root app-ads.txt and Google crawler access
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://killjoy00.github.io/app-ads.txt'
+          curl --retry 3 --retry-all-errors --retry-delay 3 --fail --silent --show-error --location \
+            --dump-header "$RUNNER_TEMP/headers.txt" --output "$RUNNER_TEMP/app-ads.txt" "$url"
+          test "$(cat "$RUNNER_TEMP/app-ads.txt")" = 'google.com, pub-1217971050094766, DIRECT, f08c47fec0942fa0'
+          echo "Published publisher record is correct: $url"
+          cat "$RUNNER_TEMP/headers.txt" | grep -i '^HTTP/\|^content-type:' | tail -n 4
+          curl --fail --silent --show-error --location 'https://killjoy00.github.io/robots.txt' > "$RUNNER_TEMP/robots.txt"
+          grep -Fq 'User-agent: Google-adstxt' "$RUNNER_TEMP/robots.txt"
+          grep -Fq 'Allow: /app-ads.txt' "$RUNNER_TEMP/robots.txt"
+          echo "Crawler-specific robots.txt rules are present."
+      - name: Authenticate for Play app metadata lookup
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+      - name: Read Android Play developer website, without changing listing
+        shell: bash
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          url='https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt/edits'
+          token_header="Authorization: Bearer $PLAY_ACCESS_TOKEN"
+          curl --fail-with-body --silent --show-error -X POST -H "$token_header" \
+            -H 'Content-Type: application/json' -d '{}' "$url" > "$RUNNER_TEMP/play-edit.json"
+          edit="$(jq -r '.id // empty' "$RUNNER_TEMP/play-edit.json")"
+          test -n "$edit"
+          trap 'curl -sS -X DELETE -H "$token_header" "$url/$edit" >/dev/null || true' EXIT
+          curl --fail-with-body --silent --show-error -H "$token_header" \
+            "$url/$edit/details" > "$RUNNER_TEMP/ultttt-app-details.json"
+          python3 - "$RUNNER_TEMP/ultttt-app-details.json" <<'PY'
+          import json, sys
+          from urllib.parse import urlparse
+          x=json.load(open(sys.argv[1]))
+          website=x.get("contactWebsite") or ""
+          print("Google Play developer website:", website or "(missing)")
+          if not website:
+              raise SystemExit("ERROR: Developer website is missing from Google Play listing")
+          hostname=urlparse(website).hostname
+          print("Developer website hostname:",hostname)
+          print("Expected authorized sellers file: https://"+hostname+"/app-ads.txt")
+          if hostname != "killjoy00.github.io":
+              print("ERROR: Developer website hostname does not match hosted app-ads.txt file")
+              raise SystemExit(2)
+          print("PASS: Google Play website hostname agrees with authorized sellers file.")
+          PY
