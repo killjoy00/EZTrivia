@@ -1,0 +1,88 @@
+name: Add approved images to EZ Trivia iOS 1.4 listing
+
+on:
+  pull_request:
+    paths:
+      - Scripts/upload_eztrivia_ios14_artwork.py
+      - .github/workflows/eztrivia-ios-artwork-upload.yml
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/eztrivia-ios-artwork-upload.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install image tools and Inter fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-inter
+          python3 -m pip install --disable-pip-version-check --quiet Pillow
+      - name: Fetch actual iPhone simulator screenshots
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p artwork_source
+          gh api "repos/killjoy00/EZTrivia/actions/artifacts/9997153447/zip" > /tmp/eztrivia_iphone_screens.zip
+          unzip -o -q /tmp/eztrivia_iphone_screens.zip -d artwork_source
+          test -s artwork_source/01-home.png
+          test -s artwork_source/03-answered.png
+          test -s artwork_source/04-daily.png
+      - name: Validate uploader and reproduce approved image assets
+        run: |
+          python3 -m py_compile Scripts/upload_eztrivia_ios14_artwork.py
+          python3 Scripts/prepare_eztrivia_ios14_artwork.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          expected={
+            "EZTrivia_product_header_3840x1646.png":(3840,1646),
+            "EZTrivia_search_results_1920x1280.png":(1920,1280),
+            "EZTrivia_screenshot_home_1320x2868.png":(1320,2868),
+            "EZTrivia_screenshot_daily_1320x2868.png":(1320,2868),
+            "EZTrivia_screenshot_explanation_1320x2868.png":(1320,2868),
+          }
+          for fn, size in expected.items():
+              with Image.open(Path("artwork_generated")/fn) as im:
+                  if im.size!=size or im.mode!="RGB": raise ValueError(fn)
+          print("All five authentic-content assets validated.")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-ios-14-store-artwork
+          path: artwork_generated/*.png
+          if-no-files-found: error
+          retention-days: 30
+
+  upload:
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: eztrivia-ios-14-store-artwork
+          path: artwork_generated
+      - name: Install App Store Connect client requirements
+        run: python3 -m pip install --disable-pip-version-check --quiet PyJWT cryptography Pillow
+      - name: Stage the five images on existing iOS 1.4 en-US listing
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          test -n "$ASC_KEY_ID"
+          test -n "$ASC_ISSUER_ID"
+          test -n "$ASC_KEY_P8"
+          python3 Scripts/upload_eztrivia_ios14_artwork.py
