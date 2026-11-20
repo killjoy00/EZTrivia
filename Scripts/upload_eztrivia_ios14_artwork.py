@@ -301,7 +301,8 @@ def main():
     screenshots_new = []
     original_ids = [x["id"] for x in iphone]
 
-    for name, placement_type, _, groups in [(n, *chosen[n][0:1], chosen[n][1], chosen[n][3]) for n,_,_,_ in ARTWORK]:
+    for name, _, _, _ in ARTWORK:
+        placement_type, _, _, groups = chosen[name]
         asset_id = uploaded[name]
         for group in groups:
             matched = [
