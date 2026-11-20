@@ -1,4 +1,4 @@
-name: Ultimate TTT Android v4 AdMob and Billing production
+name: Ultimate TTT Android v4 AdMob and Billing production (hold for review)
 on:
   push:
     branches: [main]
@@ -35,7 +35,9 @@ jobs:
           test -f "$request"
           test "$(jq -r '.enabled' "$request")" = true
           test "$(jq -r '.publish_production' "$request")" = true
-          test "$(jq -r '.play_ads_and_data_safety_confirmed' "$request")" = true
+          test "$(jq -r '.play_data_safety_verified' "$request")" = true
+          test "$(jq -r '.hold_for_manual_review' "$request")" = true
+          test "$(jq -r '.play_ads_declaration_confirmed' "$request")" = false
           test "$(jq -r '.package_name' "$request")" = 'com.killjoy00.ultttt'
           test "$(jq -r '.version_code' "$request")" = '4'
           test "$(jq -r '.version_name' "$request")" = '1.1.0'
@@ -156,7 +158,7 @@ jobs:
           jq -r '.release_notes' .github/ultttt-android-v4-production-request.json \
             > "$RUNNER_TEMP/play-notes/whatsnew-en-US"
 
-      - name: Submit new Android ads-enabled version to production
+      - name: Upload new Android ads-enabled version to production draft (not sent for review)
         uses: r0adkll/upload-google-play@v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
@@ -164,6 +166,9 @@ jobs:
           releaseFiles: ultttt/android/app/build/outputs/bundle/release/app-release.aab
           track: production
           status: completed
+          # The user will set Play Console > App content > Ads = Yes before submitting.
+          # Never send this upload for review automatically.
+          changesNotSentForReview: true
           releaseName: Ultimate Tic/Tac/Toe 1.1.0
           whatsNewDirectory: ${{ runner.temp }}/play-notes
 
