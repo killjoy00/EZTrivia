@@ -232,10 +232,15 @@ Debug builds deliberately use Google's official test IDs so development cannot g
 10. Run a Debug build first and confirm Google's test banner appears. Never tap a live ad during development or testing.
 11. Install a Release/TestFlight build and confirm a live banner appears above the Play tab bar. A newly activated unit can temporarily return no inventory; retest after AdMob reports the app and unit ready.
 
-`AdConsentManager` runs Google's User Messaging Platform flow and waits for
-`canRequestAds` before starting the Mobile Ads SDK. `AdBannerView` then sends a
-plain SDK request so Google can honor the consent and regional privacy state
-already established by UMP. The app does **not** force `npa=1` on every request.
+`AdConsentManager` first runs Google's User Messaging Platform flow for the
+published European and US consent messages. If Apple tracking permission is
+still undetermined and UMP allows an ad request, it requests Apple's native
+App Tracking Transparency (ATT) permission **before** initializing Google
+Mobile Ads or loading the first banner. If a separate AdMob IDFA explainer
+already showed ATT, the native code does not request it twice. Denying ATT does
+not prevent play or non-IDFA ad requests. The app does **not** force `npa=1`
+on every request. Paid Remove Ads players skip ad/ATT initialization on launch.
+
 If the banner remains absent, inspect the AdMob app/unit status, published
 privacy messages, and a real-device Release build before changing source.
 
@@ -243,10 +248,10 @@ privacy messages, and a real-device Release build before changing source.
 
 1. Host `PRIVACY.md` at a public HTTPS URL. The GitHub file URL can be used initially, though a stable product website is preferable.
 2. In App Store Connect, enter that URL in **App Privacy → Privacy Policy URL**.
-3. Complete App Privacy answers for Google Mobile Ads and Game Center based on Google's current SDK disclosures. The app ships no analytics or crash-reporting SDK and collects nothing itself.
-4. Describe advertising behavior according to the final UMP and AdMob account configuration; do not claim every request is non-personalized because the code no longer forces that override. There is no analytics or crash-reporting SDK.
+3. Follow the verified [iOS privacy chart](IOS_APP_PRIVACY.md), including Google Mobile Ads and UMP's data, plus first-party iCloud-synchronized Gameplay Content. The app ships no *separate* analytics or crash-reporting SDK; Google Mobile Ads can nevertheless collect diagnostics.
+4. Declare Device ID linked to the user and used for tracking because the Google Mobile Ads SDK explicitly declares that use; iOS requests Apple ATT permission first. The regional UMP forms and Apple ATT are distinct. Do not select Developer's Advertising or Marketing solely because EZ Trivia hosts third-party ads.
 5. Add support and marketing URLs, copyright holder, category (**Games → Trivia**), description, keywords, screenshots, and review notes.
-6. In review notes, explain that Game Center is optional and the home-screen banner waits for the Google UMP privacy flow before requesting an ad. Note also that notification permission is requested only when a player turns on **Settings → Daily Challenge → Streak reminders**, never at launch, and that the app schedules one local notification with no remote push component.
+6. In review notes, explain that Game Center is optional and the home-screen banner waits for regional UMP consent and any applicable Apple ATT authorization. Note also that notification permission is requested only when a player turns on **Settings → Daily Challenge → Streak reminders**, never at launch, and that the app schedules one local notification with no remote push component.
 
 ## 8. Verify on a device, then submit
 
