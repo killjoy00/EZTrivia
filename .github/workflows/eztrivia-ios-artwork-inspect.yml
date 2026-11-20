@@ -1,0 +1,73 @@
+name: Inspect EZ Trivia iOS 1.4 App Store artwork slots
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/eztrivia-ios-artwork-inspect.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Apple JWT client
+        run: python3 -m pip install --disable-pip-version-check --quiet PyJWT cryptography
+      - name: Inspect iOS 1.4 version, Asset Library, and supported artwork placements
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, urllib.error, urllib.parse, urllib.request, time, jwt
+          raw = os.environ.get("ASC_KEY_P8","").strip().replace("\\n", "\n").replace("\r", "")
+          if "BEGIN PRIVATE KEY" not in raw:
+              try: raw = base64.b64decode(raw).decode("utf-8")
+              except Exception: pass
+          if "BEGIN PRIVATE KEY" not in raw:
+              raw = "-----BEGIN PRIVATE KEY-----\n" + raw + "\n-----END PRIVATE KEY-----\n"
+          key_id, issuer_id = os.environ["ASC_KEY_ID"], os.environ["ASC_ISSUER_ID"]
+          token = jwt.encode({"iss":issuer_id,"iat":int(time.time()),"exp":int(time.time())+900,"aud":"appstoreconnect-v1"},raw,algorithm="ES256",headers={"kid":key_id})
+          root="https://api.appstoreconnect.apple.com"
+          def get(path):
+              req=urllib.request.Request(root+path,headers={"Authorization":"Bearer "+token,"Accept":"application/json"})
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as resp: return json.load(resp)
+              except urllib.error.HTTPError as e:
+                  print("HTTP",e.code,"on",path, e.read().decode("utf-8","replace")[:600]);raise
+          apps=get("/v1/apps?"+urllib.parse.urlencode({"filter[bundleId]":"com.rsm.eztrivia","limit":10}))
+          found=apps.get("data",[])
+          assert len(found)==1,"Expected exactly one EZTrivia iOS app"
+          app_id=found[0]["id"]
+          print("EZ Trivia app id:",app_id)
+          versions=get("/v1/apps/"+app_id+"/appStoreVersions?limit=200").get("data",[])
+          print("App Store versions:", [(x["attributes"].get("versionString"), x["attributes"].get("appStoreState"), x["id"]) for x in versions])
+          matches=[x for x in versions if x["attributes"].get("versionString") in ("1.4","1.4.0") and x["attributes"].get("platform")=="IOS"]
+          if not matches:
+              print("NO iOS 1.4 APP STORE VERSION FOUND. No upload will be attempted.")
+          for ver in matches:
+              loc=get("/v1/appStoreVersions/"+ver["id"]+"/appStoreVersionLocalizations?limit=200").get("data",[])
+              print("iOS 1.4 localizations:",[(x["id"],x["attributes"].get("locale")) for x in loc])
+              for x in loc:
+                  if x["attributes"].get("locale")!="en-US": continue
+                  try:
+                      pl=get("/v1/appStoreVersionLocalizations/"+x["id"]+"/placements?limit=200").get("data",[])
+                      print("Current en-US placement types:",[(v["attributes"].get("placementType"),v["attributes"].get("placementGroup")) for v in pl])
+                  except urllib.error.HTTPError: print("Could not list new Asset Library placements")
+          try:
+              lib=get("/v1/apps/"+app_id+"/assetLibrary")
+              print("Asset Library id:",lib["data"]["id"])
+              ref=get("/v1/appAssetLibraryRefData?fields%5BappAssetLibraryRefData%5D=features%2CplacementTypes%2CplacementProfileGroups%2CimageSpecs").get("data",[])
+              if isinstance(ref,dict): ref=[ref]
+              for item in ref[:1]:
+                  a=item.get("attributes",{})
+                  pt=a.get("placementTypes",[])
+                  print("Creative placement types:",[(p.get("placementType") or p.get("name") or p.get("type"), p.get("acceptsAssetCategories")) for p in pt if any(z in json.dumps(p) for z in ("HEADER","SEARCH","APP_SCREENSHOT"))])
+                  print("Creative image sizes:",[(s.get("shortName"),s.get("dimensions"),s.get("compatiblePlacementTypes")) for s in a.get("imageSpecs",[]) if any(z in str(s.get("compatiblePlacementTypes")) for z in ("HEADER","SEARCH"))][:35])
+          except urllib.error.HTTPError: print("Asset Library API unavailable for this key or app")
+          PY
