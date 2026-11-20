@@ -50,6 +50,7 @@ jobs:
           base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}"
           work="$(mktemp -d)"
           trap 'rm -rf "$work"' EXIT
+          trap 'echo "::error::Google Play product API rejected a request"; for f in "$work"/*.json; do [ -f "$f" ] || continue; if jq -e ".error.message" "$f" >/dev/null 2>&1; then echo "API error in $f:"; jq -r ".error.message" "$f"; fi; done' ERR
 
           api_get() {
             curl --fail-with-body -sS \
