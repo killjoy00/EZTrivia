@@ -141,6 +141,8 @@ jobs:
           releaseFiles: ultttt/android/app/build/outputs/bundle/release/app-release.aab
           track: production
           status: completed
+          # A previous Google Play rejection requires a manual Send for review.
+          changesNotSentForReview: true
           releaseName: Ultimate Tic/Tac/Toe 1.0.1
           whatsNewDirectory: ${{ runner.temp }}/play-notes
 
