@@ -53,11 +53,11 @@ jobs:
             }
           test "$(jq -r '.contactWebsite' "$RUNNER_TEMP/details-after.json")" = "$desired"
           curl --fail-with-body -sS -X POST -H "$token_header" -H 'Content-Type: application/json' \
-            -d '{}' "$base/$edit:commit?changesNotSentForReview=true&changesInReviewBehavior=ERROR_IF_IN_REVIEW" \
+            -d '{}' "$base/$edit:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW" \
             > "$RUNNER_TEMP/commit.json" || {
               jq -r '.error.message // "COMMIT failed without API reason"' "$RUNNER_TEMP/commit.json"
               exit 1
             }
           jq -e '.id | length > 0' "$RUNNER_TEMP/commit.json" >/dev/null
           echo "Google Play website change saved: $desired"
-          echo "Changes held for explicit Play Console Send for review per Google policy."
+          echo "Google Play will send the updated developer website for review automatically."
