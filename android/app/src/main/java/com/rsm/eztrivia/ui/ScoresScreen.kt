@@ -1,6 +1,5 @@
 package com.rsm.eztrivia.ui
 
-import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -32,13 +31,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.rsm.eztrivia.DailyChallengeActivity
-import com.rsm.eztrivia.FriendChallengeActivity
 import com.rsm.eztrivia.ads.AdBanner
 import com.rsm.eztrivia.data.CategoryRoundResult
 import com.rsm.eztrivia.data.DailyResult
@@ -62,7 +58,6 @@ fun EZTriviaBottomBar(
     onScores: () -> Unit,
     onSettings: () -> Unit,
 ) {
-    val context = LocalContext.current
     Column {
         if (selected == AppSection.PLAY) {
             AdBanner()
@@ -73,22 +68,6 @@ fun EZTriviaBottomBar(
                 onClick = onPlay,
                 icon = { Text("▶", modifier = Modifier.clearAndSetSemantics { }) },
                 label = { Text("Play") },
-            )
-            NavigationBarItem(
-                selected = false,
-                onClick = {
-                    context.startActivity(Intent(context, DailyChallengeActivity::class.java))
-                },
-                icon = { Text("☀", modifier = Modifier.clearAndSetSemantics { }) },
-                label = { Text("Daily") },
-            )
-            NavigationBarItem(
-                selected = false,
-                onClick = {
-                    context.startActivity(Intent(context, FriendChallengeActivity::class.java))
-                },
-                icon = { Text("↔", modifier = Modifier.clearAndSetSemantics { }) },
-                label = { Text("Friends") },
             )
             NavigationBarItem(
                 selected = selected == AppSection.SCORES,
