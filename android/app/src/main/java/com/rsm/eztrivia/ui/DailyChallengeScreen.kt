@@ -128,6 +128,7 @@ fun DailyChallengeScreen(
     playerState: PlayerState,
     store: PlayerStateStore,
     onBack: () -> Unit,
+    onViewStandings: (DailyResult) -> Unit,
 ) {
     val today = remember { DailyChallenge.day() }
     val settings = rememberAppSettings()
@@ -155,6 +156,7 @@ fun DailyChallengeScreen(
             result = result,
             streak = DailyStreak.current(playerState.dailyResultsByDay.keys + result.day, result.day),
             onBack = onBack,
+            onViewStandings = onViewStandings,
         )
         else -> {
             val questions = remember(today, catalog) { DailyChallenge.challenge(today, catalog) }
@@ -399,6 +401,7 @@ private fun DailyExplanationCard(question: TriviaQuestion, selectedIndex: Int?) 
                 fontWeight = FontWeight.Bold,
             )
             Text(question.explanation, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            QuestionReportButton(question, selectedIndex)
         }
     }
 }
@@ -429,6 +432,7 @@ private fun DailyResultScreen(
     result: DailyResult,
     streak: Int,
     onBack: () -> Unit,
+    onViewStandings: (DailyResult) -> Unit,
 ) {
     val context = LocalContext.current
     val shareText = RoundSummary.daily(
@@ -490,6 +494,9 @@ private fun DailyResultScreen(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Share result")
+        }
+        OutlinedButton(onClick = { onViewStandings(result) }, modifier = Modifier.fillMaxWidth()) {
+            Text("View Daily leaderboard on Play Games")
         }
         Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back to categories") }
     }

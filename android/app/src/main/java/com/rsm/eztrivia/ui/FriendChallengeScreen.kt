@@ -567,6 +567,7 @@ private fun FriendExplanationCard(question: TriviaQuestion, selectedIndex: Int?)
                 fontWeight = FontWeight.Bold,
             )
             Text(question.explanation, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            QuestionReportButton(question, selectedIndex)
         }
     }
 }

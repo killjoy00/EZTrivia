@@ -412,7 +412,7 @@ private fun CategoryCard(
                     ) {
                         Text(difficulty.title.take(1), style = MaterialTheme.typography.labelSmall, color = tint)
                         Text(
-                            best?.let { "$"+"{it}%" } ?: "—",
+                            best?.let { "${it}%" } ?: "—",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = tint,
@@ -750,6 +750,7 @@ private fun ExplanationCard(question: TriviaQuestion, selectedIndex: Int?) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            QuestionReportButton(question, selectedIndex)
         }
     }
 }
