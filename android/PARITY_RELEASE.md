@@ -1,6 +1,6 @@
 # Android parity release — iOS 1.4 baseline
 
-**Status:** implemented on feature branch; do not roll out until CI, Play Games, and installed-device checks pass.
+**Release status (November 21, 2026):** Android parity code merged in [PR #159](https://github.com/killjoy00/EZTrivia/pull/159); **versionCode 8 / 1.0.0-alpha08** signed and uploaded through [release PR #160](https://github.com/killjoy00/EZTrivia/pull/160). [Release workflow](https://github.com/killjoy00/EZTrivia/actions/runs/44956721615) succeeded. [Live Google Play lifecycle audit](https://github.com/killjoy00/EZTrivia/actions/runs/44957257384) confirms **v8 PUBLISHED on Internal Testing** and **v8 IN_REVIEW on the existing `production-access` closed-testing track**. Closed testers continue to receive **v7 PUBLISHED** until approval. No new test track or public Production release was created. A daily read-only GitHub audit now watches the review outcome.
 
 ## Changes in this Android-only update
 
@@ -14,7 +14,7 @@ No question content, deterministic Daily/Friend selection, scoring, persistence 
 
 ## Verification
 
-- [ ] Android CI: unit tests, lint, debug/release builds, R8 packaging and AAB
+- [x] Android CI: unit tests, lint, debug/release builds, R8 packaging and AAB (PR #159 and release run)
 - [ ] Emulator/installed APK: home is fully scrollable on a small phone and with large fonts
 - [ ] Play tab: Daily opens today's challenge; Quick Play opens a mixed round; Friend opens the lobby; tapping a category opens Easy/Medium/Hard
 - [ ] Play/Scores/Settings navigation; in-round bottom bar and home banners do not appear
@@ -23,7 +23,8 @@ No question content, deterministic Daily/Friend selection, scoring, persistence 
 - [ ] Daily leaderboard button handles signed-in and signed-out states, without replaying a prior day's result into today's scores
 - [ ] AdMob and Remove Ads still behave correctly on the Play home (production serving needs verified AdMob request/impression data, not just source checks)
 - [ ] Google Play Games Daily leaderboard is published/visible to the installed app and its configured tester/player account
-- [ ] Verify currently installed Android version/track, assign the **next** versionCode, and choose release track intentionally. Do not replace the existing closed test or publish automatically.
+- [x] Verify existing Android version/track and publish versionCode 8 to **Internal + the same closed-testing track** with explicit review guards. Do not promote to public Production automatically.
+- [ ] Await v8 closed-test approval and verify `RELEASE_LIFECYCLE_STATE_PUBLISHED` on `production-access` (the daily read-only lifecycle audit will check).
 
 ## Remaining differences / not in this release
 
@@ -32,4 +33,4 @@ No question content, deterministic Daily/Friend selection, scoring, persistence 
 - Android offers an explicit dark-mode setting; iOS follows the system preference. Both support dark appearance.
 - AdMob live delivery and Play Games publication cannot be established through source code alone.
 
-This document describes the feature branch and is not evidence of a published Google Play release.
+The workflow and API audit links above establish accepted Internal and in-review closed-test release states, not approval of the closed test, real-device ad delivery, or public Production availability.

@@ -2,6 +2,9 @@ name: Play release lifecycle audit
 
 on:
   workflow_dispatch:
+  # Read-only approval watch; never uploads a bundle or changes a Play track.
+  schedule:
+    - cron: "0 12 * * *"
   push:
     branches: ["main"]
     paths:
