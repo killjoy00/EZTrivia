@@ -1,6 +1,7 @@
 package com.rsm.eztrivia.ui
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items as listItems
@@ -28,6 +30,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -55,7 +58,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.rsm.eztrivia.DailyChallengeActivity
+import com.rsm.eztrivia.FriendChallengeActivity
 import com.rsm.eztrivia.data.AppSettings
 import com.rsm.eztrivia.data.AppSettingsStore
 import com.rsm.eztrivia.data.PlayerState
@@ -133,6 +139,7 @@ private fun TriviaNavigation(
     settings: AppSettings,
 ) {
     var screen by remember { mutableStateOf<AppScreen>(AppScreen.Home) }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val catalogQuestionIds = remember(catalog) { catalog.mapTo(mutableSetOf()) { it.id } }
 
@@ -185,9 +192,10 @@ private fun TriviaNavigation(
 
     when (val current = screen) {
         AppScreen.Home -> HomeScreen(
-            catalog = catalog,
             playerState = playerState,
             onQuickPlay = { start(RoundMode.QuickPlay) },
+            onDaily = { context.startActivity(Intent(context, DailyChallengeActivity::class.java)) },
+            onFriend = { context.startActivity(Intent(context, FriendChallengeActivity::class.java)) },
             onCategory = { screen = AppScreen.Difficulty(it) },
             onScores = { screen = AppScreen.Scores },
             onSettings = { screen = AppScreen.Settings },
@@ -260,16 +268,14 @@ private fun TriviaNavigation(
 
 @Composable
 private fun HomeScreen(
-    catalog: List<TriviaQuestion>,
     playerState: PlayerState,
     onQuickPlay: () -> Unit,
+    onDaily: () -> Unit,
+    onFriend: () -> Unit,
     onCategory: (TriviaCategory) -> Unit,
     onScores: () -> Unit,
     onSettings: () -> Unit,
 ) {
-    val catalogQuestionIds = remember(catalog) { catalog.mapTo(mutableSetOf()) { it.id } }
-    val answeredCurrentQuestions = playerState.completedQuestionIds.count { it in catalogQuestionIds }
-
     Scaffold(
         bottomBar = {
             EZTriviaBottomBar(
@@ -280,91 +286,51 @@ private fun HomeScreen(
             )
         },
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 18.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        // Put the hero actions and category grid in one scrolling container.
+        // A fixed header + weighted grid hid categories on small Android screens.
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 155.dp),
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = "Ready to play?",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "Ten quick questions. One great score.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            QuickPlayCard(onClick = onQuickPlay)
-            PlayerProgressCard(
-                playerState = playerState,
-                answeredQuestions = answeredCurrentQuestions,
-                totalQuestions = catalog.size,
-            )
-
-            Text(
-                text = "Choose a category",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-            )
-
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 155.dp),
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(bottom = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                gridItems(TriviaCategory.entries) { category ->
-                    CategoryCard(
-                        category = category,
-                        questionCount = catalog.count { it.category == category },
-                        onClick = { onCategory(category) },
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Ready to play?",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "Ten quick questions. One great score.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun PlayerProgressCard(
-    playerState: PlayerState,
-    answeredQuestions: Int,
-    totalQuestions: Int,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Your progress", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    "$answeredQuestions of $totalQuestions questions answered",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                DailyChallengeHomeCard(playerState = playerState, onClick = onDaily)
             }
-            Column(horizontalAlignment = Alignment.End) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                QuickPlayCard(onClick = onQuickPlay)
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                FriendChallengeHomeCard(onClick = onFriend)
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
-                    "${playerState.totalRoundsCompleted}",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "Or choose a category to play",
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                 )
-                Text("rounds", style = MaterialTheme.typography.labelSmall)
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    "${playerState.lifetimePointsTotal}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+            gridItems(TriviaCategory.entries) { category ->
+                CategoryCard(
+                    category = category,
+                    playerState = playerState,
+                    onClick = { onCategory(category) },
                 )
-                Text("points", style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -373,9 +339,9 @@ private fun PlayerProgressCard(
 @Composable
 private fun QuickPlayCard(onClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF5635B8)),
     ) {
         Row(
             modifier = Modifier.padding(18.dp),
@@ -383,17 +349,17 @@ private fun QuickPlayCard(onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Box(modifier = Modifier.size(54.dp), contentAlignment = Alignment.Center) {
-                Text("10", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("⤨", style = MaterialTheme.typography.headlineMedium, color = Color.White)
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text("Quick Play", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Quick Play", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
                 Text(
                     "Ten categories. Easy to hard.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color.White.copy(alpha = 0.9f),
                 )
             }
-            Text("›", style = MaterialTheme.typography.headlineSmall)
+            Text("›", style = MaterialTheme.typography.headlineSmall, color = Color.White)
         }
     }
 }
@@ -401,42 +367,81 @@ private fun QuickPlayCard(onClick: () -> Unit) {
 @Composable
 private fun CategoryCard(
     category: TriviaCategory,
-    questionCount: Int,
+    playerState: PlayerState,
     onClick: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-    ) {
+    val tint = categoryColor(category)
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(modifier = Modifier.size(38.dp), contentAlignment = Alignment.Center) {
-                Surface(
-                    shape = RoundedCornerShape(11.dp),
-                    color = categoryColor(category).copy(alpha = 0.16f),
-                ) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(category.title.take(1), fontWeight = FontWeight.Bold, color = categoryColor(category))
-                    }
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = RoundedCornerShape(13.dp),
+                color = tint,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(categorySymbol(category), style = MaterialTheme.typography.titleLarge)
                 }
             }
-            Text(category.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                category.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 category.subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                "$questionCount questions",
-                style = MaterialTheme.typography.labelSmall,
-                color = categoryColor(category),
-                fontWeight = FontWeight.Bold,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                TriviaDifficulty.entries.forEach { difficulty ->
+                    val best = playerState.bestCategoryScore(category, difficulty)
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(difficulty.title.take(1), style = MaterialTheme.typography.labelSmall, color = tint)
+                        Text(
+                            best?.let { "$"+"{it}%" } ?: "—",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = tint,
+                        )
+                    }
+                }
+            }
         }
     }
+}
+
+/** Native Android symbols corresponding to iOS's individual SF Symbol category icons. */
+internal fun categorySymbol(category: TriviaCategory): String = when (category) {
+    TriviaCategory.FOOTBALL -> "🏈"
+    TriviaCategory.BASKETBALL -> "🏀"
+    TriviaCategory.SOCCER -> "⚽"
+    TriviaCategory.FLAGS -> "🌐"
+    TriviaCategory.HISTORY -> "🏛"
+    TriviaCategory.SCIENCE -> "🔬"
+    TriviaCategory.MOVIES -> "🎬"
+    TriviaCategory.TV -> "📺"
+    TriviaCategory.GEOGRAPHY -> "🗺"
+    TriviaCategory.MUSIC -> "🎵"
+    TriviaCategory.ANIMALS -> "🐾"
+    TriviaCategory.FOOD -> "🍽"
+    TriviaCategory.LITERATURE -> "📚"
+    TriviaCategory.ART -> "🎨"
+    TriviaCategory.MYTHOLOGY -> "⚡"
+    TriviaCategory.VIDEO_GAMES -> "🎮"
 }
 
 @Composable
