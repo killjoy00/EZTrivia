@@ -6,7 +6,7 @@
 
 1. Play home is a single scroll surface: **Daily Challenge → Quick Play → Friend Challenge → categories**. Hero cards re-use the existing Daily and Friend activities and question algorithms.
 2. Bottom navigation is **Play / Scores / Settings** like iOS. Daily/Friend remain accessible from Play, including the existing incoming Friend deep links.
-3. Category cards show distinct symbols and the **best percentage for Easy / Medium / Hard**, based on the most recent 50 category rounds (same source of truth and reset behavior as iOS). The Scores tab retains coverage and achievements.
+3. Quick Play and Daily use the purple/indigo and orange/pink action gradients from iOS. Category cards show distinct symbols and the **best percentage for Easy / Medium / Hard**, based on the most recent 50 category rounds (same source of truth and reset behavior as iOS). The Scores tab retains coverage and achievements.
 4. All four round paths (category, Quick Play, Daily, Friend) offer **Report this question** after answering. The user controls a prefilled email that includes the stable question ID, selected/correct answers, category, difficulty, explanation, and app version.
 5. A completed Daily offers **View Daily leaderboard on Play Games**. The button attempts platform sign-in and submits only a current-day score before opening the native Daily board.
 

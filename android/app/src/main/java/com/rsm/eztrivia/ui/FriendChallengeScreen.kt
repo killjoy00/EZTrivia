@@ -218,7 +218,7 @@ fun FriendChallengeHomeCard(onClick: () -> Unit) {
                 color = friendChallengeTint.copy(alpha = 0.14f),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Text("2", color = friendChallengeTint, fontWeight = FontWeight.Bold)
+                    Text("✦", color = friendChallengeTint, fontWeight = FontWeight.Bold)
                 }
             }
             Column(modifier = Modifier.weight(1f)) {

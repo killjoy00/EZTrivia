@@ -3,6 +3,7 @@ package com.rsm.eztrivia.ui
 import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +46,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
@@ -74,36 +77,39 @@ fun DailyChallengeHomeCard(
     playerState: PlayerState,
     onClick: () -> Unit,
 ) {
-    val today = remember { DailyChallenge.day() }
+    val today = DailyChallenge.day()
     val supported = DailyChallenge.isCrossPlatformDay(today)
     val result = playerState.dailyResult(today)
     val streak = playerState.dailyStreak(today)
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
     ) {
         Row(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.linearGradient(listOf(Color(0xFFF97316), Color(0xFFDB2777))))
+                .padding(18.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Surface(
                 modifier = Modifier.size(56.dp),
                 shape = RoundedCornerShape(16.dp),
-                color = dailyTint.copy(alpha = 0.15f),
+                color = Color.White.copy(alpha = 0.18f),
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Text(if (result == null) "☀" else "✓", color = dailyTint, fontWeight = FontWeight.Bold)
-                    Text("#${DailyChallenge.displayNumber(today)}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Text(if (result == null) "☀" else "✓", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("#${DailyChallenge.displayNumber(today)}", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Daily Challenge", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Daily Challenge", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
                 Text(
                     when {
                         !supported -> "Cross-platform Daily starts with #252 tomorrow."
@@ -111,13 +117,13 @@ fun DailyChallengeHomeCard(
                         else -> "Ten questions. Everyone plays the same set."
                     },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color.White.copy(alpha = 0.9f),
                 )
                 if (streak > 0) {
-                    Text("🔥 $streak day streak", style = MaterialTheme.typography.labelMedium, color = dailyTint, fontWeight = FontWeight.Bold)
+                    Text("🔥 $streak day streak", style = MaterialTheme.typography.labelMedium, color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
-            Text("›", style = MaterialTheme.typography.headlineSmall)
+            Text("›", style = MaterialTheme.typography.headlineSmall, color = Color.White)
         }
     }
 }
