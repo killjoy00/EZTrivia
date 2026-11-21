@@ -70,3 +70,4 @@ jobs:
           path: ${{ runner.temp }}/play-release-lifecycle.json
           if-no-files-found: error
           retention-days: 30
+# Android parity v1.5: refresh live Play lifecycle before changing the existing closed-test track.
