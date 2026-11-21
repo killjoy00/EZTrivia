@@ -1,6 +1,6 @@
 # Android parity release — iOS 1.4 baseline
 
-**Release status (November 21, 2026):** Android parity code merged in [PR #159](https://github.com/killjoy00/EZTrivia/pull/159); **versionCode 8 / 1.0.0-alpha08** signed and uploaded through [release PR #160](https://github.com/killjoy00/EZTrivia/pull/160). [Release workflow](https://github.com/killjoy00/EZTrivia/actions/runs/44956721615) succeeded. [Live Google Play lifecycle audit](https://github.com/killjoy00/EZTrivia/actions/runs/44957257384) confirms **v8 PUBLISHED on Internal Testing** and **v8 IN_REVIEW on the existing `production-access` closed-testing track**. Closed testers continue to receive **v7 PUBLISHED** until approval. No new test track or public Production release was created. A daily read-only GitHub audit now watches the review outcome.
+**Release status (November 21, 2026):** Android parity code merged in [PR #159](https://github.com/killjoy00/EZTrivia/pull/159); **versionCode 8 / 1.0.0-alpha08** signed and uploaded through [release PR #160](https://github.com/killjoy00/EZTrivia/pull/160). [Release workflow](https://github.com/killjoy00/EZTrivia/actions/runs/44956721615) succeeded. [Live Google Play lifecycle audit](https://github.com/killjoy00/EZTrivia/actions/runs/44957257384) confirms **v8 PUBLISHED on Internal Testing** and **v8 IN_REVIEW on the existing `production-access` closed-testing track**. Closed testers continue to receive **v7 PUBLISHED** until approval. No new test track or public Production release was created. The read-only lifecycle audit remains available on demand; no scheduled approval watch is enabled.
 
 ## Changes in this Android-only update
 
@@ -24,7 +24,7 @@ No question content, deterministic Daily/Friend selection, scoring, persistence 
 - [ ] AdMob and Remove Ads still behave correctly on the Play home (production serving needs verified AdMob request/impression data, not just source checks)
 - [ ] Google Play Games Daily leaderboard is published/visible to the installed app and its configured tester/player account
 - [x] Verify existing Android version/track and publish versionCode 8 to **Internal + the same closed-testing track** with explicit review guards. Do not promote to public Production automatically.
-- [ ] Await v8 closed-test approval and verify `RELEASE_LIFECYCLE_STATE_PUBLISHED` on `production-access` (the daily read-only lifecycle audit will check).
+- [ ] Await v8 closed-test approval and verify `RELEASE_LIFECYCLE_STATE_PUBLISHED` on `production-access` (run the read-only lifecycle audit on demand).
 
 ## Remaining differences / not in this release
 
