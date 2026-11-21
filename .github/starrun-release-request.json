@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "6c58aff03bb0729ff180941392b94836829da128",
+  "sha": "c9649e6848a61344cf64d371197cb014428a7051",
   "version": "1.3",
   "destination": "TestFlight",
-  "purpose": "Private iPhone TestFlight build for Star/Run merged build-payoff & clarity PR #63: observed engine impact recap; rate-limited 3x-friendly evolution payoff cues; compact rank-5 specialization roles and truthful fusion rank; six-ship World 2-4 payoff validation. No public App Store submission.",
-  "attempt": 32,
-  "reason": "PR #63 squash merged to StarRun main at 6c58aff. Exact reviewed PR head e405c1c passed Playable build (2,250 simulation assertions, 628 phone UI, 126 visual, 115 fusion, 47 touch, real 4-world win), 1,234 payoff matrix checks, zero-cast build suite, boss and reliability suites, and unsigned iPhone compilation. Only private TestFlight device QA requested."
+  "purpose": "Private iPhone TestFlight build for Star/Run PR #68: review fixes (Reflector Wall, corrosion vs Aegis, Arsenal Shift, haptic spam), verified saves with backup, Game Center retry queue, Remove Ads revocation, Kestrel/Bulwark/Vanguard and heat rebalance, and World 1 swarm packs on Normal. No public App Store submission.",
+  "attempt": 33,
+  "reason": "PR #68 squash merged to StarRun main at c9649e6. Exact reviewed PR head 6f2e616 passed all 58 PR checks: Playable build (2,270 simulation assertions, 700 phone UI, 126 visual, 115 fusion, 47 touch, real four-world win, Silent Archive clear), boss, evolution, reliability and zero-cast suites, Android bundle and unsigned iPhone compilation. Only private TestFlight device QA requested."
 }
