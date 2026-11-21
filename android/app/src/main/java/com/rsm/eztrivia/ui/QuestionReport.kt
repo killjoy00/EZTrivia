@@ -22,7 +22,7 @@ internal fun questionReportDraft(
     selectedAnswerIndex: Int?,
     version: String,
 ): QuestionReportDraft {
-    val selectedAnswer = selectedAnswerIndex?.let(question.answers::getOrNull) ?: "Not recorded"
+    val selectedAnswer = selectedAnswerIndex?.let { question.answers.getOrNull(it) } ?: "Not recorded"
     return QuestionReportDraft(
         subject = "EZ Trivia question report — ${question.id}",
         body = buildString {
