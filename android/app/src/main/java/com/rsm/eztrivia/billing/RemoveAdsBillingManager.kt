@@ -57,6 +57,7 @@ class RemoveAdsBillingManager(
     private var selectedOfferToken: String? = null
     private var started = false
     private var connecting = false
+    private var restoreOnConnection = false
 
     private val billingClient = BillingClient.newBuilder(activity.applicationContext)
         .setListener(this)
@@ -152,12 +153,15 @@ class RemoveAdsBillingManager(
         if (billingClient.isReady) {
             queryOwnedPurchases(showMissingMessage = true)
         } else {
+            // Preserve the explicit restore request even if a connection attempt
+            // is already in flight when the user taps Restore.
+            restoreOnConnection = true
             _state.value = _state.value.copy(
                 isConnecting = true,
                 isBillingReady = false,
                 errorMessage = null,
             )
-            connect(onConnected = { queryOwnedPurchases(showMissingMessage = true) })
+            connect()
         }
     }
 
@@ -191,10 +195,13 @@ class RemoveAdsBillingManager(
         }
     }
 
-    private fun connect(onConnected: (() -> Unit)? = null) {
+    private fun connect() {
         if (billingClient.isReady) {
             _state.value = _state.value.copy(isConnecting = false, isBillingReady = true)
-            onConnected?.invoke()
+            if (restoreOnConnection) {
+                restoreOnConnection = false
+                queryOwnedPurchases(showMissingMessage = true)
+            }
             return
         }
         if (connecting) return
@@ -209,7 +216,9 @@ class RemoveAdsBillingManager(
                         isBillingReady = true,
                         errorMessage = null,
                     )
-                    if (onConnected != null) onConnected() else queryOwnedPurchases(showMissingMessage = false)
+                    val restore = restoreOnConnection
+                    restoreOnConnection = false
+                    queryOwnedPurchases(showMissingMessage = restore)
                     queryProduct()
                 } else {
                     _state.value = _state.value.copy(
