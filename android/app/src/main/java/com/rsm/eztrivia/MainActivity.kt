@@ -48,6 +48,8 @@ class MainActivity : ComponentActivity() {
         playGamesManager = PlayGamesManager(this)
         savedGamesManager = PlayGamesSavedStateManager(this, playerStateStore, lifecycleScope)
         removeAdsBillingManager = RemoveAdsBillingManager(this)
+        // Begin billing setup at app launch; Settings/Resume may then refresh it.
+        removeAdsBillingManager.start()
         adConsentManager = AdConsentManager(this)
 
         lifecycleScope.launch {
