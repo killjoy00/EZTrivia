@@ -257,7 +257,7 @@ fun PlayGamesLeaderboardsScreen(
                         item {
                             Text(
                                 "Your rank couldn't be retrieved right now. " +
-                                    "Available global rankings are still shown below.",
+                                    "Any rankings Google returned are still shown below.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall,
                             )
