@@ -62,6 +62,29 @@ jobs:
             cat android/play-games.properties
             echo '~~~'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Audit achievement and leaderboard icon readiness
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.request
+          token = os.environ["GOOGLE_PLAY_ACCESS_TOKEN"]
+          root = "https://www.googleapis.com/games/v1configuration/applications/517518057047"
+          for typ in ("achievements", "leaderboards"):
+              req = urllib.request.Request(
+                  root + "/" + typ,
+                  headers={"Authorization": "Bearer " + token, "Accept": "application/json"})
+              with urllib.request.urlopen(req, timeout=45) as response:
+                  data=json.load(response)
+              resources=data.get("items",[])
+              missing=[item.get("id") for item in resources
+                       if not (item.get("draft") or {}).get("iconUrl")]
+              print(f"{typ}: {len(resources)} configured, {len(missing)} without draft icons")
+              for identifier in missing:
+                  print("Missing icon for public resource ID:", identifier)
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: ultttt-play-games-public-resource-ids
