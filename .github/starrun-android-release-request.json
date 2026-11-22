@@ -1,9 +1,9 @@
 {
   "enabled": true,
-  "source_sha": "56d849f7b9c0af094c2e500c6ce36768589aece9",
-  "version_code": "6",
-  "version_name": "1.4.2",
-  "release_notes": "New Guard drones and a drone build bonus (SWARM). Haven is now a drone carrier with stronger Seekers. Clearer start-world and rival text.",
+  "source_sha": "f89cabb872c2a704c9713a8b0c3c265a84ea74c3",
+  "version_code": "7",
+  "version_name": "1.4.3",
+  "release_notes": "Bosses get an intro screen. Fairer Daily runs with their own Hangar set. Rerolls last the whole run. Clearer end-of-run and between-world screens. Wraith and Bulwark balance.",
   "publish_internal": true,
   "release_status": "draft"
 }
