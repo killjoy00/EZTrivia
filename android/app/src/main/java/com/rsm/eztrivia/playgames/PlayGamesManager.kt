@@ -162,7 +162,7 @@ class PlayGamesManager(private val activity: Activity) {
     }
 
     private fun LeaderboardScore.toRankRow(): PlayGamesRankRow = PlayGamesRankRow(
-        playerId = scoreHolder.playerId,
+        playerId = scoreHolder?.playerId.orEmpty(),
         rank = rank,
         playerName = scoreHolderDisplayName,
         formattedScore = displayScore,
