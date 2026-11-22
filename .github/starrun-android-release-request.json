@@ -1,9 +1,9 @@
 {
   "enabled": true,
-  "source_sha": "02d088de136b08cfdc769db40ade0a06c26657eb",
-  "version_code": "4",
-  "version_name": "1.4.0",
-  "release_notes": "Longer Hangar with new upgrades and rank bars, harder Worlds 2-4 that ramp up evenly, new Cores payout, Vanguard buff, ship fly-in, particles and clearer text.",
+  "source_sha": "d633bf1faef6cda4c1271fb20cfcda9e6789b4cc",
+  "version_code": "5",
+  "version_name": "1.4.1",
+  "release_notes": "Start at a later world once you have cleared the one before it. Vanguard slightly weaker, Haven slightly stronger. Page labels fixed.",
   "publish_internal": true,
   "release_status": "draft"
 }
