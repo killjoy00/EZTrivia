@@ -3,12 +3,12 @@ package com.rsm.eztrivia
 import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -36,8 +36,9 @@ class SettingsParityNavigationTest {
 
         // These actions must remain accessible even when Play Billing cannot
         // connect in an emulator (a real licensed Play install is tested separately).
-        repeat(5) { rule.onNode(hasScrollAction()).performTouchInput { swipeUp() } }
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText("Remove Ads"))
         rule.onNodeWithText("Remove Ads").assertExists()
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText("Report a problem"))
         rule.onNodeWithText("Report a problem").assertExists()
     }
 }
