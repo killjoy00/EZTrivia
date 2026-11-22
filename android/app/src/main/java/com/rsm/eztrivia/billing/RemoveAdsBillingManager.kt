@@ -82,8 +82,16 @@ class RemoveAdsBillingManager(
     }
 
     fun refresh() {
+        if (closed) return
         if (billingClient.isReady) {
-            _state.value = _state.value.copy(isBillingReady = true)
+            // Automatic Play Billing reconnection can make isReady true while
+            // a previous attempt still left isConnecting set in our UI state.
+            connecting = false
+            _state.value = _state.value.copy(
+                isConnecting = false,
+                isBillingReady = true,
+                errorMessage = null,
+            )
             queryOwnedPurchases(showMissingMessage = false)
             queryProduct()
         } else {
@@ -163,8 +171,16 @@ class RemoveAdsBillingManager(
     }
 
     fun restore() {
+        if (closed) return
         if (billingClient.isReady) {
+            connecting = false
+            _state.value = _state.value.copy(
+                isConnecting = false,
+                isBillingReady = true,
+                errorMessage = null,
+            )
             queryOwnedPurchases(showMissingMessage = true)
+            queryProduct()
         } else {
             // Preserve the explicit restore request even if a connection attempt
             // is already in flight when the user taps Restore.
@@ -214,15 +230,9 @@ class RemoveAdsBillingManager(
     private fun connect() {
         if (closed) return
         if (billingClient.isReady) {
-            _state.value = _state.value.copy(
-                isConnecting = false,
-                isBillingReady = true,
-                errorMessage = null,
-            )
-            if (restoreOnConnection) {
-                restoreOnConnection = false
-                queryOwnedPurchases(showMissingMessage = true)
-            }
+            // Handle ready clients exactly as a successful setup callback:
+            // refresh both ownership and price, not merely the UI flag.
+            finishConnection()
             return
         }
         if (connecting) return
