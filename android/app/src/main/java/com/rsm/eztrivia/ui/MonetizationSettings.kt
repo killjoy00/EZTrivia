@@ -67,6 +67,8 @@ fun MonetizationSettingsCard() {
                                 Text("Purchase pending in Google Play")
                             } else if (purchase.isConnecting) {
                                 Text("Connecting to Google Play…")
+                            } else if (purchase.isLoadingProduct) {
+                                Text("Loading Remove Ads…")
                             } else {
                                 Text("Remove Ads is unavailable right now.")
                                 TextButton(onClick = { billing?.refresh() }) { Text("Try again") }
