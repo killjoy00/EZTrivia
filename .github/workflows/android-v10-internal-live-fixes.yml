@@ -108,17 +108,25 @@ jobs:
             echo "::error::Existing Internal Testing v9 is missing. Refusing to replace an unknown track."
             exit 3
           fi
-          if ! has_published_version "$RUNNER_TEMP/closed-before.json" 8; then
-            echo "::error::Existing closed testing v8 missing; do not recreate or reset the testing track."
+          # After an app is publicly released, Google's closed-test track can
+          # have no current release and may return an empty body. Do not require
+          # an obsolete v8 to remain published, and NEVER edit the closed track.
+          # We still reject unexpected nonempty/malformed responses.
+          if [ -s "$RUNNER_TEMP/closed-before.json" ] && ! jq -e . "$RUNNER_TEMP/closed-before.json" >/dev/null 2>&1; then
+            echo "::error::Closed-testing track returned invalid JSON. Refusing v10 upload."
             exit 4
           fi
-          for file in "$RUNNER_TEMP/closed-before.json" "$RUNNER_TEMP/internal-before.json" "$RUNNER_TEMP/production-before.json"; do
+          for file in "$RUNNER_TEMP/internal-before.json" "$RUNNER_TEMP/production-before.json"; do
             if has_any_version "$file" 10; then
               echo "::error::v10 already exists in Google Play track data. Refusing duplicate upload."
               exit 5
             fi
           done
-          echo "v9 production/internal verified; closed v8 preserved; v10 absent. Internal-only upload may proceed."
+          if [ -s "$RUNNER_TEMP/closed-before.json" ] && has_any_version "$RUNNER_TEMP/closed-before.json" 10; then
+            echo "::error::v10 unexpectedly exists in closed testing. Refusing duplicate upload."
+            exit 5
+          fi
+          echo "v9 Production/Internal verified, v10 absent, closed testing untouched. Internal-only upload may proceed."
 
       - name: Refuse to interrupt an existing Google Play review
         env:
@@ -303,6 +311,7 @@ jobs:
             android/app/build/outputs/bundle/release/app-release.aab
             android/app/build/outputs/mapping/release/mapping.txt
             ${{ runner.temp }}/internal-before.json
+            ${{ runner.temp }}/production-before.json
             ${{ runner.temp }}/closed-before.json
             ${{ runner.temp }}/internal-after.json
             ${{ runner.temp }}/remove-ads-inventory.json
