@@ -104,8 +104,15 @@ class RemoveAdsBillingManager(
     }
 
     fun refresh() {
+        if (closed) return
         if (billingClient.isReady) {
-            _state.value = _state.value.copy(isBillingReady = true)
+            connecting = false
+            clearConnectionTimeout()
+            _state.value = _state.value.copy(
+                isConnecting = false,
+                isBillingReady = true,
+                errorMessage = null,
+            )
             queryOwnedPurchases(showMissingMessage = false)
             queryProduct()
         } else {
