@@ -34,6 +34,7 @@ class RemoveAdsBillingManager(
         val isPurchasing: Boolean = false,
         val isPending: Boolean = false,
         val productAvailable: Boolean = false,
+        val isLoadingProduct: Boolean = false,
         val ownershipQueryCompleted: Boolean = false,
         val formattedPrice: String? = null,
         val errorMessage: String? = null,
@@ -245,6 +246,7 @@ class RemoveAdsBillingManager(
             .build()
 
     private fun queryProduct() {
+        _state.value = _state.value.copy(isLoadingProduct = true)
         billingClient.queryProductDetailsAsync(removeAdsQuery()) { result, response ->
             if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                 productDetails = null
@@ -265,7 +267,8 @@ class RemoveAdsBillingManager(
             selectedOfferToken = token
             _state.value = _state.value.copy(
                 productAvailable = details != null && token != null,
-                formattedPrice = if (token == null) null else offer.formattedPrice,
+                formattedPrice = if (token == null) null else offer?.formattedPrice,
+                isLoadingProduct = false,
                 errorMessage = if (details == null || token == null)
                     unavailableProductMessage(response) else null,
             )
