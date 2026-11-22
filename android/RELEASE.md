@@ -50,6 +50,15 @@ Keep the matching R8 mapping file with the release record:
 
     android/app/build/outputs/mapping/release/mapping.txt
 
+Native crash and ANR symbolication: release builds request `ndk.debugSymbolLevel =
+"SYMBOL_TABLE"` so the Android Gradle plugin can automatically include native
+symbol metadata in future Play AABs. Some prebuilt third-party libraries may
+already be stripped, limiting available symbols; review build warnings.
+An older Play version (such as the already-uploaded v9) cannot be corrected
+by uploading a symbols ZIP generated from a different build. Use exact-matching
+symbols from that original release if available, or leave its advisory warning
+alone. Never re-upload the same version code to address this warning.
+
 Upload the `.aab` to Play Console → **Internal testing**. Start at version code
 `1`; every later upload must use a larger version code.
 
