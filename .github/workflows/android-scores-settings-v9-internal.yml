@@ -145,6 +145,28 @@ jobs:
             echo "::warning::Remove Ads has no active Play purchase options. Client changes alone cannot make the product purchasable."
           fi
 
+      - name: Read-only audit of Play Games leaderboard publication
+        continue-on-error: true
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.play_auth.outputs.access_token }}
+          PLAY_GAMES_AUDIT_OUTPUT: ${{ runner.temp }}/v9-play-games-audit.json
+        run: python Scripts/audit_play_games.py
+
+      - name: Report whether all category and Daily boards are published
+        if: always()
+        shell: bash
+        run: |
+          if [ -s "$RUNNER_TEMP/v9-play-games-audit.json" ]; then
+            published="$(jq -r '.leaderboards.publishedMetadataCount' "$RUNNER_TEMP/v9-play-games-audit.json")"
+            expected="$(jq -r '.leaderboards.expectedCount' "$RUNNER_TEMP/v9-play-games-audit.json")"
+            echo "Live Play Games leaderboard publication: $published / $expected"
+            if [ "$published" != "$expected" ]; then
+              echo "::warning::Google Play Games has $published/$expected published leaderboard records. Runtime leaderboard parity remains blocked until PGS publication is completed."
+            fi
+          else
+            echo "::warning::Play Games publication audit unavailable; do not infer published standings."
+          fi
+
       - name: Authenticate to Firebase Management API
         id: firebase_auth
         uses: google-github-actions/auth@v3
@@ -271,5 +293,6 @@ jobs:
             ${{ runner.temp }}/closed-before.json
             ${{ runner.temp }}/internal-after.json
             ${{ runner.temp }}/remove-ads-inventory.json
+            ${{ runner.temp }}/v9-play-games-audit.json
           if-no-files-found: warn
           retention-days: 30
