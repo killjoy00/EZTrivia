@@ -168,6 +168,17 @@ dependencies {
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
+    // Google Play flagged an older transitive Fragment SDK in Android v9.
+    // Align any runtime Fragment artifacts with the current stable release
+    // without introducing Fragment into this Compose-first app when unused.
+    constraints {
+        implementation("androidx.fragment:fragment:1.9.1") {
+            because("Use the supported AndroidX Fragment release for transitive dependencies")
+        }
+        implementation("androidx.fragment:fragment-ktx:1.9.1") {
+            because("Keep transitive Fragment KTX aligned with Fragment")
+        }
+    }
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
