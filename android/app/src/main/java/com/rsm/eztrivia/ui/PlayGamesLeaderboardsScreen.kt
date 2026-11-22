@@ -38,9 +38,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.games.FriendsResolutionRequiredException
 import com.rsm.eztrivia.MainActivity
 import com.rsm.eztrivia.playgames.PlayGamesBoard
+import com.rsm.eztrivia.playgames.PlayGamesLeaderboardErrors
 import com.rsm.eztrivia.playgames.PlayGamesLeaderboardSnapshot
 import com.rsm.eztrivia.playgames.PlayGamesRankRow
 import java.text.NumberFormat
@@ -63,6 +65,9 @@ fun PlayGamesLeaderboardsScreen(
     var friendsOnly by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
     var refreshRevision by remember { mutableIntStateOf(0) }
+    // "Try Again" should allow Play Games to use cached scores; only an
+    // explicit "Refresh rankings" requests fresh network data.
+    var forceReloadNext by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var snapshot by remember { mutableStateOf<PlayGamesLeaderboardSnapshot?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -73,10 +78,13 @@ fun PlayGamesLeaderboardsScreen(
     ) {
         // A denied or canceled consent must not produce invented friends rows.
         // Reload after returning so Google Play Games decides what's available.
+        forceReloadNext = false
         refreshRevision++
     }
 
     LaunchedEffect(manager, connection?.isAuthenticated, board, friendsOnly, refreshRevision) {
+        val forceReload = forceReloadNext
+        forceReloadNext = false
         snapshot = null
         errorMessage = null
         friendsPermission = null
@@ -89,7 +97,7 @@ fun PlayGamesLeaderboardsScreen(
             snapshot = manager.loadLeaderboard(
                 board = board,
                 friendsOnly = friendsOnly,
-                forceReload = refreshRevision > 0,
+                forceReload = forceReload,
             )
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -97,7 +105,11 @@ fun PlayGamesLeaderboardsScreen(
             friendsPermission = permission.resolution
             errorMessage = "Allow EZ Trivia to see your Play Games friends to view their scores."
         } catch (error: Exception) {
-            errorMessage = error.localizedMessage ?: "Couldn’t load rankings from Google Play Games."
+            errorMessage = if (error is ApiException) {
+                PlayGamesLeaderboardErrors.messageForStatus(error.statusCode)
+            } else {
+                error.localizedMessage ?: "Couldn’t load rankings from Google Play Games."
+            }
         } finally {
             isLoading = false
         }
@@ -153,6 +165,7 @@ fun PlayGamesLeaderboardsScreen(
                                     DropdownMenuItem(
                                         text = { Text(option.title) },
                                         onClick = {
+                                            forceReloadNext = false
                                             board = option
                                             menuExpanded = false
                                         },
@@ -164,12 +177,12 @@ fun PlayGamesLeaderboardsScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(
                                 selected = !friendsOnly,
-                                onClick = { friendsOnly = false },
+                                onClick = { forceReloadNext = false; friendsOnly = false },
                                 label = { Text("Global") },
                             )
                             FilterChip(
                                 selected = friendsOnly,
-                                onClick = { friendsOnly = true },
+                                onClick = { forceReloadNext = false; friendsOnly = true },
                                 label = { Text("Friends") },
                             )
                         }
@@ -227,13 +240,29 @@ fun PlayGamesLeaderboardsScreen(
                                         }
                                     }) { Text("Allow friends access") }
                                 }
-                                TextButton(onClick = { refreshRevision++ }) { Text("Try Again") }
+                                TextButton(onClick = {
+                                    forceReloadNext = false
+                                    refreshRevision++
+                                }) { Text("Try Again") }
+                                TextButton(onClick = { manager?.showLeaderboards() }) {
+                                    Text("Open full Play Games")
+                                }
                             }
                         }
                     }
                 }
                 snapshot != null -> {
                     val loaded = snapshot!!
+                    if (loaded.personalRankUnavailable) {
+                        item {
+                            Text(
+                                "Your rank couldn't be retrieved right now. " +
+                                    "Available global rankings are still shown below.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
                     if (loaded.localPlayer != null) {
                         item { Text("Your rank", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold) }
                         item {
@@ -281,7 +310,10 @@ fun PlayGamesLeaderboardsScreen(
                         }
                     }
                     item {
-                        TextButton(onClick = { refreshRevision++ }, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = {
+                            forceReloadNext = true
+                            refreshRevision++
+                        }, modifier = Modifier.fillMaxWidth()) {
                             Text("Refresh rankings")
                         }
                     }
