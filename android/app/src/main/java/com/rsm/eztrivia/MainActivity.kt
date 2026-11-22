@@ -48,6 +48,9 @@ class MainActivity : ComponentActivity() {
         playGamesManager = PlayGamesManager(this)
         savedGamesManager = PlayGamesSavedStateManager(this, playerStateStore, lifecycleScope)
         removeAdsBillingManager = RemoveAdsBillingManager(this)
+        // Connect at app launch rather than waiting for the Settings screen.
+        // onResume()/Settings can safely refresh an in-flight connection.
+        removeAdsBillingManager.start()
         adConsentManager = AdConsentManager(this)
 
         lifecycleScope.launch {
