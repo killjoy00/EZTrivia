@@ -109,7 +109,8 @@ class MainPlayStoreScreenshotTest {
         }
 
         composeRule.onNodeWithText("Scores").performClick()
-        waitForText(composeRule, "Your progress, recent rounds")
+        waitForText(composeRule, "Leaderboards")
+        waitForText(composeRule, "Question coverage")
         savePlayStoreScreenshot("05-scores")
     }
 }
