@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "56d849f7b9c0af094c2e500c6ce36768589aece9",
+  "sha": "f89cabb872c2a704c9713a8b0c3c265a84ea74c3",
   "version": "1.4",
   "destination": "TestFlight",
-  "purpose": "Private iPhone TestFlight build for Star/Run PR #73: Guard drones and the SWARM drone synergy, Haven as the drone carrier (stronger Seekers and drones), plainer start-world and rival text, no secret in How to play, Hangar bar and HUD label fixes. No public App Store submission.",
-  "attempt": 36,
-  "reason": "PR #73 squash merged to StarRun main at 56d849f after all PR checks passed on head 880ce81, including the Playable build, real four-world completion, UI, touch, visual and layout suites and the unsigned iPhone build. Only private TestFlight device QA requested."
+  "purpose": "Private iPhone TestFlight build for Star/Run PR #74: boss intro screens, fair Daily offers with a per-day Daily Hangar, rerolls per run, plainer run-end, between-world, achievement and rival screens, Wraith reload buff, Bulwark with Deflector and normal fire rate. No public App Store submission.",
+  "attempt": 37,
+  "reason": "PR #74 squash merged to StarRun main at f89cabb after all 58 PR checks passed on head 8121d60, including the Playable build, real four-world completion, simulation, UI and platform suites and the unsigned iPhone build. Only private TestFlight device QA requested."
 }
