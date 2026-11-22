@@ -249,7 +249,7 @@ fun SettingsScreen(
                         else -> {
                             Text("Not connected", modifier = Modifier.padding(16.dp))
                             TextButton(
-                                onClick = { playGamesManager.signIn() },
+                                onClick = { playGamesManager?.signIn() },
                                 modifier = Modifier.padding(horizontal = 16.dp),
                             ) { Text("Connect Google Play Games") }
                         }
@@ -292,13 +292,11 @@ private fun SettingsSection(
 @Composable
 private fun SettingToggle(
     title: String,
-    subtitle: String? = null,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     ListItem(
         headlineContent = { Text(title, fontWeight = FontWeight.SemiBold) },
-        supportingContent = if (subtitle == null) null else { { Text(subtitle) } },
         trailingContent = {
             Switch(
                 checked = checked,
