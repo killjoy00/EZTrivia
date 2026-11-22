@@ -192,8 +192,17 @@ class RemoveAdsBillingManager(
     }
 
     fun restore() {
+        if (closed) return
         if (billingClient.isReady) {
+            connecting = false
+            clearConnectionTimeout()
+            _state.value = _state.value.copy(
+                isConnecting = false,
+                isBillingReady = true,
+                errorMessage = null,
+            )
             queryOwnedPurchases(showMissingMessage = true)
+            queryProduct()
         } else {
             // Preserve the explicit restore request even if a connection attempt
             // is already in flight when the user taps Restore.
