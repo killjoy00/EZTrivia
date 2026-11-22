@@ -1,0 +1,98 @@
+name: EZ Trivia live Play status audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/eztrivia-live-status-audit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Read public-release and Play Games state without mutating Google Play
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Play APIs
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Read current Google Play production and internal releases
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.rsm.eztrivia"
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Accept: application/json' \
+            "$base/tracks/production/releases" > "$RUNNER_TEMP/eztrivia-production.json"
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Accept: application/json' \
+            "$base/tracks/internal/releases" > "$RUNNER_TEMP/eztrivia-internal.json"
+          echo 'Production releases:'
+          jq -r '.releases[]? | "name=\(.releaseName) state=\(.releaseLifecycleState) versionCodes=\([.activeArtifacts[]?.versionCode] | join(","))"' "$RUNNER_TEMP/eztrivia-production.json"
+          echo 'Internal testing releases:'
+          jq -r '.releases[]? | "name=\(.releaseName) state=\(.releaseLifecycleState) versionCodes=\([.activeArtifacts[]?.versionCode] | join(","))"' "$RUNNER_TEMP/eztrivia-internal.json"
+          {
+            echo "## EZ Trivia — live Google Play status"
+            echo
+            echo '### Production'
+            jq -r '.releases[]? | "- **\(.releaseName)**, state **\(.releaseLifecycleState)**, version codes: **\([.activeArtifacts[]?.versionCode] | join(","))**"' "$RUNNER_TEMP/eztrivia-production.json"
+            echo
+            echo '### Internal testing'
+            jq -r '.releases[]? | "- **\(.releaseName)**, state **\(.releaseLifecycleState)**, version codes: **\([.activeArtifacts[]?.versionCode] | join(","))**"' "$RUNNER_TEMP/eztrivia-internal.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Read Remove Ads product configuration
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.rsm.eztrivia/oneTimeProducts/com.rsm.eztrivia.removeads"
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Accept: application/json' \
+            "$url" > "$RUNNER_TEMP/eztrivia-remove-ads.json"
+          jq -r '.purchaseOptions[]? | "Remove Ads: option=\(.purchaseOptionId) state=\(.state) USAvailability=\([.regionalPricingAndAvailabilityConfigs[]? | select(.regionCode=="US")][0].availability // "missing") USPrice=\([.regionalPricingAndAvailabilityConfigs[]? | select(.regionCode=="US")][0].price // {})"' "$RUNNER_TEMP/eztrivia-remove-ads.json"
+          echo '### Remove Ads product (configuration, not runtime purchase)' >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.purchaseOptions[]? | "- Option **\(.purchaseOptionId)**: **\(.state)**, US availability: **\([.regionalPricingAndAvailabilityConfigs[]? | select(.regionCode=="US")][0].availability // "missing")**"' "$RUNNER_TEMP/eztrivia-remove-ads.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Audit Play Games achievement and leaderboard publication
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          PLAY_GAMES_AUDIT_OUTPUT: ${{ runner.temp }}/eztrivia-play-games.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          python Scripts/audit_play_games.py > "$RUNNER_TEMP/play-games-audit-output.txt"
+          jq '{applicationId,achievements:{count:.achievements.count,publishedMetadataCount:.achievements.publishedMetadataCount,draftOnlyCount:.achievements.draftOnlyCount,missingExpectedIds:.achievements.missingExpectedIds},leaderboards:{count:.leaderboards.count,publishedMetadataCount:.leaderboards.publishedMetadataCount,draftOnlyCount:.leaderboards.draftOnlyCount,missingExpectedIds:.leaderboards.missingExpectedIds}}' "$PLAY_GAMES_AUDIT_OUTPUT"
+          {
+            echo '### Play Games publication'
+            echo "- Achievements: **$(jq -r '.achievements.publishedMetadataCount' "$PLAY_GAMES_AUDIT_OUTPUT") / 19 published**"
+            echo "- Leaderboards: **$(jq -r '.leaderboards.publishedMetadataCount' "$PLAY_GAMES_AUDIT_OUTPUT") / 17 published**"
+            echo '- Saved Games enablement and real purchases require a device/Console check.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive non-secret verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-live-status-evidence
+          path: |
+            ${{ runner.temp }}/eztrivia-production.json
+            ${{ runner.temp }}/eztrivia-internal.json
+            ${{ runner.temp }}/eztrivia-remove-ads.json
+            ${{ runner.temp }}/eztrivia-play-games.json
+          if-no-files-found: warn
+          retention-days: 14
