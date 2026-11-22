@@ -58,7 +58,7 @@ jobs:
             adb shell cmd overlay enable-exclusive --category "com.android.internal.systemui.navbar.${{ matrix.navigation }}"
             sleep 3
             adb shell cmd overlay list | grep -E "\[x\].*${{ matrix.navigation }}"
-            gradle -p android connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.rsm.eztrivia.MainSystemBarInsetsTest,com.rsm.eztrivia.DailySystemBarInsetsTest,com.rsm.eztrivia.FriendSystemBarInsetsTest --stacktrace
+            gradle -p android connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.rsm.eztrivia.MainSystemBarInsetsTest,com.rsm.eztrivia.DailySystemBarInsetsTest,com.rsm.eztrivia.FriendSystemBarInsetsTest,com.rsm.eztrivia.ScoresParityNavigationTest,com.rsm.eztrivia.SettingsParityNavigationTest --stacktrace
 
       - name: Surface instrumentation results
         if: always()

@@ -34,6 +34,7 @@ class RemoveAdsBillingManager(
         val isPurchasing: Boolean = false,
         val isPending: Boolean = false,
         val productAvailable: Boolean = false,
+        val isLoadingProduct: Boolean = false,
         val ownershipQueryCompleted: Boolean = false,
         val formattedPrice: String? = null,
         val errorMessage: String? = null,
@@ -55,6 +56,8 @@ class RemoveAdsBillingManager(
     private var productDetails: ProductDetails? = null
     private var selectedOfferToken: String? = null
     private var started = false
+    private var connecting = false
+    private var restoreOnConnection = false
 
     private val billingClient = BillingClient.newBuilder(activity.applicationContext)
         .setListener(this)
@@ -83,32 +86,73 @@ class RemoveAdsBillingManager(
     }
 
     fun purchase() {
-        val details = productDetails ?: run {
+        if (_state.value.hasRemovedAds || _state.value.isPurchasing || _state.value.isPending) return
+        if (!billingClient.isReady) {
             _state.value = _state.value.copy(
-                productAvailable = false,
-                errorMessage = "Remove Ads is not available from Google Play right now."
+                isPurchasing = false,
+                errorMessage = "Google Play isn't connected. Try again.",
             )
             refresh()
             return
         }
-        if (_state.value.hasRemovedAds || _state.value.isPurchasing) return
 
-        val productParamsBuilder = BillingFlowParams.ProductDetailsParams.newBuilder()
-            .setProductDetails(details)
-        selectedOfferToken?.takeIf { it.isNotBlank() }?.let(productParamsBuilder::setOfferToken)
-
+        // ProductDetails and offer eligibility can go stale after Settings
+        // loads. Google recommends a fresh query immediately before checkout.
         _state.value = _state.value.copy(isPurchasing = true, errorMessage = null)
-        val result = billingClient.launchBillingFlow(
-            activity,
-            BillingFlowParams.newBuilder()
-                .setProductDetailsParamsList(listOf(productParamsBuilder.build()))
-                .build(),
-        )
-        if (result.responseCode != BillingClient.BillingResponseCode.OK) {
+        billingClient.queryProductDetailsAsync(removeAdsQuery()) { result, response ->
+            if (result.responseCode != BillingClient.BillingResponseCode.OK) {
+                _state.value = _state.value.copy(
+                    isPurchasing = false,
+                    errorMessage = if (response.unfetchedProductList.any { it.productId == PRODUCT_ID })
+                        unavailableProductMessage(response)
+                    else billingFailure("Couldn't load Remove Ads", result),
+                )
+                return@queryProductDetailsAsync
+            }
+
+            val details = response.productDetailsList.firstOrNull { it.productId == PRODUCT_ID }
+            val offer = details?.oneTimePurchaseOfferDetailsList?.firstOrNull()
+                ?: details?.oneTimePurchaseOfferDetails
+            val token = offer?.offerToken?.takeIf { it.isNotBlank() }
+            if (details == null || token == null) {
+                _state.value = _state.value.copy(
+                    isPurchasing = false,
+                    productAvailable = false,
+                    formattedPrice = null,
+                    errorMessage = unavailableProductMessage(response),
+                )
+                return@queryProductDetailsAsync
+            }
+
+            productDetails = details
+            selectedOfferToken = token
             _state.value = _state.value.copy(
-                isPurchasing = false,
-                errorMessage = result.debugMessage.ifBlank { "Google Play could not start the purchase." },
+                productAvailable = true,
+                formattedPrice = offer.formattedPrice,
             )
+            activity.runOnUiThread {
+                val params = BillingFlowParams.ProductDetailsParams.newBuilder()
+                    .setProductDetails(details)
+                    .setOfferToken(token)
+                    .build()
+                val launch = billingClient.launchBillingFlow(
+                    activity,
+                    BillingFlowParams.newBuilder()
+                        .setProductDetailsParamsList(listOf(params))
+                        .build(),
+                )
+                when (launch.responseCode) {
+                    BillingClient.BillingResponseCode.OK -> Unit
+                    BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED ->
+                        queryOwnedPurchases(showMissingMessage = false)
+                    else -> {
+                        _state.value = _state.value.copy(
+                            isPurchasing = false,
+                            errorMessage = billingFailure("Couldn't open Google Play checkout", launch),
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -116,12 +160,15 @@ class RemoveAdsBillingManager(
         if (billingClient.isReady) {
             queryOwnedPurchases(showMissingMessage = true)
         } else {
+            // Preserve the explicit restore request even if a connection attempt
+            // is already in flight when the user taps Restore.
+            restoreOnConnection = true
             _state.value = _state.value.copy(
                 isConnecting = true,
                 isBillingReady = false,
                 errorMessage = null,
             )
-            connect(onConnected = { queryOwnedPurchases(showMissingMessage = true) })
+            connect()
         }
     }
 
@@ -137,6 +184,10 @@ class RemoveAdsBillingManager(
             BillingClient.BillingResponseCode.OK -> {
                 handlePurchases(purchases.orEmpty(), authoritative = false, showMissingMessage = false)
             }
+            BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> {
+                // A previous purchase on this Google account is a restore, not a failed sale.
+                queryOwnedPurchases(showMissingMessage = false)
+            }
             BillingClient.BillingResponseCode.USER_CANCELED -> {
                 _state.value = _state.value.copy(isPurchasing = false, errorMessage = null)
             }
@@ -151,31 +202,31 @@ class RemoveAdsBillingManager(
         }
     }
 
-    private fun connect(onConnected: (() -> Unit)? = null) {
+    private fun connect() {
         if (billingClient.isReady) {
-            _state.value = _state.value.copy(
-                isConnecting = false,
-                isBillingReady = true,
-            )
-            onConnected?.invoke()
+            _state.value = _state.value.copy(isConnecting = false, isBillingReady = true)
+            if (restoreOnConnection) {
+                restoreOnConnection = false
+                queryOwnedPurchases(showMissingMessage = true)
+            }
             return
         }
-
-        _state.value = _state.value.copy(
-            isConnecting = true,
-            isBillingReady = false,
-        )
+        if (connecting) return
+        connecting = true
+        _state.value = _state.value.copy(isConnecting = true, isBillingReady = false)
         billingClient.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(billingResult: BillingResult) {
+                connecting = false
                 if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
                     _state.value = _state.value.copy(
                         isConnecting = false,
                         isBillingReady = true,
                         errorMessage = null,
                     )
-                    queryOwnedPurchases(showMissingMessage = false)
+                    val restore = restoreOnConnection
+                    restoreOnConnection = false
+                    queryOwnedPurchases(showMissingMessage = restore)
                     queryProduct()
-                    onConnected?.invoke()
                 } else {
                     _state.value = _state.value.copy(
                         isConnecting = false,
@@ -188,6 +239,7 @@ class RemoveAdsBillingManager(
             }
 
             override fun onBillingServiceDisconnected() {
+                connecting = false
                 _state.value = _state.value.copy(
                     isConnecting = true,
                     isBillingReady = false,
@@ -197,8 +249,8 @@ class RemoveAdsBillingManager(
         })
     }
 
-    private fun queryProduct() {
-        val params = QueryProductDetailsParams.newBuilder()
+    private fun removeAdsQuery(): QueryProductDetailsParams =
+        QueryProductDetailsParams.newBuilder()
             .setProductList(
                 listOf(
                     QueryProductDetailsParams.Product.newBuilder()
@@ -209,36 +261,50 @@ class RemoveAdsBillingManager(
             )
             .build()
 
-        billingClient.queryProductDetailsAsync(params) { result, queryResult ->
+    private fun queryProduct() {
+        _state.value = _state.value.copy(isLoadingProduct = true)
+        billingClient.queryProductDetailsAsync(removeAdsQuery()) { result, response ->
             if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                 productDetails = null
                 selectedOfferToken = null
                 _state.value = _state.value.copy(
                     productAvailable = false,
                     formattedPrice = null,
-                    errorMessage = result.debugMessage.ifBlank {
-                        "Google Play could not load Remove Ads."
-                    },
+                    isLoadingProduct = false,
+                    errorMessage = if (response.unfetchedProductList.any { it.productId == PRODUCT_ID })
+                        unavailableProductMessage(response)
+                    else billingFailure("Couldn't load Remove Ads", result),
                 )
                 return@queryProductDetailsAsync
             }
 
-            val details = queryResult.productDetailsList.firstOrNull { it.productId == PRODUCT_ID }
-            productDetails = details
+            val details = response.productDetailsList.firstOrNull { it.productId == PRODUCT_ID }
             val offer = details?.oneTimePurchaseOfferDetailsList?.firstOrNull()
                 ?: details?.oneTimePurchaseOfferDetails
-            selectedOfferToken = offer?.offerToken
+            val token = offer?.offerToken?.takeIf { it.isNotBlank() }
+            productDetails = details
+            selectedOfferToken = token
             _state.value = _state.value.copy(
-                productAvailable = details != null,
-                formattedPrice = offer?.formattedPrice,
-                errorMessage = if (details == null) {
-                    "Remove Ads is not available in Google Play yet."
-                } else {
-                    null
-                },
+                productAvailable = details != null && token != null,
+                formattedPrice = if (token == null) null else offer?.formattedPrice,
+                isLoadingProduct = false,
+                errorMessage = if (details == null || token == null)
+                    unavailableProductMessage(response) else null,
             )
         }
     }
+
+    /** Status codes identify catalog/region/test-account issues without a crash. */
+    private fun unavailableProductMessage(
+        response: com.android.billingclient.api.QueryProductDetailsResult,
+    ): String {
+        val status = response.unfetchedProductList.firstOrNull { it.productId == PRODUCT_ID }?.statusCode
+        return RemoveAdsCatalogMessages.forStatus(status)
+    }
+
+    private fun billingFailure(action: String, result: BillingResult): String =
+        "$action (Google Play code ${result.responseCode}): " +
+            result.debugMessage.ifBlank { "Try again or report a problem." }
 
     private fun queryOwnedPurchases(showMissingMessage: Boolean) {
         val params = QueryPurchasesParams.newBuilder()

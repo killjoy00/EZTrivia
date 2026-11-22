@@ -51,21 +51,17 @@ fun SupportSettingsCard() {
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            "SUPPORT",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold,
+            "Support",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(start = 4.dp),
         )
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(
-                    "Send feedback or report a problem. The email draft includes the app version, Android version, device model, and current ads/purchase status so device-specific bugs are easier to diagnose.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
                 OutlinedButton(
                     onClick = {
                         openSupportEmail(
@@ -76,9 +72,7 @@ fun SupportSettingsCard() {
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Send feedback")
-                }
+                ) { Text("Send feedback") }
                 OutlinedButton(
                     onClick = {
                         openSupportEmail(
@@ -89,14 +83,7 @@ fun SupportSettingsCard() {
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Report a problem")
-                }
-                Text(
-                    "Nothing is sent automatically. You can review or remove the diagnostics before sending the email.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                ) { Text("Report a problem") }
             }
         }
     }

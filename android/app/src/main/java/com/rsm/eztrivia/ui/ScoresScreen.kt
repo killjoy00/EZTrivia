@@ -1,5 +1,6 @@
 package com.rsm.eztrivia.ui
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,11 +12,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -25,28 +28,27 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.rsm.eztrivia.MainActivity
 import com.rsm.eztrivia.ads.AdBanner
-import com.rsm.eztrivia.data.CategoryRoundResult
-import com.rsm.eztrivia.data.DailyResult
-import com.rsm.eztrivia.data.FriendChallengeResult
 import com.rsm.eztrivia.data.PlayerState
-import com.rsm.eztrivia.data.QuickPlayResult
 import com.rsm.eztrivia.model.AchievementCatalog
 import com.rsm.eztrivia.model.AchievementDefinition
-import com.rsm.eztrivia.model.DailyChallenge
 import com.rsm.eztrivia.model.TriviaCategory
 import com.rsm.eztrivia.model.TriviaDifficulty
 import java.text.DateFormat
+import java.text.NumberFormat
 import java.util.Date
 
 enum class AppSection { PLAY, SCORES, SETTINGS }
@@ -85,33 +87,36 @@ fun EZTriviaBottomBar(
     }
 }
 
+/**
+ * Android follows the iOS LeaderboardView section hierarchy rather than treating
+ * scores as a separate dashboard. Platform-specific labels are intentional:
+ * Game Center on iOS, Play Games on Android.
+ */
 @Composable
 fun ScoresScreen(
     playerState: PlayerState,
     catalogQuestionIds: Set<String>,
     onPlay: () -> Unit,
     onSettings: () -> Unit,
+    onLeaderboards: () -> Unit,
     onAchievements: () -> Unit,
     onClearRecent: () -> Unit,
 ) {
     var showAllCategoryRounds by remember { mutableStateOf(false) }
     var showClearConfirmation by remember { mutableStateOf(false) }
-
+    val manager = (LocalActivity.current as? MainActivity)?.playGamesManager
+    val connection = manager?.connection?.collectAsState()?.value
     val answeredCount = playerState.completedQuestionIds.count { it in catalogQuestionIds }
-    val totalQuestions = catalogQuestionIds.size
     val achievementProgress = AchievementCatalog.progress(playerState)
     val completedAchievements = achievementProgress.values.count { it >= 100 }
-    val categoryResults = if (showAllCategoryRounds) {
+    val categoryRounds = if (showAllCategoryRounds) {
         playerState.recentCategoryResults
     } else {
         playerState.recentCategoryResults.take(10)
     }
-    val dailyResults = playerState.dailyResultsByDay.values
-        .sortedByDescending(DailyResult::day)
-        .take(10)
-    val friendResults = playerState.friendChallengeResultsByAttemptId.values
-        .sortedByDescending(FriendChallengeResult::dateMillis)
-        .take(10)
+    val lifetime = playerState.lifetimePointsByCategory.mapNotNull { (raw, points) ->
+        runCatching { TriviaCategory.fromWireName(raw) }.getOrNull()?.let { it to points }
+    }.filter { it.second > 0 }.sortedByDescending { it.second }
 
     Scaffold(
         bottomBar = {
@@ -124,124 +129,169 @@ fun ScoresScreen(
         },
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Scores", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Your progress, recent rounds, and lifetime totals.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (playerState.recentCategoryResults.isNotEmpty()) {
+                        TextButton(onClick = { showClearConfirmation = true }) { Text("Clear") }
+                    }
                 }
             }
 
+            item { SectionHeading("Google Play Games") }
             item {
-                CoverageCard(answered = answeredCount, total = totalQuestions)
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        ScoresActionRow("≡", "Leaderboards", onLeaderboards)
+                        HorizontalDivider()
+                        ScoresActionRow(
+                            "★",
+                            "Achievements",
+                            onAchievements,
+                            detail = "$completedAchievements/${AchievementCatalog.all.size}",
+                        )
+                        HorizontalDivider()
+                        if (connection?.isAuthenticated == true) {
+                            ScoresActionRow("♧", "Open full Play Games", onClick = { manager?.showLeaderboards() })
+                        } else {
+                            Text(
+                                if (connection?.isChecking == true) "Checking Google Play Games sign-in…"
+                                else "Google Play Games is not signed in.",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            if (connection?.isChecking == false) {
+                                TextButton(onClick = { manager?.signIn() }) { Text("Connect Google Play Games") }
+                            }
+                        }
+                    }
+                }
             }
 
+            item { SectionHeading("Question coverage") }
             item {
-                AchievementSummaryCard(
-                    completed = completedAchievements,
-                    total = AchievementCatalog.all.size,
-                    onClick = onAchievements,
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("✓  Questions answered", fontWeight = FontWeight.SemiBold)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(
+                                "${number(answeredCount)} / ${number(catalogQuestionIds.size)}",
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        LinearProgressIndicator(
+                            progress = {
+                                if (catalogQuestionIds.isEmpty()) 0f
+                                else answeredCount.toFloat() / catalogQuestionIds.size.toFloat()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+            item {
+                Text(
+                    "Counts each question once after you submit an answer. Coverage syncs with Google Play Games when Saved Games is available.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
 
-            if (
-                playerState.recentCategoryResults.isEmpty() &&
-                playerState.quickPlayResults.isEmpty() &&
-                dailyResults.isEmpty() &&
-                friendResults.isEmpty()
-            ) {
+            // Match iOS: Daily/Friend histories remain recorded, but their
+            // dedicated modes display them instead of expanding this screen.
+            if (playerState.recentCategoryResults.isEmpty() && playerState.quickPlayResults.isEmpty()) {
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Text("No rounds yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Card {
+                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("No rounds yet", fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Finish a category round, Quick Play, Daily, or Friend Challenge and it will appear here.",
+                                "Finish a category round or Quick Play and it will appear here.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
                 }
             }
-
-            if (dailyResults.isNotEmpty()) {
-                item { SectionHeading("Recent Daily Challenges") }
-                items(dailyResults, key = DailyResult::day) { result ->
-                    DailyResultRow(result)
-                }
-            }
-
             if (playerState.recentCategoryResults.isNotEmpty()) {
                 item { SectionHeading("Recent category rounds") }
-                items(categoryResults, key = CategoryRoundResult::id) { result ->
-                    CategoryRoundRow(result)
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            categoryRounds.forEachIndexed { index, result ->
+                                if (index > 0) HorizontalDivider()
+                                val category = runCatching { TriviaCategory.fromWireName(result.category) }.getOrNull()
+                                val difficulty = runCatching { TriviaDifficulty.fromWireName(result.difficulty) }.getOrNull()
+                                CompactScoreRow(
+                                    icon = category?.let(::categorySymbol) ?: "?",
+                                    title = category?.title ?: result.category,
+                                    subtitle = listOfNotNull(difficulty?.title, formatDate(result.dateMillis)).joinToString(" · "),
+                                    score = "${result.score}/${result.total}",
+                                )
+                            }
+                            if (playerState.recentCategoryResults.size > 10) {
+                                HorizontalDivider()
+                                TextButton(
+                                    onClick = { showAllCategoryRounds = !showAllCategoryRounds },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text(if (showAllCategoryRounds) "Show less" else "Show more") }
+                            }
+                        }
+                    }
                 }
-                if (playerState.recentCategoryResults.size > 10) {
-                    item {
-                        TextButton(
-                            onClick = { showAllCategoryRounds = !showAllCategoryRounds },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(if (showAllCategoryRounds) "Show less" else "Show more")
+            }
+            if (playerState.quickPlayResults.isNotEmpty()) {
+                item { SectionHeading("Recent Quick Play") }
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            playerState.quickPlayResults.take(10).forEachIndexed { index, result ->
+                                if (index > 0) HorizontalDivider()
+                                CompactScoreRow(
+                                    icon = "⇄",
+                                    title = "Quick Play",
+                                    subtitle = "${formatDate(result.dateMillis)} · ${number(result.points)} pts",
+                                    score = "${result.score}/${result.total}",
+                                    iconColor = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            if (playerState.quickPlayResults.isNotEmpty()) {
-                item { SectionHeading("Recent Quick Play") }
-                items(playerState.quickPlayResults.take(10), key = QuickPlayResult::id) { result ->
-                    QuickPlayRow(result)
-                }
-            }
-
-            if (friendResults.isNotEmpty()) {
-                item { SectionHeading("Recent Friend Challenges") }
-                items(friendResults, key = { it.code.attemptId }) { result ->
-                    FriendChallengeRow(result)
-                }
-            }
-
-            val lifetime = playerState.lifetimePointsByCategory
-                .mapNotNull { (rawCategory, points) ->
-                    runCatching { TriviaCategory.fromWireName(rawCategory) }.getOrNull()?.let { it to points }
-                }
-                .filter { it.second > 0 }
-                .sortedByDescending { it.second }
-
             if (lifetime.isNotEmpty()) {
                 item { SectionHeading("Lifetime points") }
-                items(lifetime, key = { it.first.wireName }) { (category, points) ->
-                    LifetimePointsRow(category, points)
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            lifetime.forEachIndexed { index, (category, points) ->
+                                if (index > 0) HorizontalDivider()
+                                CompactScoreRow(
+                                    icon = categorySymbol(category),
+                                    title = category.title,
+                                    score = number(points),
+                                )
+                            }
+                        }
+                    }
                 }
                 item {
                     Text(
-                        "Harder questions are worth more. Keep playing to build your totals in every category.",
+                        "Harder questions are worth more. These totals are what the category leaderboards rank.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-            }
-
-            if (playerState.recentCategoryResults.isNotEmpty()) {
-                item {
-                    TextButton(
-                        onClick = { showClearConfirmation = true },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text("Clear recent category rounds")
-                    }
                 }
             }
         }
@@ -252,79 +302,57 @@ fun ScoresScreen(
             onDismissRequest = { showClearConfirmation = false },
             title = { Text("Clear recent rounds?") },
             text = {
-                Text("Recent category rounds and the seen-question cycle will be cleared. Lifetime points, question coverage, Daily history, Quick Play history, Friend Challenge history, and achievements will be kept.")
+                Text("Recent category rounds and the seen-question cycle will be cleared. Lifetime points, question coverage, Daily and Friend Challenge history, Quick Play history, and achievements will be kept.")
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        showClearConfirmation = false
-                        onClearRecent()
-                    },
-                ) { Text("Clear recent rounds") }
+                TextButton(onClick = {
+                    showClearConfirmation = false
+                    onClearRecent()
+                }) { Text("Clear Recent Rounds") }
             },
-            dismissButton = {
-                TextButton(onClick = { showClearConfirmation = false }) { Text("Cancel") }
-            },
+            dismissButton = { TextButton(onClick = { showClearConfirmation = false }) { Text("Cancel") } },
         )
     }
 }
 
 @Composable
-private fun CoverageCard(answered: Int, total: Int) {
-    val fraction = if (total == 0) 0f else answered.toFloat() / total.toFloat()
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Question coverage", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    "$answered / $total",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            LinearProgressIndicator(
-                progress = { fraction.coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                "Counts each question once after you submit an answer.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+private fun ScoresActionRow(icon: String, title: String, onClick: () -> Unit, detail: String? = null) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(icon, modifier = Modifier.width(30.dp), color = MaterialTheme.colorScheme.primary)
+        Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        if (detail != null) {
+            Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun AchievementSummaryCard(completed: Int, total: Int, onClick: () -> Unit) {
-    val fraction = if (total == 0) 0f else completed.toFloat() / total.toFloat()
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+private fun CompactScoreRow(
+    icon: String,
+    title: String,
+    score: String,
+    subtitle: String? = null,
+    iconColor: Color = MaterialTheme.colorScheme.primary,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Achievements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.weight(1f))
-                Text("$completed / $total", fontWeight = FontWeight.Bold)
-                Text("  ›", style = MaterialTheme.typography.titleMedium)
+        Text(icon, modifier = Modifier.width(30.dp), color = iconColor)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
+            if (subtitle != null) {
+                Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
-            LinearProgressIndicator(progress = { fraction.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
-            Text(
-                "Complete rounds, explore categories, and build your lifetime score to unlock badges.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
+        Text(score, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
     }
 }
 
@@ -332,149 +360,16 @@ private fun AchievementSummaryCard(completed: Int, total: Int, onClick: () -> Un
 private fun SectionHeading(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(top = 4.dp),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 5.dp, top = 4.dp),
     )
 }
 
-@Composable
-private fun DailyResultRow(result: DailyResult) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Surface(modifier = Modifier.size(38.dp), shape = CircleShape, color = MaterialTheme.colorScheme.tertiaryContainer) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Text("☀", fontWeight = FontWeight.Bold)
-                }
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Daily #${DailyChallenge.displayNumber(result.day)}", fontWeight = FontWeight.Bold)
-                Text(
-                    "${formatDate(result.dateMillis)} · ${result.points} pts",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Text("${result.score}/${result.total}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun CategoryRoundRow(result: CategoryRoundResult) {
-    val category = runCatching { TriviaCategory.fromWireName(result.category) }.getOrNull()
-    val difficulty = runCatching { TriviaDifficulty.fromWireName(result.difficulty) }.getOrNull()
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Surface(
-                modifier = Modifier.size(38.dp),
-                shape = CircleShape,
-                color = category?.let { categoryColor(it).copy(alpha = 0.16f) }
-                    ?: MaterialTheme.colorScheme.surfaceVariant,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Text(
-                        category?.title?.take(1) ?: "?",
-                        fontWeight = FontWeight.Bold,
-                        color = category?.let(::categoryColor) ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(category?.title ?: result.category, fontWeight = FontWeight.Bold)
-                Text(
-                    listOfNotNull(difficulty?.title, formatDate(result.dateMillis)).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Text("${result.score}/${result.total}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun QuickPlayRow(result: QuickPlayResult) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Surface(modifier = Modifier.size(38.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Text("↝", fontWeight = FontWeight.Bold)
-                }
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Quick Play", fontWeight = FontWeight.Bold)
-                Text(
-                    "${formatDate(result.dateMillis)} · ${result.points} pts",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Text("${result.score}/${result.total}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun FriendChallengeRow(result: FriendChallengeResult) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Surface(modifier = Modifier.size(38.dp), shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Text("2", fontWeight = FontWeight.Bold)
-                }
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(if (result.createdChallenge) "Created challenge" else "Played challenge", fontWeight = FontWeight.Bold)
-                Text(
-                    "${formatDate(result.dateMillis)} · ${result.points} pts",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Text("${result.score}/${result.total}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun LifetimePointsRow(category: TriviaCategory, points: Int) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Surface(
-                modifier = Modifier.size(32.dp),
-                shape = CircleShape,
-                color = categoryColor(category).copy(alpha = 0.16f),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Text(category.title.take(1), color = categoryColor(category), fontWeight = FontWeight.Bold)
-                }
-            }
-            Text(category.title, modifier = Modifier.padding(start = 12.dp))
-            Spacer(modifier = Modifier.weight(1f))
-            Text(points.toString(), fontWeight = FontWeight.Bold)
-        }
-    }
-}
+private fun number(value: Int): String = NumberFormat.getIntegerInstance().format(value)
+private fun formatDate(millis: Long): String =
+    DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(millis))
 
 @Composable
 fun AchievementsScreen(
@@ -576,5 +471,3 @@ private fun AchievementRow(achievement: AchievementDefinition, progress: Int) {
     }
 }
 
-private fun formatDate(millis: Long): String =
-    DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(millis))
