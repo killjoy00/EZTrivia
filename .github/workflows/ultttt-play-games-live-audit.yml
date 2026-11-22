@@ -1,0 +1,50 @@
+name: UTTT Play Games live publication audit
+
+on:
+  push:
+    branches:
+      - automation/ultttt-play-games-20261121
+    paths:
+      - .github/workflows/ultttt-play-games-live-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate with existing Play Games account
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Read-only publication status and art inventory
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          t=os.environ["GOOGLE_PLAY_ACCESS_TOKEN"]
+          root="https://www.googleapis.com/games/v1configuration/applications/517518057047"
+          for kind in ("achievements","leaderboards"):
+              req=urllib.request.Request(root+"/"+kind,headers={"Authorization":"Bearer "+t,"Accept":"application/json"})
+              with urllib.request.urlopen(req,timeout=45) as response:
+                  result=json.load(response)
+              items=result.get("items",[])
+              print("RESOURCE GROUP",kind,"count",len(items))
+              for item in items:
+                  draft=item.get("draft") or {}
+                  published=item.get("published") or {}
+                  print("RESOURCE",item.get("id"),"draft",bool(draft),"published",bool(published),
+                        "draft_icon",bool(draft.get("iconUrl")),"published_icon",bool(published.get("iconUrl")))
+              print("SUMMARY",kind,
+                    "with_published_metadata",sum(bool(i.get("published")) for i in items),
+                    "with_draft_metadata",sum(bool(i.get("draft")) for i in items),
+                    "draft_icons",sum(bool((i.get("draft") or {}).get("iconUrl")) for i in items))
+          PY
