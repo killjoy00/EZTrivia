@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "02d088de136b08cfdc769db40ade0a06c26657eb",
+  "sha": "d633bf1faef6cda4c1271fb20cfcda9e6789b4cc",
   "version": "1.4",
   "destination": "TestFlight",
-  "purpose": "Private iPhone TestFlight build for Star/Run PRs #69 and #70: ship fly-in, particles, layout guard and plain-language text; a longer Hangar (extended ranks, Second wind, weapon tuning) with drawn rank bars; difficulty retuned so Worlds 2-4 step up evenly with tougher enemies; new Cores payout and Salvage cap; Vanguard buff; Hard and Insane eased slightly. No public App Store submission.",
-  "attempt": 34,
-  "reason": "PR #70 squash merged to StarRun main at 02d088d after all PR checks passed on head 509c2f7, including the Playable build, real four-world win with a max Hangar, Silent Archive clear and the new no-Hangar-never-wins gate. Only private TestFlight device QA requested."
+  "purpose": "Private iPhone TestFlight build for Star/Run PR #72: start at a later world after clearing the one before (catch-up drafts with auto-pick, skipped worlds pay no Cores), Vanguard veteran bonus trimmed, Haven buffs, page header labels visible again. No public App Store submission.",
+  "attempt": 35,
+  "reason": "PR #72 squash merged to StarRun main at d633bf1 after all PR checks passed on head 601e52f, including the Playable build, real four-world completion, UI, touch, visual and layout suites and the unsigned iPhone build. Only private TestFlight device QA requested."
 }
