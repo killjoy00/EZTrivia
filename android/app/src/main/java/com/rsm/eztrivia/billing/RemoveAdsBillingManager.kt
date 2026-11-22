@@ -76,6 +76,17 @@ class RemoveAdsBillingManager(
         clearConnectionTimeout()
         val watchdog = Runnable {
             if (closed || !connecting || connectionAttempt != attempt) return@Runnable
+            if (billingClient.isReady) {
+                // Some devices make the service ready before the setup callback
+                // arrives. Complete the ordinary catalog/ownership refresh in
+                // that case instead of reporting a false connection failure.
+                connectionAttempt++
+                connecting = false
+                connectionTimeout = null
+                Log.w(TAG, "Billing service is ready but setup callback was delayed")
+                refresh()
+                return@Runnable
+            }
             // There is no useful Play Billing callback yet. Give the player a
             // recoverable error rather than displaying "Connecting..." forever.
             connecting = false
