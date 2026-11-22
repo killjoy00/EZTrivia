@@ -64,14 +64,22 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json,os,urllib.request
+          import json,os,time,urllib.request,urllib.error
           h={"Authorization":"Bearer "+os.environ["PLAY_TOKEN"],"Content-Type":"application/json"}
           def call(m,url,payload=None):
               data=None if payload is None else json.dumps(payload).encode()
               req=urllib.request.Request(url,method=m,data=data,headers=h)
-              with urllib.request.urlopen(req,timeout=50) as response:
-                  raw=response.read()
-                  return json.loads(raw) if raw else {}
+              for attempt in range(5):
+                  try:
+                      with urllib.request.urlopen(req,timeout=50) as response:
+                          raw=response.read()
+                          return json.loads(raw) if raw else {}
+                  except urllib.error.HTTPError as exc:
+                      if exc.code not in (429,500,502,503,504) or attempt==4:
+                          raise
+                      delay=min(2**attempt,12)
+                      print(f"Transient Play API HTTP {exc.code} for {m}, retry {attempt+1}/4 in {delay}s",flush=True)
+                      time.sleep(delay)
           pgs="https://www.googleapis.com/games/v1configuration/applications/517518057047"
           for typ,expected in (("achievements",5),("leaderboards",1)):
               items=call("GET",pgs+"/"+typ).get("items",[])
