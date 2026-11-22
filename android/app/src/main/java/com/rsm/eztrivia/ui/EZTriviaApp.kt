@@ -82,6 +82,7 @@ import kotlinx.coroutines.launch
 private sealed interface AppScreen {
     data object Home : AppScreen
     data object Scores : AppScreen
+    data object Leaderboards : AppScreen
     data object Settings : AppScreen
     data object Achievements : AppScreen
     data class Difficulty(val category: TriviaCategory) : AppScreen
@@ -182,6 +183,7 @@ private fun TriviaNavigation(
         screen = when (val current = screen) {
             AppScreen.Home -> AppScreen.Home
             AppScreen.Scores -> AppScreen.Home
+            AppScreen.Leaderboards -> AppScreen.Scores
             AppScreen.Settings -> AppScreen.Home
             AppScreen.Achievements -> AppScreen.Scores
             is AppScreen.Difficulty -> AppScreen.Home
@@ -207,10 +209,16 @@ private fun TriviaNavigation(
             catalogQuestionIds = catalogQuestionIds,
             onPlay = { screen = AppScreen.Home },
             onSettings = { screen = AppScreen.Settings },
+            onLeaderboards = { screen = AppScreen.Leaderboards },
             onAchievements = { screen = AppScreen.Achievements },
             onClearRecent = {
                 scope.launch { playerStateStore.clearRecentCategoryHistory() }
             },
+        )
+        AppScreen.Leaderboards -> PlayGamesLeaderboardsScreen(
+            onBack = { screen = AppScreen.Scores },
+            onPlay = { screen = AppScreen.Home },
+            onSettings = { screen = AppScreen.Settings },
         )
         AppScreen.Settings -> SettingsScreen(
             settings = settings,
