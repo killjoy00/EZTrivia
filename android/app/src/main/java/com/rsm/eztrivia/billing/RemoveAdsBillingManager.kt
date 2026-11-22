@@ -2,6 +2,8 @@ package com.rsm.eztrivia.billing
 
 import android.app.Activity
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
@@ -45,6 +47,7 @@ class RemoveAdsBillingManager(
 
         private const val PREFS_NAME = "eztrivia_purchases"
         private const val ENTITLEMENT_KEY = "purchase.removeAds.v1"
+        private const val CONNECTION_TIMEOUT_MILLIS = 15_000L
     }
 
     private val preferences = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -58,6 +61,9 @@ class RemoveAdsBillingManager(
     private var started = false
     private var connecting = false
     private var restoreOnConnection = false
+    private var connectionAttempt = 0
+    private var closed = false
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private val billingClient = BillingClient.newBuilder(activity.applicationContext)
         .setListener(this)
@@ -173,6 +179,9 @@ class RemoveAdsBillingManager(
     }
 
     fun close() {
+        closed = true
+        connectionAttempt++
+        mainHandler.removeCallbacksAndMessages(null)
         billingClient.endConnection()
     }
 
@@ -203,8 +212,13 @@ class RemoveAdsBillingManager(
     }
 
     private fun connect() {
+        if (closed) return
         if (billingClient.isReady) {
-            _state.value = _state.value.copy(isConnecting = false, isBillingReady = true)
+            _state.value = _state.value.copy(
+                isConnecting = false,
+                isBillingReady = true,
+                errorMessage = null,
+            )
             if (restoreOnConnection) {
                 restoreOnConnection = false
                 queryOwnedPurchases(showMissingMessage = true)
@@ -213,40 +227,87 @@ class RemoveAdsBillingManager(
         }
         if (connecting) return
         connecting = true
-        _state.value = _state.value.copy(isConnecting = true, isBillingReady = false)
-        billingClient.startConnection(object : BillingClientStateListener {
-            override fun onBillingSetupFinished(billingResult: BillingResult) {
+        val attempt = ++connectionAttempt
+        _state.value = _state.value.copy(
+            isConnecting = true,
+            isBillingReady = false,
+            errorMessage = null,
+        )
+
+        // startConnection is asynchronous. If Google Play never responds, the
+        // old UI waited forever and offered no way to retry the purchase.
+        mainHandler.postDelayed({
+            if (closed || attempt != connectionAttempt || !connecting) return@postDelayed
+            if (billingClient.isReady) {
+                finishConnection()
+            } else {
                 connecting = false
-                if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    _state.value = _state.value.copy(
-                        isConnecting = false,
-                        isBillingReady = true,
-                        errorMessage = null,
-                    )
-                    val restore = restoreOnConnection
-                    restoreOnConnection = false
-                    queryOwnedPurchases(showMissingMessage = restore)
-                    queryProduct()
-                } else {
+                _state.value = _state.value.copy(
+                    isConnecting = false,
+                    isBillingReady = false,
+                    errorMessage = BillingConnectionMessages.timeout(),
+                )
+            }
+        }, CONNECTION_TIMEOUT_MILLIS)
+
+        try {
+            billingClient.startConnection(object : BillingClientStateListener {
+                override fun onBillingSetupFinished(billingResult: BillingResult) {
+                    if (closed || attempt != connectionAttempt) return
+                    if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                        if (!connecting && _state.value.isBillingReady) return
+                        finishConnection()
+                    } else {
+                        connecting = false
+                        _state.value = _state.value.copy(
+                            isConnecting = false,
+                            isBillingReady = false,
+                            errorMessage = BillingConnectionMessages.failed(
+                                billingResult.responseCode,
+                                billingResult.debugMessage,
+                            ),
+                        )
+                    }
+                }
+
+                override fun onBillingServiceDisconnected() {
+                    if (closed || attempt != connectionAttempt) return
+                    connecting = false
                     _state.value = _state.value.copy(
                         isConnecting = false,
                         isBillingReady = false,
-                        errorMessage = billingResult.debugMessage.ifBlank {
-                            "Google Play Billing is unavailable right now."
-                        },
+                        errorMessage = BillingConnectionMessages.disconnected(),
                     )
+                    // Automatic service reconnection happens when another
+                    // Billing API request is made. The explicit retry action
+                    // calls refresh() rather than waiting in a false spinner.
                 }
-            }
+            })
+        } catch (error: RuntimeException) {
+            if (closed || attempt != connectionAttempt) return
+            connecting = false
+            _state.value = _state.value.copy(
+                isConnecting = false,
+                isBillingReady = false,
+                errorMessage = BillingConnectionMessages.failed(
+                    null,
+                    error.localizedMessage.orEmpty(),
+                ),
+            )
+        }
+    }
 
-            override fun onBillingServiceDisconnected() {
-                connecting = false
-                _state.value = _state.value.copy(
-                    isConnecting = true,
-                    isBillingReady = false,
-                )
-                // enableAutoServiceReconnection() handles the actual reconnect.
-            }
-        })
+    private fun finishConnection() {
+        connecting = false
+        _state.value = _state.value.copy(
+            isConnecting = false,
+            isBillingReady = true,
+            errorMessage = null,
+        )
+        val restore = restoreOnConnection
+        restoreOnConnection = false
+        queryOwnedPurchases(showMissingMessage = restore)
+        queryProduct()
     }
 
     private fun removeAdsQuery(): QueryProductDetailsParams =
