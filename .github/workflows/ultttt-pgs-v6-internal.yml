@@ -1,0 +1,191 @@
+name: UTTT Play Games v6 - signed internal test
+
+on:
+  push:
+    branches: [automation/ultttt-play-games-20261121]
+    paths:
+      - .github/workflows/ultttt-pgs-v6-internal.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ultttt-pgs-v6-internal-signed-release
+  cancel-in-progress: false
+
+jobs:
+  internal:
+    if: github.repository == 'killjoy00/EZTrivia' && contains(github.event.head_commit.message, '[deploy-ultttt-pgs6-internal]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - name: Checkout automation and verified UTTT main source
+        uses: actions/checkout@v4
+      - name: Checkout immutable Play Games code
+        uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: 4b6b418e125f41f1c0c0e8eadb93e3b4e109ef92
+          fetch-depth: 0
+          path: ultttt
+          persist-credentials: false
+
+      - name: Verify approved source, package, PGS identifiers, real ads
+        env:
+          SOURCE_SHA: 4b6b418e125f41f1c0c0e8eadb93e3b4e109ef92
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C ultttt fetch -q origin main
+          test "$(git -C ultttt rev-parse HEAD)" = "$SOURCE_SHA"
+          git -C ultttt merge-base --is-ancestor "$SOURCE_SHA" origin/main
+          grep -Fq 'applicationId = "com.killjoy00.ultttt"' ultttt/android/app/build.gradle.kts
+          grep -Fq 'play-services-games-v2:22.1.0' ultttt/android/app/build.gradle.kts
+          grep -Fxq 'PLAY_GAMES_APP_ID=517518057047' ultttt/android/play-games.properties
+          test "$(grep -Ec '^PGS_.*_ID=CgkI[[:alnum:]_-]+$' ultttt/android/play-games.properties)" = 6
+          grep -Fq 'com.google.android.gms.games.APP_ID' ultttt/android/app/src/main/AndroidManifest.xml
+          grep -Fq 'com.android.vending.BILLING' ultttt/android/app/src/main/AndroidManifest.xml
+          grep -Fq 'ULTTTT_REQUIRE_LIVE_ADMOB' ultttt/android/app/build.gradle.kts
+          echo "UTTT main source, Game Services IDs, billing and live AdMob safeguards validated."
+
+      - name: Authenticate to existing Google Play publisher
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Check published Play Games resources and unused version code 6
+        env:
+          PLAY_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request
+          h={"Authorization":"Bearer "+os.environ["PLAY_TOKEN"],"Content-Type":"application/json"}
+          def call(m,url,payload=None):
+              data=None if payload is None else json.dumps(payload).encode()
+              req=urllib.request.Request(url,method=m,data=data,headers=h)
+              with urllib.request.urlopen(req,timeout=50) as response:
+                  raw=response.read()
+                  return json.loads(raw) if raw else {}
+          pgs="https://www.googleapis.com/games/v1configuration/applications/517518057047"
+          for typ,expected in (("achievements",5),("leaderboards",1)):
+              items=call("GET",pgs+"/"+typ).get("items",[])
+              assert len(items)==expected, f"{typ}: expected {expected}, got {len(items)}"
+              assert all(item.get("published") and (item.get("published") or {}).get("iconUrl") for item in items), f"Unpublished/unillustrated {typ}"
+              print(f"Verified {len(items)} published {typ} with artwork")
+          root="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt/edits"
+          edit=call("POST",root,{})["id"]
+          try:
+              versions=[int(i["versionCode"]) for i in call("GET",root+"/"+edit+"/bundles").get("bundles",[])]
+              tracks=call("GET",root+"/"+edit+"/tracks").get("tracks",[])
+              prod=[r for t in tracks if t.get("track")=="production" for r in t.get("releases",[])]
+              assert 6 not in versions, "Version code 6 already uploaded; stop to prevent duplicate"
+              assert any("5" in r.get("versionCodes",[]) for r in prod), "Expected production code 5 not found"
+              print("Preflight passed: production remains code 5; code 6 is free")
+          finally:
+              call("DELETE",root+"/"+edit)
+          PY
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - name: Install Android SDK 36
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Verify shared upload keystore
+        env:
+          UPLOAD_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          UPLOAD_PASS: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$UPLOAD_B64"
+          test -n "$UPLOAD_PASS"
+          umask 077
+          printf '%s' "$UPLOAD_B64" | base64 --decode > "$RUNNER_TEMP/ultttt-upload.p12"
+          chmod 600 "$RUNNER_TEMP/ultttt-upload.p12"
+          keytool -list -keystore "$RUNNER_TEMP/ultttt-upload.p12" -storetype PKCS12 -storepass "$UPLOAD_PASS" -alias upload > /dev/null
+
+      - name: Test and build signed code 6 with production AdMob identifiers
+        working-directory: ultttt
+        env:
+          ULTTTT_VERSION_CODE: '6'
+          ULTTTT_VERSION_NAME: '1.1.2-beta01'
+          ULTTTT_REQUIRE_LIVE_ADMOB: 'true'
+          ULTTTT_ADMOB_ANDROID_APP_ID: 'ca-app-pub-1217971050094766~2079128067'
+          ULTTTT_ADMOB_ANDROID_BANNER_UNIT_ID: 'ca-app-pub-1217971050094766/7292373402'
+          ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/ultttt-upload.p12
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -p android testDebugUnitTest assembleDebug bundleRelease
+          aab=android/app/build/outputs/bundle/release/app-release.aab
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          mapping=android/app/build/outputs/mapping/release/mapping.txt
+          test -s "$aab"
+          test -s "$apk"
+          test -s "$mapping"
+          unzip -Z1 "$aab" > "$RUNNER_TEMP/ultttt-pgs-aab.txt"
+          grep -Fq 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map' "$RUNNER_TEMP/ultttt-pgs-aab.txt"
+          jarsigner -verify "$aab"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > "$RUNNER_TEMP/ultttt-pgs-badging.txt"
+          grep -Fq 'Ultimate Tic/Tac/Toe' "$RUNNER_TEMP/ultttt-pgs-badging.txt"
+          echo "Verified code 6 signed release bundle and debug-variant UI packaging."
+
+      - name: Archive signed code 6 bundle for release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: UTTT-Play-Games-v6-internal-signed-AAB
+          path: |
+            ultttt/android/app/build/outputs/bundle/release/*.aab
+            ultttt/android/app/build/outputs/mapping/release/mapping.txt
+            ultttt/android/app/build/outputs/native-debug-symbols/release/*.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Prepare tester release notes
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/play-notes"
+          printf '%s\n' 'Google Play Games achievements and Online Wins leaderboard added. Test sign-in from Statistics, unlock First Win by beating the computer, verify achievements and leaderboard open. Existing ads, Remove Ads, and offline play should remain unchanged. Online wins require a future multiplayer backend.' > "$RUNNER_TEMP/play-notes/whatsnew-en-US"
+
+      - name: Upload to Google Play INTERNAL TESTING only
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.killjoy00.ultttt
+          releaseFiles: ultttt/android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
+          releaseName: Ultimate Tic/Tac/Toe 1.1.2 Play Games internal test
+          whatsNewDirectory: ${{ runner.temp }}/play-notes
+
+      - name: Cleanup upload keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ultttt-upload.p12"
+
+      - name: Report release
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## UTTT Play Games v6 - internal deployment complete'
+            echo '- Source: killjoy00/Ultttt commit 4b6b418e125f41f1c0c0e8eadb93e3b4e109ef92'
+            echo '- Package: com.killjoy00.ultttt'
+            echo '- Play Games project: 517518057047'
+            echo '- Google Play track: **internal only**'
+            echo '- Version code: **6**, version name: **1.1.2-beta01**'
+            echo '- Existing production version code 5 is unchanged.'
+            echo '- Next gate: Play-installed device smoke test for authenticated sign-in and First Win unlock.'
+          } >> "$GITHUB_STEP_SUMMARY"
