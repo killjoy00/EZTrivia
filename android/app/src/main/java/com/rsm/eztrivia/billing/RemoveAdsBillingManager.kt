@@ -254,6 +254,7 @@ class RemoveAdsBillingManager(
                 _state.value = _state.value.copy(
                     productAvailable = false,
                     formattedPrice = null,
+                    isLoadingProduct = false,
                     errorMessage = billingFailure("Couldn't load Remove Ads", result),
                 )
                 return@queryProductDetailsAsync
