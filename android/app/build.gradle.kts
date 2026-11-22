@@ -73,6 +73,13 @@ android {
             // rules, which live in proguard-rules.pro.
             isMinifyEnabled = true
             isShrinkResources = true
+
+            // Bundle native symbol-table metadata for Google Play Android vitals.
+            // This lets Play symbolicate native crashes/ANRs without an extra
+            // upload. This only applies to future builds, not already-uploaded v9.
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
