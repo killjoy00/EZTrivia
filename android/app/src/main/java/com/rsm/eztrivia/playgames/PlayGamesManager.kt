@@ -2,12 +2,15 @@ package com.rsm.eztrivia.playgames
 
 import android.app.Activity
 import com.google.android.gms.games.PlayGames
+import com.google.android.gms.games.leaderboard.LeaderboardScore
+import com.google.android.gms.games.leaderboard.LeaderboardVariant
 import com.rsm.eztrivia.data.PlayerState
 import com.rsm.eztrivia.model.AchievementCatalog
 import com.rsm.eztrivia.model.DailyChallenge
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.tasks.await
 
 data class PlayGamesConnectionState(
     val isChecking: Boolean = true,
@@ -113,6 +116,57 @@ class PlayGamesManager(private val activity: Activity) {
             }
             .addOnFailureListener(::recordError)
     }
+
+
+    /**
+     * Native rank data for the in-app Leaderboards screen. Mirrors the iOS
+     * global/friends reader without opening a second Play Games Activity.
+     * The platform owns identity and standings; we never synthesize ranks.
+     *
+     * Each Google score buffer must be fully copied and released before the
+     * coroutine returns to Compose.
+     */
+    suspend fun loadLeaderboard(
+        board: PlayGamesBoard,
+        friendsOnly: Boolean,
+        forceReload: Boolean = false,
+    ): PlayGamesLeaderboardSnapshot {
+        check(_connection.value.isAuthenticated) { "Connect Google Play Games to view rankings." }
+        val client = PlayGames.getLeaderboardsClient(activity)
+        val span = if (board.isDaily) LeaderboardVariant.TIME_SPAN_DAILY else LeaderboardVariant.TIME_SPAN_ALL_TIME
+        val collection = if (friendsOnly) LeaderboardVariant.COLLECTION_FRIENDS else LeaderboardVariant.COLLECTION_PUBLIC
+
+        val loaded = client.loadTopScores(board.id, span, collection, 10, forceReload).await().get()
+            ?: error("This leaderboard is not available yet.")
+        val leaders: List<PlayGamesRankRow>
+        val playerCount: Long?
+        try {
+            val scores = loaded.scores
+            leaders = (0 until scores.count).map { index ->
+                scores.get(index).toRankRow()
+            }
+            playerCount = loaded.leaderboard?.variants
+                ?.firstOrNull { it.timeSpan == span && it.collection == collection }
+                ?.numScores?.takeIf { it >= 0L }
+        } finally {
+            loaded.release()
+        }
+
+        val local = client.loadCurrentPlayerLeaderboardScore(board.id, span, collection)
+            .await().get()?.toRankRow()
+        return PlayGamesLeaderboardSnapshot(
+            localPlayer = local,
+            leaders = leaders,
+            totalPlayerCount = playerCount,
+        )
+    }
+
+    private fun LeaderboardScore.toRankRow(): PlayGamesRankRow = PlayGamesRankRow(
+        playerId = scoreHolder.playerId,
+        rank = rank,
+        playerName = scoreHolderDisplayName,
+        formattedScore = displayScore,
+    )
 
     private fun recordError(error: Exception) {
         _connection.value = _connection.value.copy(errorMessage = error.localizedMessage)
