@@ -1,0 +1,61 @@
+name: UTTT - audit Google Play listing screenshots
+
+on:
+  push:
+    branches:
+      - automation/ultttt-play-games-20261121
+    paths:
+      - .github/workflows/ultttt-play-store-images-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate with existing Google Play service account
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Audit existing UTTT listing screenshot inventory (read-only)
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          root="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt"
+          token=os.environ["GOOGLE_PLAY_ACCESS_TOKEN"]
+          def call(method,url,payload=None):
+              data=None if payload is None else json.dumps(payload).encode()
+              req=urllib.request.Request(url, method=method, data=data, headers={
+                  "Authorization":"Bearer "+token,
+                  "Content-Type":"application/json",
+                  "Accept":"application/json"})
+              with urllib.request.urlopen(req, timeout=40) as resp:
+                  return json.load(resp) if method!="DELETE" else None
+          edit=call("POST",root+"/edits",{})
+          ident=edit["id"]
+          print("Auditing Play listing for com.killjoy00.ultttt (no changes)")
+          try:
+              for typ in ("phoneScreenshots","sevenInchScreenshots","tenInchScreenshots","featureGraphic"):
+                  url=f"{root}/edits/{ident}/listings/en-US/{typ}"
+                  try:
+                      items=call("GET",url).get("images",[])
+                  except urllib.error.HTTPError as exc:
+                      if exc.code != 404:raise
+                      items=[]
+                  print(f"en-US {typ}: {len(items)} image(s)")
+                  for item in items:
+                      print("  ID: "+str(item.get("id","(none)"))[:90])
+          finally:
+              call("DELETE",root+"/edits/"+ident)
+          PY
