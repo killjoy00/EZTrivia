@@ -286,19 +286,11 @@ class RemoveAdsBillingManager(
     }
 
     /** Status codes identify catalog/region/test-account issues without a crash. */
-    private fun unavailableProductMessage(response: com.android.billingclient.api.QueryProductDetailsResult): String {
-        val reason = response.unfetchedProductList.firstOrNull {
-            it.productId == PRODUCT_ID
-        }?.statusCode
-        return when (reason) {
-            com.android.billingclient.api.UnfetchedProduct.StatusCode.NO_ELIGIBLE_OFFER ->
-                "Remove Ads has no available offer for this Google Play account (offer status 4)."
-            com.android.billingclient.api.UnfetchedProduct.StatusCode.PRODUCT_NOT_FOUND ->
-                "Google Play can't find Remove Ads for this installation (product status 3)."
-            com.android.billingclient.api.UnfetchedProduct.StatusCode.INVALID_PRODUCT_ID_FORMAT ->
-                "Remove Ads product configuration needs attention (status 2)."
-            else -> "Remove Ads is unavailable from Google Play for this account right now."
-        }
+    private fun unavailableProductMessage(
+        response: com.android.billingclient.api.QueryProductDetailsResult,
+    ): String {
+        val status = response.unfetchedProductList.firstOrNull { it.productId == PRODUCT_ID }?.statusCode
+        return RemoveAdsCatalogMessages.forStatus(status)
     }
 
     private fun billingFailure(action: String, result: BillingResult): String =
