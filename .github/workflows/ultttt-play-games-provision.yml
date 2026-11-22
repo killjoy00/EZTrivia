@@ -1,0 +1,70 @@
+name: UTTT Play Games draft resources via existing Google Play account
+
+on:
+  push:
+    branches:
+      - automation/ultttt-play-games-20261121
+    paths:
+      - .github/workflows/ultttt-play-games-provision.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ultttt-play-games-resources-from-eztrivia
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch UTTT's reviewed provisioning script
+        uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: 5d3042dbcfd8e0f080734d985c162799a9119a97
+          path: ultttt
+          persist-credentials: false
+      - name: Confirm separate game identity and run unit tests
+        working-directory: ultttt
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fxq '517518057047' android/play-games-project-id.txt
+          python3 -m unittest discover -s Scripts -p 'test_configure_play_games.py' -v
+      - name: Authenticate with existing Google Play service account
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Provision only the five achievements and one leaderboard in draft
+        working-directory: ultttt
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Scripts/configure_play_games.py --game-id 517518057047 --apply
+          grep -Fxq 'PLAY_GAMES_APP_ID=517518057047' android/play-games.properties
+          test "$(grep -Ec '^[A-Z_]+=[A-Za-z0-9_-]+$' android/play-games.properties)" = 7
+          {
+            echo "### Ultimate Tic Tac Toe - Play Games"
+            echo "Draft achievements and leaderboard created or reused."
+            echo "No Play Games publish action or Android store release."
+            echo ""
+            echo "#### Public identifiers to configure in UTTT"
+            echo '~~~'
+            cat android/play-games.properties
+            echo '~~~'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ultttt-play-games-public-resource-ids
+          path: ultttt/android/play-games.properties
+          if-no-files-found: error
+          retention-days: 30
