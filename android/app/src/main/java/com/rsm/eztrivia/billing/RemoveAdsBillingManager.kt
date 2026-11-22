@@ -103,7 +103,9 @@ class RemoveAdsBillingManager(
             if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                 _state.value = _state.value.copy(
                     isPurchasing = false,
-                    errorMessage = billingFailure("Couldn't load Remove Ads", result),
+                    errorMessage = if (response.unfetchedProductList.any { it.productId == PRODUCT_ID })
+                        unavailableProductMessage(response)
+                    else billingFailure("Couldn't load Remove Ads", result),
                 )
                 return@queryProductDetailsAsync
             }
@@ -264,7 +266,9 @@ class RemoveAdsBillingManager(
                     productAvailable = false,
                     formattedPrice = null,
                     isLoadingProduct = false,
-                    errorMessage = billingFailure("Couldn't load Remove Ads", result),
+                    errorMessage = if (response.unfetchedProductList.any { it.productId == PRODUCT_ID })
+                        unavailableProductMessage(response)
+                    else billingFailure("Couldn't load Remove Ads", result),
                 )
                 return@queryProductDetailsAsync
             }
