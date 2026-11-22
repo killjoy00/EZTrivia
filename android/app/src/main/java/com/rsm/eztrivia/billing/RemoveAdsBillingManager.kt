@@ -141,11 +141,16 @@ class RemoveAdsBillingManager(
                         .setProductDetailsParamsList(listOf(params))
                         .build(),
                 )
-                if (launch.responseCode != BillingClient.BillingResponseCode.OK) {
-                    _state.value = _state.value.copy(
-                        isPurchasing = false,
-                        errorMessage = billingFailure("Couldn't open Google Play checkout", launch),
-                    )
+                when (launch.responseCode) {
+                    BillingClient.BillingResponseCode.OK -> Unit
+                    BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED ->
+                        queryOwnedPurchases(showMissingMessage = false)
+                    else -> {
+                        _state.value = _state.value.copy(
+                            isPurchasing = false,
+                            errorMessage = billingFailure("Couldn't open Google Play checkout", launch),
+                        )
+                    }
                 }
             }
         }
