@@ -35,4 +35,6 @@ data class PlayGamesLeaderboardSnapshot(
     val localPlayer: PlayGamesRankRow?,
     val leaders: List<PlayGamesRankRow>,
     val totalPlayerCount: Long?,
+    /** Top scores are valid, but the separate personal-rank lookup failed. */
+    val personalRankUnavailable: Boolean = false,
 )
