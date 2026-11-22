@@ -1,4 +1,4 @@
-name: "Android v12 Internal — leaderboard and billing reliability"
+name: "Android v12 Internal — Play Console SDK and native symbols"
 
 on:
   push:
@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   rollout:
-    name: Build v12 and release to Internal Testing only
+    name: Build and verify v12 for Internal Testing only
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -76,7 +76,7 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
           create_credentials_file: false
 
-      - name: Guard Production v9 and existing testing tracks before uploading v12
+      - name: Guard known Production release and v11 Internal before uploading v12
         env:
           ACCESS_TOKEN: ${{ steps.play_auth.outputs.access_token }}
         shell: bash
@@ -324,7 +324,7 @@ jobs:
         run: |
           set -euo pipefail
           unzip -Z -1 android/app/build/outputs/bundle/release/app-release.aab \
-            | grep -E '(^base/lib/.*\\.so$|^BUNDLE-METADATA/.*debugsymbol)' \
+            | grep -E '(^base/lib/.*\.so$|^BUNDLE-METADATA/.*debugsymbol)' \
             | tee "$RUNNER_TEMP/v12-aab-native-contents.txt"
           echo "A separate ZIP containing matching available symbols will be uploaded with this AAB."
 
