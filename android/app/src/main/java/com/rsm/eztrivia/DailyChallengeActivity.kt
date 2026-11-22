@@ -2,6 +2,7 @@ package com.rsm.eztrivia
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -21,7 +22,12 @@ import androidx.compose.ui.platform.LocalContext
 import com.rsm.eztrivia.data.AppSettingsStore
 import com.rsm.eztrivia.data.PlayerStateStore
 import com.rsm.eztrivia.data.QuestionCatalog
+import com.google.android.gms.games.PlayGames
+import com.google.android.gms.games.leaderboard.LeaderboardVariant
+import com.rsm.eztrivia.data.DailyResult
+import com.rsm.eztrivia.model.DailyChallenge
 import com.rsm.eztrivia.model.TriviaQuestion
+import com.rsm.eztrivia.playgames.PlayGamesIds
 import com.rsm.eztrivia.ui.DailyChallengeScreen
 import com.rsm.eztrivia.ui.EZTriviaTheme
 
@@ -39,11 +45,51 @@ class DailyChallengeActivity : ComponentActivity() {
                             .fillMaxSize()
                             .safeDrawingPadding(),
                     ) {
-                        DailyChallengeEntry(onBackToPlay = ::returnToPlay)
+                        DailyChallengeEntry(onBackToPlay = ::returnToPlay, onViewStandings = ::viewDailyLeaderboard)
                     }
                 }
             }
         }
+    }
+
+    private fun viewDailyLeaderboard(result: DailyResult) {
+        val signIn = PlayGames.getGamesSignInClient(this)
+        signIn.isAuthenticated()
+            .addOnSuccessListener { authentication ->
+                if (authentication.isAuthenticated) {
+                    openPlayGamesDailyBoard(result)
+                } else {
+                    signIn.signIn()
+                        .addOnSuccessListener { retry ->
+                            if (retry.isAuthenticated) openPlayGamesDailyBoard(result)
+                            else showPlayGamesMessage("Sign in to Play Games to view standings.")
+                        }
+                        .addOnFailureListener { showPlayGamesMessage("Play Games sign-in unavailable.") }
+                }
+            }
+            .addOnFailureListener { showPlayGamesMessage("Play Games sign-in unavailable.") }
+    }
+
+    private fun openPlayGamesDailyBoard(result: DailyResult) {
+        val client = PlayGames.getLeaderboardsClient(this)
+        // A previous day's result must never be submitted into today's Daily period.
+        if (result.day == DailyChallenge.day()) {
+            client.submitScore(
+                PlayGamesIds.dailyLeaderboard,
+                result.points.coerceIn(0, DailyChallenge.MAXIMUM_POINTS).toLong(),
+            )
+        }
+        client.getLeaderboardIntent(PlayGamesIds.dailyLeaderboard, LeaderboardVariant.TIME_SPAN_DAILY)
+            .addOnSuccessListener { intent ->
+                // PGS requires startActivityForResult to validate the calling game.
+                @Suppress("DEPRECATION")
+                startActivityForResult(intent, 7103)
+            }
+            .addOnFailureListener { showPlayGamesMessage("Daily standings are not available yet.") }
+    }
+
+    private fun showPlayGamesMessage(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
     private fun returnToPlay() {
@@ -57,7 +103,10 @@ class DailyChallengeActivity : ComponentActivity() {
 }
 
 @Composable
-private fun DailyChallengeEntry(onBackToPlay: () -> Unit) {
+private fun DailyChallengeEntry(
+    onBackToPlay: () -> Unit,
+    onViewStandings: (DailyResult) -> Unit,
+) {
     val context = LocalContext.current
     val store = remember(context.applicationContext) { PlayerStateStore(context.applicationContext) }
     val playerState by store.state.collectAsState()
@@ -77,6 +126,7 @@ private fun DailyChallengeEntry(onBackToPlay: () -> Unit) {
                         playerState = playerState,
                         store = store,
                         onBack = onBackToPlay,
+                        onViewStandings = onViewStandings,
                     )
                 },
                 onFailure = {

@@ -52,3 +52,7 @@ Automated gate: Swift unit test for all four explicit round kinds, the existing 
 - Android category chip and call sites: `android/app/src/main/java/com/rsm/eztrivia/ui/QuestionCategoryLabel.kt`, `EZTriviaApp.kt`, `DailyChallengeScreen.kt`, `FriendChallengeScreen.kt`; original Android implementation: PR #94.
 - iOS settings/achievements/progress: `EZTriviaApp/SettingsView.swift`, `Achievements.swift`, `ScoreStore.swift`; Android equivalents: `android/app/src/main/java/com/rsm/eztrivia/ui/SettingsScreen.kt`, `model/Achievements.kt`, `data/PlayerStateStore.kt`.
 - Release integration: `.github/workflows/ci.yml`, `.github/workflows/testflight.yml`, `RELEASE_SETUP.md`, `android/PLAY_GAMES.md`, and Android release docs.
+
+## Android parity follow-up — implementation branch (November 21, 2026)
+
+The original November 20 comparison above is a historical main-branch snapshot. The Android-only parity work on `feat/android-ios14-parity` brings Daily and Friend cards onto the home screen, reduces bottom navigation to Play/Scores/Settings, adds category best-score tiles, adds contextual per-question reports in all modes, and exposes the native Play Games Daily leaderboard from results. See [Android parity release checklist](android/PARITY_RELEASE.md) for validation and the remaining inline-rank/dark-mode differences. This is not a claim of store rollout or CI success.
