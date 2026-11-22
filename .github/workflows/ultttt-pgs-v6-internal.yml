@@ -111,7 +111,7 @@ jobs:
           gradle-version: '8.13'
 
       - name: Verify updated Fragment 1.9.1 is on the release classpath
-        working-directory: ulttt
+        working-directory: ultttt
         shell: bash
         run: |
           set -euo pipefail
