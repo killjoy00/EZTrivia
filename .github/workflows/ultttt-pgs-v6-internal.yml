@@ -25,14 +25,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: killjoy00/Ultttt
-          ref: 4b6b418e125f41f1c0c0e8eadb93e3b4e109ef92
+          ref: aca46d802ecfac87e984a2f3f2ab379ac4c844cf
           fetch-depth: 0
           path: ultttt
           persist-credentials: false
 
       - name: Verify approved source, package, PGS identifiers, real ads
         env:
-          SOURCE_SHA: 4b6b418e125f41f1c0c0e8eadb93e3b4e109ef92
+          SOURCE_SHA: aca46d802ecfac87e984a2f3f2ab379ac4c844cf
         shell: bash
         run: |
           set -euo pipefail
@@ -192,7 +192,7 @@ jobs:
         run: |
           {
             echo '## UTTT Play Games v6 - internal deployment complete'
-            echo '- Source: killjoy00/Ultttt commit 4b6b418e125f41f1c0c0e8eadb93e3b4e109ef92'
+            echo '- Source: killjoy00/Ultttt commit aca46d802ecfac87e984a2f3f2ab379ac4c844cf'
             echo '- Package: com.killjoy00.ultttt'
             echo '- Play Games project: 517518057047'
             echo '- Google Play track: **internal only**'
