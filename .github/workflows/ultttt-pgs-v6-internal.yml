@@ -102,6 +102,17 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Verify updated Fragment 1.9.1 is on the release classpath
+        working-directory: ulttt
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -p android :app:dependencyInsight \
+            --configuration releaseRuntimeClasspath \
+            --dependency androidx.fragment:fragment > "$RUNNER_TEMP/ultttt-fragment-resolution.txt"
+          cat "$RUNNER_TEMP/ultttt-fragment-resolution.txt"
+          grep -Fq 'androidx.fragment:fragment:1.9.1' "$RUNNER_TEMP/ultttt-fragment-resolution.txt"
+
       - name: Verify shared upload keystore
         env:
           UPLOAD_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
@@ -168,7 +179,7 @@ jobs:
           releaseFiles: ultttt/android/app/build/outputs/bundle/release/app-release.aab
           track: internal
           status: completed
-          releaseName: Ultimate Tic/Tac/Toe 1.1.2 Play Games internal test
+          releaseName: UTTT 1.1.2 Play Games
           whatsNewDirectory: ${{ runner.temp }}/play-notes
 
       - name: Cleanup upload keystore
