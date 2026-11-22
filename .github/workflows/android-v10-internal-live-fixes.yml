@@ -140,7 +140,7 @@ jobs:
           fi
           echo "No changes currently in review; Internal-only v10 release can proceed."
 
-      - name: Read-only check of Remove Ads Play inventory
+      - name: Require active Remove Ads inventory before uploading
         env:
           ACCESS_TOKEN: ${{ steps.play_auth.outputs.access_token }}
         shell: bash
@@ -149,13 +149,14 @@ jobs:
           url="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/oneTimeProducts/com.rsm.eztrivia.removeads"
           status="$(curl --silent --show-error -o "$RUNNER_TEMP/remove-ads-inventory.json" -w '%{http_code}' -H "Authorization: Bearer $ACCESS_TOKEN" -H "Accept: application/json" "$url")"
           if [ "$status" != "200" ]; then
-            echo "::warning::Play Remove Ads product inventory could not be read (HTTP $status). Actual billing availability still needs runtime testing."
-            exit 0
+            echo "::error::Could not verify active Remove Ads product (HTTP $status). Refusing v10 upload."
+            exit 9
           fi
           jq -r '.purchaseOptions[]? | "Remove Ads purchase option: id=\(.purchaseOptionId) state=\(.state) availableRegions=\([.regionalPricingAndAvailabilityConfigs[]? | select(.availability == "AVAILABLE")] | length) USAvailability=\([.regionalPricingAndAvailabilityConfigs[]? | select(.regionCode == "US")][0].availability // "unknown") USPrice=\([.regionalPricingAndAvailabilityConfigs[]? | select(.regionCode == "US")][0].price // {})"' "$RUNNER_TEMP/remove-ads-inventory.json"
           active="$(jq -r '[.purchaseOptions[]? | select(.state == "ACTIVE")] | length' "$RUNNER_TEMP/remove-ads-inventory.json")"
           if [ "$active" -lt 1 ]; then
-            echo "::warning::Remove Ads has no active Play purchase options. Client changes alone cannot make the product purchasable."
+            echo "::error::Remove Ads has no active purchase options. Refusing v10 upload."
+            exit 9
           fi
 
       - name: Require all Play Games achievement and leaderboard resources published
@@ -289,7 +290,7 @@ jobs:
             -H "Authorization: Bearer $ACCESS_TOKEN" -H "Accept: application/json" \
             "$url" > "$RUNNER_TEMP/internal-after.json"
           jq -r '.releases[]? | "internal release=\(.releaseName) versionCodes=\([.activeArtifacts[]?.versionCode] | join(",")) lifecycle=\(.releaseLifecycleState)"' "$RUNNER_TEMP/internal-after.json"
-          jq -e 'any(.releases[]?; .releaseLifecycleState == "RELEASE_LIFECYCLE_STATE_PUBLISHED" and any(.activeArtifacts[]?.versionCode; . == 9))' \
+          jq -e 'any(.releases[]?; .releaseLifecycleState == "RELEASE_LIFECYCLE_STATE_PUBLISHED" and any(.activeArtifacts[]?.versionCode; (. | tonumber) == 10))' \
             "$RUNNER_TEMP/internal-after.json" >/dev/null
           echo "v10 was published to Internal Testing. Closed testing and Production remain untouched."
 
