@@ -128,7 +128,7 @@ jobs:
             echo "::warning::Play Remove Ads product inventory could not be read (HTTP $status). Actual billing availability still needs runtime testing."
             exit 0
           fi
-          jq -r '.purchaseOptions[]? | "Remove Ads purchase option: id=\(.purchaseOptionId) state=\(.state) availableRegions=\([.regionalPricingAndAvailabilityConfigs[]? | select(.availability == "AVAILABLE")] | length)"' "$RUNNER_TEMP/remove-ads-inventory.json"
+          jq -r '.purchaseOptions[]? | "Remove Ads purchase option: id=\(.purchaseOptionId) state=\(.state) availableRegions=\([.regionalPricingAndAvailabilityConfigs[]? | select(.availability == "AVAILABLE")] | length) USAvailability=\([.regionalPricingAndAvailabilityConfigs[]? | select(.regionCode == "US")][0].availability // "unknown") USPrice=\([.regionalPricingAndAvailabilityConfigs[]? | select(.regionCode == "US")][0].price // {})"' "$RUNNER_TEMP/remove-ads-inventory.json"
           active="$(jq -r '[.purchaseOptions[]? | select(.state == "ACTIVE")] | length' "$RUNNER_TEMP/remove-ads-inventory.json")"
           if [ "$active" -lt 1 ]; then
             echo "::warning::Remove Ads has no active Play purchase options. Client changes alone cannot make the product purchasable."
