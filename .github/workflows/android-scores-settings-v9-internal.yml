@@ -53,6 +53,17 @@ jobs:
           [[ "$ANDROID_ADMOB_APP_ID" =~ ^ca-app-pub-1217971050094766~[0-9]+$ ]]
           [[ "$ANDROID_ADMOB_BANNER_ID" =~ ^ca-app-pub-1217971050094766/[0-9]+$ ]]
 
+      - name: Require completed Scores and Billing fix before releasing v9
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s android/app/src/main/java/com/rsm/eztrivia/ui/PlayGamesLeaderboardsScreen.kt
+          test -s android/app/src/main/java/com/rsm/eztrivia/billing/RemoveAdsCatalogMessages.kt
+          grep -q 'AppScreen.Leaderboards' android/app/src/main/java/com/rsm/eztrivia/ui/EZTriviaApp.kt
+          grep -q 'fun purchase()' android/app/src/main/java/com/rsm/eztrivia/billing/RemoveAdsBillingManager.kt
+          grep -q 'onLeaderboards = ' android/app/src/main/java/com/rsm/eztrivia/ui/EZTriviaApp.kt
+          echo "PR #164 feature sources exist; build can proceed."
+
       - name: Authenticate to Google Play Developer API
         id: play_auth
         uses: google-github-actions/auth@v3
