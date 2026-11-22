@@ -157,7 +157,7 @@ fun ScoresScreen(
                         )
                         HorizontalDivider()
                         if (connection?.isAuthenticated == true) {
-                            ScoresActionRow("♧", "Open full Play Games", onClick = { manager.showLeaderboards() })
+                            ScoresActionRow("♧", "Open full Play Games", onClick = { manager?.showLeaderboards() })
                         } else {
                             Text(
                                 if (connection?.isChecking == true) "Checking Google Play Games sign-in…"
