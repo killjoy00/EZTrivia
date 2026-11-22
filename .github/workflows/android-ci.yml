@@ -83,7 +83,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle -p android :app:dependencyInsight --dependency androidx.fragment:fragment --configuration releaseRuntimeClasspath --console=plain \
+          gradle :app:dependencyInsight --dependency androidx.fragment:fragment --configuration releaseRuntimeClasspath --console=plain \
             | tee "$RUNNER_TEMP/fragment-dependencies.txt"
           if grep -Fq 'androidx.fragment:fragment:' "$RUNNER_TEMP/fragment-dependencies.txt"; then
             if ! grep -Fq 'androidx.fragment:fragment:1.9.1' "$RUNNER_TEMP/fragment-dependencies.txt"; then
@@ -98,7 +98,9 @@ jobs:
       - name: Surface unit test failures
         if: failure()
         run: |
-          find app/build/test-results/testDebugUnitTest -type f -name '*.xml' -print -exec cat {} \;
+          if [ -d app/build/test-results/testDebugUnitTest ]; then
+            find app/build/test-results/testDebugUnitTest -type f -name '*.xml' -print -exec cat {} \;
+          fi
 
       - name: Lint
         run: gradle lintDebug --stacktrace
@@ -220,6 +222,7 @@ jobs:
         run: gradle bundleRelease --stacktrace
 
       - name: Audit native symbols for actual Android App Bundle
+        working-directory: .
         shell: bash
         run: |
           set -euo pipefail
