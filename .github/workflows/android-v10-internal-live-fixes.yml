@@ -1,4 +1,4 @@
-name: Android v10 Internal: leaderboard and billing reliability
+name: "Android v10 Internal — leaderboard and billing reliability"
 
 on:
   push:
