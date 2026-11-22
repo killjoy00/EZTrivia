@@ -58,7 +58,7 @@ fun MonetizationSettingsCard() {
 
                             if (canBuy) {
                                 Button(
-                                    onClick = { billing.purchase() },
+                                    onClick = { billing?.purchase() },
                                     modifier = Modifier.fillMaxWidth(),
                                 ) { Text("Remove Ads — ${purchase.formattedPrice}") }
                             } else if (purchase.isPurchasing) {
