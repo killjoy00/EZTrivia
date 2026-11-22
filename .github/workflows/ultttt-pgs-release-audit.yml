@@ -52,3 +52,5 @@ jobs:
           finally:
               call("DELETE",f"{root}/{edit}")
           PY
+
+# Follow-up: check whether version code 6 remained after an uncommitted release-name validation error.
