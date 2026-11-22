@@ -56,3 +56,5 @@ jobs:
 # Follow-up: check whether version code 6 remained after an uncommitted release-name validation error.
 
 # Refresh: inspect current UTTT Play v6 internal and production release codes before v7 rollout.
+
+# Verify UTTT Neon code 7 on Google Play internal; production code 6 unchanged.
