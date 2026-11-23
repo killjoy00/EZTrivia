@@ -1,9 +1,9 @@
 {
   "enabled": true,
-  "source_sha": "1bf227e02bcac04e0eaa3167df06a3ca63a50dee",
-  "version_code": "11",
-  "version_name": "1.4.7",
-  "release_notes": "Haven is now the Hive carrier: two drones fly with you and shoot for you all run, and each drone ability adds another.",
+  "source_sha": "db151e281a8035af56d9b18a42d14294bf0adeae",
+  "version_code": "12",
+  "version_name": "1.4.8",
+  "release_notes": "Haven's Hive drones now fire faster with fire-rate upgrades. Enemies in Worlds 2-4 are a little tougher on Normal.",
   "publish_internal": true,
   "release_status": "draft"
 }
