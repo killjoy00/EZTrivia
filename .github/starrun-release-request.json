@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "1ae6161de94a58b087826c3b47ba2daf9afa1eae",
+  "sha": "1bf227e02bcac04e0eaa3167df06a3ca63a50dee",
   "version": "1.4",
   "destination": "TestFlight",
-  "purpose": "Private iPhone TestFlight build for Star/Run PR #78: Bulwark does 15% more damage, Lancer lance hits twice as hard. No public App Store submission.",
-  "attempt": 40,
-  "reason": "PR #78 squash merged to StarRun main at 1ae6161 after all 65 PR checks passed on head b86b30d, including the no-Hangar World 1 floor for all seven ships, the Playable build, real four-world completion, simulation and UI suites and the unsigned iPhone build. Only private TestFlight device QA requested."
+  "purpose": "Private iPhone TestFlight build for Star/Run PR #79: Haven reworked as the Hive carrier (permanent drones are its guns, starts with Wing drones). No public App Store submission.",
+  "attempt": 41,
+  "reason": "PR #79 merged to StarRun main by the owner. Local main, UI and screenshot suites passed on its head e2523ed; PR CI was still completing at merge. Only private TestFlight device QA requested."
 }
