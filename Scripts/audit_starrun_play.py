@@ -18,6 +18,9 @@ def get(session, url, label):
 def main():
     request = json.loads(Path(".github/starrun-android-release-request.json").read_text())
     expected_code = str(request["version_code"])
+    # The release request says whether this upload stays a draft or is
+    # published to internal testers; confirm the status it asked for.
+    expected_status = str(request.get("release_status", "completed"))
     token = os.environ.get("GOOGLE_PLAY_ACCESS_TOKEN", "")
     if not token:
         raise SystemExit("Missing Play API token")
@@ -53,12 +56,12 @@ def main():
         print("STAR_RUN_PLAY_AUDIT_END")
         if expected_code not in bundle_codes or not any(
             expected_code in [str(c) for c in release.get("versionCodes", [])]
-            and release.get("status") == "completed"
+            and release.get("status") == expected_status
             for release in track.get("releases", [])
         ):
             raise SystemExit(
                 f"Expected Android v{expected_code} was not confirmed in uploaded "
-                "bundles and a completed Internal testing release"
+                f"bundles and a {expected_status} Internal testing release"
             )
         if listing.get("title") != "Star/Run":
             raise SystemExit("Play listing title is not Star/Run")
@@ -66,7 +69,7 @@ def main():
             raise SystemExit("Expected icon/feature graphic/eight screenshots were not all present")
         if not listing.get("shortDescription") or not listing.get("fullDescription") or not details.get("contactEmail"):
             raise SystemExit("Play listing/support fields incomplete")
-        print(f"PASS: Google Play independently confirms Star/Run Android v{expected_code} on Internal track and all listing media.")
+        print(f"PASS: Google Play independently confirms Star/Run Android v{expected_code} ({expected_status}) on Internal track and all listing media.")
     finally:
         s.delete(f"{BASE}/edits/{edit}", timeout=30)
 
