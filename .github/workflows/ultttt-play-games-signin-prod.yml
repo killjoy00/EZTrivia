@@ -1,0 +1,160 @@
+name: Ultimate TTT - Play Games sign-in fix production
+on:
+  push:
+    branches: ['release/ultttt-play-games-signin-20261123']
+    paths:
+      - '.github/workflows/ultttt-play-games-signin-prod.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ulttt-play-games-signin-prod
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/release/ultttt-play-games-signin-20261123'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: e3aae277452a77e9b75791ea14e1cc738e068c4e
+          fetch-depth: 0
+          path: ultttt
+
+      - name: Validate exact merged source and sign-in fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C ultttt rev-parse HEAD)" = 'e3aae277452a77e9b75791ea14e1cc738e068c4e'
+          git -C ultttt fetch --quiet origin main
+          git -C ultttt merge-base --is-ancestor 'e3aae277452a77e9b75791ea14e1cc738e068c4e' origin/main
+          grep -Fq 'getGamesSignInClient(activity).signIn()' ultttt/android/app/src/main/java/com/killjoy00/ultttt/AndroidPlayGames.kt
+          grep -Fq 'Sign in to Play Games' ultttt/android/app/src/main/java/com/killjoy00/ultttt/MainActivity.kt
+          grep -Fxq 'PLAY_GAMES_APP_ID=517518057047' ultttt/android/play-games.properties
+          grep -Fq 'com.android.vending.BILLING' ultttt/android/app/src/main/AndroidManifest.xml
+          echo 'Verified merged sign-in fix, Android Play Games app ID, and Billing declaration.'
+
+      - name: Authenticate to Google Play
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Verify existing production track and unused version 8
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api=https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt
+          edit_id=$(curl --fail-with-body -sS -X POST -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' -d '{}' "$api/edits" | jq -r '.id')
+          test -n "$edit_id" && test "$edit_id" != 'null'
+          curl --fail-with-body -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$api/edits/$edit_id/tracks" > "$RUNNER_TEMP/ultttt-tracks.json"
+          curl --fail-with-body -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$api/edits/$edit_id/bundles" > "$RUNNER_TEMP/ultttt-bundles.json"
+          echo 'Existing Google Play release tracks:'
+          jq -c '{tracks: [.tracks[] | {track: .track, releases: [(.releases // [])[] | {name: .name, versionCodes: .versionCodes, status: .status}]}]}' "$RUNNER_TEMP/ultttt-tracks.json"
+          jq -e '[.tracks[] | select(.track == "production") | (.releases // [])[] | (.versionCodes // [])[] | tonumber] | (max // 0) >= 6' "$RUNNER_TEMP/ultttt-tracks.json" >/dev/null
+          jq -e '[.bundles[]? | (.versionCode | tonumber)] | (max // 0) < 8' "$RUNNER_TEMP/ultttt-bundles.json" >/dev/null
+          echo 'Version code 8 is unused; an established production release exists.'
+
+      - name: Verify active Remove Ads purchase
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt/oneTimeProducts/com.killjoy00.ultttt.remove_ads'
+          curl --fail-with-body -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$url" > "$RUNNER_TEMP/ultttt-product.json"
+          jq -e 'any(.purchaseOptions[]?; .state == "ACTIVE")' "$RUNNER_TEMP/ultttt-product.json" >/dev/null
+          echo 'Existing Remove Ads purchase is active.'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Validate existing upload key without exposing secrets
+        env:
+          UPLOAD_KEY_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          UPLOAD_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$UPLOAD_KEY_B64" && test -n "$UPLOAD_PASSWORD"
+          umask 077
+          printf '%s' "$UPLOAD_KEY_B64" | base64 --decode > "$RUNNER_TEMP/ultttt-upload.p12"
+          chmod 600 "$RUNNER_TEMP/ultttt-upload.p12"
+          keytool -list -keystore "$RUNNER_TEMP/ultttt-upload.p12" -storetype PKCS12 -storepass "$UPLOAD_PASSWORD" -alias upload >/dev/null
+
+      - name: Build, test, and validate signed Play release
+        working-directory: ultttt
+        env:
+          ULTTTT_VERSION_CODE: '8'
+          ULTTTT_VERSION_NAME: '1.1.4'
+          ULTTTT_REQUIRE_LIVE_ADMOB: 'true'
+          ULTTTT_ADMOB_ANDROID_APP_ID: 'ca-app-pub-1217971050094766~2079128067'
+          ULTTTT_ADMOB_ANDROID_BANNER_UNIT_ID: 'ca-app-pub-1217971050094766/7292373402'
+          ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/ultttt-upload.p12
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -p android testDebugUnitTest assembleDebug bundleRelease
+          bundle=android/app/build/outputs/bundle/release/app-release.aab
+          mapping=android/app/build/outputs/mapping/release/mapping.txt
+          test -s "$bundle" && test -s "$mapping"
+          unzip -Z1 "$bundle" > "$RUNNER_TEMP/ultttt-aab-files.txt"
+          grep -Fxq 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map' "$RUNNER_TEMP/ultttt-aab-files.txt"
+          jarsigner -verify "$bundle"
+          grep -R -Fq 'ca-app-pub-1217971050094766~2079128067' android/app/build/intermediates/merged_manifest/release
+          grep -R -Fq 'ca-app-pub-1217971050094766/7292373402' android/app/build/generated/source/buildConfig/release
+          grep -R -Fq 'PLAY_GAMES_CONFIGURED = true' android/app/build/generated/source/buildConfig/release
+          grep -R -Fq 'ONLINE_CONFIGURED = false' android/app/build/generated/source/buildConfig/release
+          echo 'Signed release includes live ads, Google Play Games, and leaves unfinished Android online play disabled.'
+
+      - name: Archive exact signed production AAB and mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultttt-play-games-signin-v8-1.1.4-signed
+          path: |
+            ultttt/android/app/build/outputs/bundle/release/*.aab
+            ultttt/android/app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/play-notes"
+          cat > "$RUNNER_TEMP/play-notes/whatsnew-en-US" <<'NOTES'
+          Fixed Google Play Games sign-in. You can now connect from Statistics or sign in when opening achievements and leaderboards. If sign-in fails, the game shows a more useful message.
+          NOTES
+
+      - name: Upload update to Google Play production
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.killjoy00.ultttt
+          releaseFiles: ultttt/android/app/build/outputs/bundle/release/app-release.aab
+          track: production
+          status: completed
+          changesNotSentForReview: false
+          releaseName: Ultimate Tic/Tac/Toe 1.1.4 - Play Games sign-in
+          whatsNewDirectory: ${{ runner.temp }}/play-notes
+
+      - name: Remove temporary signing keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ultttt-upload.p12"
