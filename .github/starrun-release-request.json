@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "9444a8d2ee2201a3890c1ba474456c4fa3ea6b62",
+  "sha": "df9fdb7ee051c286f8538c6fb608542b50f995ab",
   "version": "1.4",
   "destination": "TestFlight",
-  "purpose": "Private iPhone TestFlight build for Star/Run PR #76: discovery Codex, ships and pilots earned through play, new buy-only Lancer ship and Kade pilot, adaptive spawn pace, fewer and bigger level-ups, boss label and results popup fixes. No public App Store submission.",
-  "attempt": 38,
-  "reason": "PR #76 squash merged to StarRun main at 9444a8d after all 58 PR checks passed on head a08000e (one job re-run after a GitHub network timeout during checkout), including the Playable build, real four-world completion, simulation, UI and platform suites and the unsigned iPhone build. Only private TestFlight device QA requested."
+  "purpose": "Private iPhone TestFlight build for Star/Run PR #77: Lancer lance fires twice as often and hits harder, Bulwark takes 50% less beam and missile damage, title buttons and ability slot names no longer cut off. No public App Store submission.",
+  "attempt": 39,
+  "reason": "PR #77 squash merged to StarRun main at df9fdb7 after all 65 PR checks passed on head 144bcf4, including the new no-Hangar World 1 floor for all seven ships, the Playable build, real four-world completion, simulation and UI suites and the unsigned iPhone build. Only private TestFlight device QA requested."
 }
