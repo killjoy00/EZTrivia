@@ -1,9 +1,9 @@
 {
   "enabled": true,
-  "source_sha": "f89cabb872c2a704c9713a8b0c3c265a84ea74c3",
-  "version_code": "7",
-  "version_name": "1.4.3",
-  "release_notes": "Bosses get an intro screen. Fairer Daily runs with their own Hangar set. Rerolls last the whole run. Clearer end-of-run and between-world screens. Wraith and Bulwark balance.",
+  "source_sha": "9444a8d2ee2201a3890c1ba474456c4fa3ea6b62",
+  "version_code": "8",
+  "version_name": "1.4.4",
+  "release_notes": "New Codex of everything you find. Earn ships and pilots by playing. New Lancer ship and Kade pilot. Faster waves when you clear fast. Fewer, bigger level-ups.",
   "publish_internal": true,
   "release_status": "draft"
 }
