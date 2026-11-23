@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "df9fdb7ee051c286f8538c6fb608542b50f995ab",
+  "sha": "1ae6161de94a58b087826c3b47ba2daf9afa1eae",
   "version": "1.4",
   "destination": "TestFlight",
-  "purpose": "Private iPhone TestFlight build for Star/Run PR #77: Lancer lance fires twice as often and hits harder, Bulwark takes 50% less beam and missile damage, title buttons and ability slot names no longer cut off. No public App Store submission.",
-  "attempt": 39,
-  "reason": "PR #77 squash merged to StarRun main at df9fdb7 after all 65 PR checks passed on head 144bcf4, including the new no-Hangar World 1 floor for all seven ships, the Playable build, real four-world completion, simulation and UI suites and the unsigned iPhone build. Only private TestFlight device QA requested."
+  "purpose": "Private iPhone TestFlight build for Star/Run PR #78: Bulwark does 15% more damage, Lancer lance hits twice as hard. No public App Store submission.",
+  "attempt": 40,
+  "reason": "PR #78 squash merged to StarRun main at 1ae6161 after all 65 PR checks passed on head b86b30d, including the no-Hangar World 1 floor for all seven ships, the Playable build, real four-world completion, simulation and UI suites and the unsigned iPhone build. Only private TestFlight device QA requested."
 }
