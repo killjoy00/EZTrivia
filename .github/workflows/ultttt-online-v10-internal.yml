@@ -1,0 +1,253 @@
+name: UTTT Neon online v10 - signed internal test
+
+on:
+  push:
+    branches: [release/ultttt-online-v10-internal]
+    paths:
+      - .github/workflows/ultttt-online-v10-internal.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ultttt-neon-v10-internal-signed-release
+  cancel-in-progress: false
+
+jobs:
+  internal:
+    if: github.repository == 'killjoy00/EZTrivia' && contains(github.event.head_commit.message, '[deploy-ultttt-online10-internal]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - name: Checkout automation and verified UTTT main source
+        uses: actions/checkout@v4
+      - name: Checkout immutable UTTT online-feature code
+        uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: f1af765961f9833e14c6d04dbc883c281693dd7d
+          fetch-depth: 0
+          path: ultttt
+          persist-credentials: false
+
+      - name: Verify approved source, package, PGS identifiers, real ads
+        env:
+          SOURCE_SHA: f1af765961f9833e14c6d04dbc883c281693dd7d
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C ultttt fetch -q origin fix/android-online-release-regression
+          test "$(git -C ultttt rev-parse HEAD)" = "$SOURCE_SHA"
+          git -C ultttt merge-base --is-ancestor "$SOURCE_SHA" origin/fix/android-online-release-regression
+          grep -Fq 'applicationId = "com.killjoy00.ultttt"' ultttt/android/app/build.gradle.kts
+          grep -Fq 'play-services-games-v2:22.1.0' ultttt/android/app/build.gradle.kts
+          grep -Fxq 'PLAY_GAMES_APP_ID=517518057047' ultttt/android/play-games.properties
+          test "$(grep -Ec '^PGS_.*_ID=CgkI[[:alnum:]_-]+$' ultttt/android/play-games.properties)" = 6
+          grep -Fq 'com.google.android.gms.games.APP_ID' ultttt/android/app/src/main/AndroidManifest.xml
+          grep -Fq 'com.android.vending.BILLING' ultttt/android/app/src/main/AndroidManifest.xml
+          grep -Fq 'ULTTTT_REQUIRE_LIVE_ADMOB' ultttt/android/app/build.gradle.kts
+          grep -Fq 'Signed Android release requires ULTTTT_ONLINE_NEON_FUNCTION_URL' ultttt/android/app/build.gradle.kts
+          grep -Fq 'Copy sign-in details' ultttt/android/app/src/main/java/com/killjoy00/ultttt/MainActivity.kt
+          test -f ultttt/android/app/src/main/java/com/killjoy00/ultttt/OnlineMatchService.kt
+          echo "UTTT online source, Game Services IDs, billing and live AdMob safeguards validated."
+
+      - name: Verify the existing Neon backend with read-only requests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,secrets,time,urllib.request,urllib.error
+          url="https://br-crimson-haze-bdif60qf-ulttttonline.compute.c-8.us-east-2.aws.neon.tech"
+          token=secrets.token_urlsafe(32)
+          def get(path, authenticated=True):
+              headers={"Authorization":"Bearer "+token} if authenticated else {}
+              request=urllib.request.Request(url+path,headers=headers)
+              for attempt in range(3):
+                  try:
+                      with urllib.request.urlopen(request,timeout=35) as response:
+                          return response.status,json.loads(response.read())
+                  except urllib.error.HTTPError as exc:
+                      if exc.code not in (429,500,502,503,504) or attempt==2:
+                          return exc.code,None
+                      time.sleep(2**attempt)
+                  except (TimeoutError,urllib.error.URLError):
+                      if attempt==2: raise
+                      time.sleep(2**attempt)
+          assert get("/health")== (200,{"ok":True}), "Existing Neon health check failed"
+          assert get("/matches")== (200,[]), "Fresh guest match listing failed"
+          assert get("/matches",False)[0]==401, "Missing credentials unexpectedly accepted"
+          print("Existing Neon function, database health, guest isolation and authentication passed.")
+          PY
+
+      - name: Authenticate to existing Google Play publisher
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Check published Play Games resources and unused version code 10
+        env:
+          PLAY_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,time,urllib.request,urllib.error
+          h={"Authorization":"Bearer "+os.environ["PLAY_TOKEN"],"Content-Type":"application/json"}
+          def call(m,url,payload=None):
+              data=None if payload is None else json.dumps(payload).encode()
+              req=urllib.request.Request(url,method=m,data=data,headers=h)
+              for attempt in range(5):
+                  try:
+                      with urllib.request.urlopen(req,timeout=50) as response:
+                          raw=response.read()
+                          return json.loads(raw) if raw else {}
+                  except urllib.error.HTTPError as exc:
+                      if exc.code not in (429,500,502,503,504) or attempt==4:
+                          raise
+                      delay=min(2**attempt,12)
+                      print(f"Transient Play API HTTP {exc.code} for {m}, retry {attempt+1}/4 in {delay}s",flush=True)
+                      time.sleep(delay)
+          pgs="https://www.googleapis.com/games/v1configuration/applications/517518057047"
+          for typ,expected in (("achievements",5),("leaderboards",1)):
+              items=call("GET",pgs+"/"+typ).get("items",[])
+              assert len(items)==expected, f"{typ}: expected {expected}, got {len(items)}"
+              assert all(item.get("published") and (item.get("published") or {}).get("iconUrl") for item in items), f"Unpublished/unillustrated {typ}"
+              print(f"Verified {len(items)} published {typ} with artwork")
+          root="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt/edits"
+          edit=call("POST",root,{})["id"]
+          try:
+              versions=[int(i["versionCode"]) for i in call("GET",root+"/"+edit+"/bundles").get("bundles",[])]
+              tracks=call("GET",root+"/"+edit+"/tracks").get("tracks",[])
+              prod=[r for t in tracks if t.get("track")=="production" for r in t.get("releases",[])]
+              assert 10 not in versions and max(versions, default=0) < 10, "Version code 10 already uploaded; stop to prevent duplicate"
+              assert any("9" in r.get("versionCodes",[]) and r.get("status")=="completed" for r in prod), "Expected production code 9 not found"
+              print("Preflight passed: production remains code 9; code 10 is free")
+          finally:
+              call("DELETE",root+"/"+edit)
+          PY
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - name: Install Android SDK 36
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Verify updated Fragment 1.9.1 is on the release classpath
+        working-directory: ultttt
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -p android :app:dependencyInsight \
+            --configuration releaseRuntimeClasspath \
+            --dependency androidx.fragment:fragment > "$RUNNER_TEMP/ultttt-fragment-resolution.txt"
+          cat "$RUNNER_TEMP/ultttt-fragment-resolution.txt"
+          grep -Fq 'androidx.fragment:fragment:1.9.1' "$RUNNER_TEMP/ultttt-fragment-resolution.txt"
+
+      - name: Verify shared upload keystore
+        env:
+          UPLOAD_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          UPLOAD_PASS: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$UPLOAD_B64"
+          test -n "$UPLOAD_PASS"
+          umask 077
+          printf '%s' "$UPLOAD_B64" | base64 --decode > "$RUNNER_TEMP/ultttt-upload.p12"
+          chmod 600 "$RUNNER_TEMP/ultttt-upload.p12"
+          keytool -list -keystore "$RUNNER_TEMP/ultttt-upload.p12" -storetype PKCS12 -storepass "$UPLOAD_PASS" -alias upload > /dev/null
+
+      - name: Test and build signed code 10 with production AdMob identifiers
+        working-directory: ultttt
+        env:
+          ULTTTT_VERSION_CODE: '10'
+          ULTTTT_VERSION_NAME: '1.1.6-beta01'
+          ULTTTT_ONLINE_NEON_FUNCTION_URL: 'https://br-crimson-haze-bdif60qf-ulttttonline.compute.c-8.us-east-2.aws.neon.tech'
+          ULTTTT_REQUIRE_LIVE_ADMOB: 'true'
+          ULTTTT_ADMOB_ANDROID_APP_ID: 'ca-app-pub-1217971050094766~2079128067'
+          ULTTTT_ADMOB_ANDROID_BANNER_UNIT_ID: 'ca-app-pub-1217971050094766/7292373402'
+          ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/ultttt-upload.p12
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -p android testDebugUnitTest assembleDebug bundleRelease
+          aab=android/app/build/outputs/bundle/release/app-release.aab
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          mapping=android/app/build/outputs/mapping/release/mapping.txt
+          test -s "$aab"
+          test -s "$apk"
+          test -s "$mapping"
+          unzip -Z1 "$aab" > "$RUNNER_TEMP/ultttt-pgs-aab.txt"
+          grep -Fq 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map' "$RUNNER_TEMP/ultttt-pgs-aab.txt"
+          jarsigner -verify "$aab"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > "$RUNNER_TEMP/ultttt-pgs-badging.txt"
+          grep -Fq 'Ultimate Tic/Tac/Toe' "$RUNNER_TEMP/ultttt-pgs-badging.txt"
+          config=android/app/build/generated/source/buildConfig/release
+          grep -RFq 'ONLINE_CONFIGURED = true' "$config"
+          grep -RFq "$ULTTTT_ONLINE_NEON_FUNCTION_URL" "$config"
+          grep -RFq 'PLAY_GAMES_CONFIGURED = true' "$config"
+          while IFS='=' read -r key value; do
+            case "$key" in
+              PLAY_GAMES_APP_ID|PGS_*_ID) grep -RFq "$value" "$config";;
+            esac
+          done < android/play-games.properties
+          grep -Fq "versionCode='10'" "$RUNNER_TEMP/ultttt-pgs-badging.txt"
+          echo "Both existing services and all Play Games resource IDs are enabled in the signed release."
+          echo "Verified code 10 signed release bundle and debug-variant UI packaging."
+
+      - name: Archive signed code 10 bundle for release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: UTTT-Neon-Online-v10-internal-signed-AAB
+          path: |
+            ultttt/android/app/build/outputs/bundle/release/*.aab
+            ultttt/android/app/build/outputs/mapping/release/mapping.txt
+            ultttt/android/app/build/outputs/native-debug-symbols/release/*.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Prepare tester release notes
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/play-notes"
+          printf '%s\n' 'Online multiplayer beta: create an invitation, join from another Android device, and play turn by turn. Also test matchmaking, saving/resuming a game, Google Play Games online achievements, and the existing offline game, ads and Remove Ads.' > "$RUNNER_TEMP/play-notes/whatsnew-en-US"
+
+      - name: Upload to Google Play INTERNAL TESTING only
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.killjoy00.ultttt
+          releaseFiles: ultttt/android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
+          releaseName: UTTT 1.1.6 Online Beta
+          whatsNewDirectory: ${{ runner.temp }}/play-notes
+
+      - name: Cleanup upload keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ultttt-upload.p12"
+
+      - name: Report release
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## UTTT Neon Online v10 - internal deployment complete'
+            echo '- Source: killjoy00/Ultttt commit f1af765961f9833e14c6d04dbc883c281693dd7d'
+            echo '- Package: com.killjoy00.ultttt'
+            echo '- Play Games project: 517518057047'
+            echo '- Google Play track: **internal only**'
+            echo '- Version code: **10**, version name: **1.1.6-beta01**'
+            echo '- Existing production version code 9 is unchanged.'
+            echo '- Next gate: two Play-installed devices: invitation, public matchmaking, preserved games, leaderboard, one win, ads/billing, and production rate-limit/cost review.'
+          } >> "$GITHUB_STEP_SUMMARY"
