@@ -1,4 +1,4 @@
-name: Ultimate TTT - Play Games startup diagnostics production
+name: Ultimate TTT - Play Games v9 production upload retry
 on:
   push:
     branches: ['release/ultttt-play-games-signin-20261123']
@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ulttt-play-games-signin-prod
@@ -16,33 +17,40 @@ jobs:
   publish:
     if: github.ref == 'refs/heads/release/ultttt-play-games-signin-20261123'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 20
+    env:
+      RELEASE_NAME: 'Ultimate Tic/Tac/Toe 1.1.5'
+      VERSION_CODE: '9'
+      RELEASE_NOTES: 'Improved Google Play Games connection at startup and manual sign-in. If Google Play Games cannot connect, you can copy sign-in details from Statistics for troubleshooting.'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
-          repository: killjoy00/Ultttt
-          ref: 2643a557f8da350f7d20088b85304f8854330635
-          fetch-depth: 0
-          path: ultttt
-
-      - name: Validate exact merged startup and diagnostics fix
+          distribution: temurin
+          java-version: '17'
+      - name: Download the exact tested signed v9 bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: ultttt-play-games-startup-v9-1.1.5-signed
+          run-id: 45306835374
+          github-token: ${{ github.token }}
+          repository: killjoy00/EZTrivia
+          path: signed-v9
+      - name: Reverify bundle, embedded mapping, and corrected release name
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C ultttt rev-parse HEAD)" = '2643a557f8da350f7d20088b85304f8854330635'
-          git -C ultttt fetch --quiet origin main
-          git -C ultttt merge-base --is-ancestor '2643a557f8da350f7d20088b85304f8854330635' origin/main
-          grep -Fq 'getGamesSignInClient(activity).signIn()' ultttt/android/app/src/main/java/com/killjoy00/ultttt/AndroidPlayGames.kt
-          grep -Fq 'Sign in to Play Games' ultttt/android/app/src/main/java/com/killjoy00/ultttt/MainActivity.kt
-          grep -Fxq 'PLAY_GAMES_APP_ID=517518057047' ultttt/android/play-games.properties
-          grep -Fq 'com.android.vending.BILLING' ultttt/android/app/src/main/AndroidManifest.xml
-          grep -Fq 'PlayGamesSdk.initialize(this)' ultttt/android/app/src/main/java/com/killjoy00/ultttt/UlttttApplication.kt
-          grep -Fq 'Copy sign-in details' ultttt/android/app/src/main/java/com/killjoy00/ultttt/MainActivity.kt
-          grep -Fq 'android:name=".UlttttApplication"' ultttt/android/app/src/main/AndroidManifest.xml
-          echo 'Verified merged startup initialization, diagnostic button, Play Games app ID, and Billing declaration.'
-
-      - name: Authenticate to Google Play
+          aab=signed-v9/bundle/release/app-release.aab
+          test -s "$aab"
+          test -s signed-v9/mapping/release/mapping.txt
+          jarsigner -verify "$aab"
+          unzip -Z1 "$aab" > "$RUNNER_TEMP/ultttt-aab-files.txt"
+          grep -Fxq 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map' "$RUNNER_TEMP/ultttt-aab-files.txt"
+          test "$VERSION_CODE" = 9
+          test "$RELEASE_NAME" = 'Ultimate Tic/Tac/Toe 1.1.5'
+          test "$(printf '%s' "$RELEASE_NAME" | wc -c)" -le 50
+          echo 'Verified exact v9 signed artifact. Release name is within the Google Play limit.'
+          sha256sum "$aab"
+      - name: Authenticate with existing Google Play publisher credentials
         id: auth
         uses: google-github-actions/auth@v3
         with:
@@ -50,117 +58,56 @@ jobs:
           credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           access_token_scopes: https://www.googleapis.com/auth/androidpublisher
           create_credentials_file: false
-
-      - name: Verify existing production track and unused version 9
+      - name: Submit the existing tested version 9 to production
         env:
           ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         shell: bash
         run: |
           set -euo pipefail
           api=https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt
-          edit_id=$(curl --fail-with-body -sS -X POST -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' -d '{}' "$api/edits" | jq -r '.id')
-          test -n "$edit_id" && test "$edit_id" != 'null'
-          curl --fail-with-body -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$api/edits/$edit_id/tracks" > "$RUNNER_TEMP/ultttt-tracks.json"
-          curl --fail-with-body -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$api/edits/$edit_id/bundles" > "$RUNNER_TEMP/ultttt-bundles.json"
-          echo 'Existing Google Play release tracks:'
-          jq -c '{tracks: [.tracks[] | {track: .track, releases: [(.releases // [])[] | {name: .name, versionCodes: .versionCodes, status: .status}]}]}' "$RUNNER_TEMP/ultttt-tracks.json"
+          upload_api=https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/com.killjoy00.ultttt
+          aab=signed-v9/bundle/release/app-release.aab
+          expected_sha=$(sha256sum "$aab" | cut -d' ' -f1)
+          auth="Authorization: Bearer $ACCESS_TOKEN"
+          edit_id=$(curl --fail-with-body -sS -X POST "$api/edits" -H "$auth" -H 'Content-Type: application/json' -d '{}' | jq -er '.id')
+          cleanup() {
+            if [ -n "$edit_id" ]; then
+              curl -sS -X DELETE "$api/edits/$edit_id" -H "$auth" >/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+          curl --fail-with-body -sS "$api/edits/$edit_id/tracks" -H "$auth" > "$RUNNER_TEMP/ultttt-tracks.json"
+          curl --fail-with-body -sS "$api/edits/$edit_id/bundles" -H "$auth" > "$RUNNER_TEMP/ultttt-bundles.json"
+          jq -c '{tracks: [.tracks[] | {track: .track, releases: [(.releases // [])[] | {name, versionCodes, status}]}]}' "$RUNNER_TEMP/ultttt-tracks.json"
           jq -e '[.tracks[] | select(.track == "production") | (.releases // [])[] | (.versionCodes // [])[] | tonumber] | (max // 0) >= 8' "$RUNNER_TEMP/ultttt-tracks.json" >/dev/null
-          jq -e '[.bundles[]? | (.versionCode | tonumber)] | (max // 0) < 9' "$RUNNER_TEMP/ultttt-bundles.json" >/dev/null
-          jq -e '[.tracks[] | (.releases // [])[] | (.versionCodes // [])[] | tonumber] | (max // 0) < 9' "$RUNNER_TEMP/ultttt-tracks.json" >/dev/null
-          echo 'Version code 9 is unused; version 8 or later is on the production track.'
-
-      - name: Verify active Remove Ads purchase
-        env:
-          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          url='https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt/oneTimeProducts/com.killjoy00.ultttt.remove_ads'
-          curl --fail-with-body -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$url" > "$RUNNER_TEMP/ultttt-product.json"
-          jq -e 'any(.purchaseOptions[]?; .state == "ACTIVE")' "$RUNNER_TEMP/ultttt-product.json" >/dev/null
-          echo 'Existing Remove Ads purchase is active.'
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v4
-      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.13'
-
-      - name: Validate existing upload key without exposing secrets
-        env:
-          UPLOAD_KEY_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
-          UPLOAD_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$UPLOAD_KEY_B64" && test -n "$UPLOAD_PASSWORD"
-          umask 077
-          printf '%s' "$UPLOAD_KEY_B64" | base64 --decode > "$RUNNER_TEMP/ultttt-upload.p12"
-          chmod 600 "$RUNNER_TEMP/ultttt-upload.p12"
-          keytool -list -keystore "$RUNNER_TEMP/ultttt-upload.p12" -storetype PKCS12 -storepass "$UPLOAD_PASSWORD" -alias upload >/dev/null
-
-      - name: Build, test, and validate signed Play release
-        working-directory: ultttt
-        env:
-          ULTTTT_VERSION_CODE: '9'
-          ULTTTT_VERSION_NAME: '1.1.5'
-          ULTTTT_REQUIRE_LIVE_ADMOB: 'true'
-          ULTTTT_ADMOB_ANDROID_APP_ID: 'ca-app-pub-1217971050094766~2079128067'
-          ULTTTT_ADMOB_ANDROID_BANNER_UNIT_ID: 'ca-app-pub-1217971050094766/7292373402'
-          ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/ultttt-upload.p12
-          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gradle --no-daemon -p android testDebugUnitTest assembleDebug bundleRelease
-          bundle=android/app/build/outputs/bundle/release/app-release.aab
-          mapping=android/app/build/outputs/mapping/release/mapping.txt
-          test -s "$bundle" && test -s "$mapping"
-          unzip -Z1 "$bundle" > "$RUNNER_TEMP/ultttt-aab-files.txt"
-          grep -Fxq 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map' "$RUNNER_TEMP/ultttt-aab-files.txt"
-          jarsigner -verify "$bundle"
-          grep -R -Fq 'ca-app-pub-1217971050094766~2079128067' android/app/build/intermediates/merged_manifest/release
-          grep -R -Fq 'ca-app-pub-1217971050094766/7292373402' android/app/build/generated/source/buildConfig/release
-          grep -R -Fq 'PLAY_GAMES_CONFIGURED = true' android/app/build/generated/source/buildConfig/release
-          grep -R -Fq 'ONLINE_CONFIGURED = false' android/app/build/generated/source/buildConfig/release
-          grep -R -Fq 'UlttttApplication' android/app/build/intermediates/merged_manifest/release
-          grep -R -Fq 'PLAY_GAMES_PROJECT_ID = "517518057047"' android/app/build/generated/source/buildConfig/release
-          echo 'Signed release includes startup Play Games authentication, live ads, and the previous production online-play configuration.'
-
-      - name: Archive exact signed production AAB and mapping
-        uses: actions/upload-artifact@v4
-        with:
-          name: ultttt-play-games-startup-v9-1.1.5-signed
-          path: |
-            ultttt/android/app/build/outputs/bundle/release/*.aab
-            ultttt/android/app/build/outputs/mapping/release/mapping.txt
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Prepare release notes
-        shell: bash
-        run: |
-          mkdir -p "$RUNNER_TEMP/play-notes"
-          cat > "$RUNNER_TEMP/play-notes/whatsnew-en-US" <<'NOTES'
-          Improved Google Play Games connection at startup and manual sign-in. If Google Play Games cannot connect, you can copy sign-in details from Statistics for troubleshooting.
-          NOTES
-
-      - name: Upload update to Google Play production
-        uses: r0adkll/upload-google-play@v1.1.5
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.killjoy00.ultttt
-          releaseFiles: ultttt/android/app/build/outputs/bundle/release/app-release.aab
-          track: production
-          status: completed
-          changesNotSentForReview: false
-          releaseName: Ultimate Tic/Tac/Toe 1.1.5 - Play Games startup and diagnostics
-          whatsNewDirectory: ${{ runner.temp }}/play-notes
-
-      - name: Remove temporary signing keystore
-        if: always()
-        run: rm -f "$RUNNER_TEMP/ultttt-upload.p12"
+          jq -e '[.tracks[] | (.releases // [])[] | (.versionCodes // [])[] | tonumber] | (max // 0) <= 9' "$RUNNER_TEMP/ultttt-tracks.json" >/dev/null
+          jq -e '[.bundles[]? | (.versionCode | tonumber)] | (max // 0) <= 9' "$RUNNER_TEMP/ultttt-bundles.json" >/dev/null
+          existing=$(jq -r '[.bundles[]? | select((.versionCode | tostring) == "9")] | first | .sha256 // empty' "$RUNNER_TEMP/ultttt-bundles.json")
+          if jq -e 'any(.bundles[]?; (.versionCode | tostring) == "9")' "$RUNNER_TEMP/ultttt-bundles.json" >/dev/null; then
+            test -n "$existing"
+            test "$(printf '%s' "$existing" | tr '[:upper:]' '[:lower:]')" = "$expected_sha" || { echo '::error::Version 9 already exists with a different or unverifiable SHA-256; refusing to replace it.'; exit 1; }
+            echo 'Google already retains the exact signed v9 bundle; reusing it.'
+          else
+            curl --fail-with-body -sS -X POST "$upload_api/edits/$edit_id/bundles?uploadType=media" \
+              -H "$auth" -H 'Content-Type: application/octet-stream' --data-binary @"$aab" > "$RUNNER_TEMP/ultttt-upload-result.json"
+            jq -e '(.versionCode | tostring) == "9"' "$RUNNER_TEMP/ultttt-upload-result.json" >/dev/null
+            uploaded_sha=$(jq -r '.sha256 // empty' "$RUNNER_TEMP/ultttt-upload-result.json")
+            if [ -n "$uploaded_sha" ]; then
+              test "$(printf '%s' "$uploaded_sha" | tr '[:upper:]' '[:lower:]')" = "$expected_sha"
+            fi
+            echo 'Google accepted the signed version 9 bundle.'
+          fi
+          if jq -e 'any(.tracks[] | select(.track == "production") | (.releases // [])[]; .status == "completed" and any(.versionCodes[]?; tostring == "9"))' "$RUNNER_TEMP/ultttt-tracks.json" >/dev/null; then
+            echo 'Version 9 is already recorded on the completed production track; no additional submission needed.'
+            exit 0
+          fi
+          jq -n --arg name "$RELEASE_NAME" --arg notes "$RELEASE_NOTES" --arg version "$VERSION_CODE" \
+            '{track:"production", releases:[{name:$name,versionCodes:[$version],status:"completed",releaseNotes:[{language:"en-US",text:$notes}]}]}' > "$RUNNER_TEMP/ultttt-production.json"
+          curl --fail-with-body -sS -X PUT "$api/edits/$edit_id/tracks/production" -H "$auth" -H 'Content-Type: application/json' \
+            --data-binary @"$RUNNER_TEMP/ultttt-production.json" > "$RUNNER_TEMP/ultttt-track-result.json"
+          jq -e 'any(.releases[]?; .status == "completed" and any(.versionCodes[]?; tostring == "9"))' "$RUNNER_TEMP/ultttt-track-result.json" >/dev/null
+          curl --fail-with-body -sS -X POST "$api/edits/$edit_id:commit?changesNotSentForReview=false" -H "$auth" > "$RUNNER_TEMP/ultttt-commit.json"
+          jq -e '.id != null' "$RUNNER_TEMP/ultttt-commit.json" >/dev/null
+          edit_id=''
+          echo 'GOOGLE_PLAY_PRODUCTION_SUBMITTED_VERSION_9=YES'
+          echo 'Google accepted the production edit. Review and device availability are controlled by Google Play.'
