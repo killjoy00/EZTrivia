@@ -1,0 +1,121 @@
+name: Restore UTTT online multiplayer v10 in production
+on:
+  push:
+    branches: [release/ultttt-online-v10-internal]
+    paths:
+      - .github/workflows/ultttt-online-v10-production.yml
+permissions:
+  contents: read
+concurrency:
+  group: ultttt-online-v10-production-track
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.repository == 'killjoy00/EZTrivia' && contains(github.event.head_commit.message, '[release-ultttt-code10-production]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Authenticate with existing Google Play publisher
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Promote existing signed and CI-verified code 10 to production
+        env:
+          PLAY_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,time,urllib.request,urllib.error
+          root="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt/edits"
+          headers={"Authorization":"Bearer "+os.environ["PLAY_TOKEN"],
+                   "Content-Type":"application/json","Accept":"application/json"}
+          def call(method,url,data=None,may_retry=True):
+              payload=None if data is None else json.dumps(data).encode()
+              for attempt in range(5 if may_retry else 1):
+                  req=urllib.request.Request(url,data=payload,headers=headers,method=method)
+                  try:
+                      with urllib.request.urlopen(req,timeout=50) as response:
+                          body=response.read()
+                          return json.loads(body) if body else {}
+                  except urllib.error.HTTPError as e:
+                      if e.code not in (429,500,502,503,504) or not may_retry or attempt==4:
+                          print(f"Google Play API error HTTP {e.code} on {method}",flush=True)
+                          raise
+                      time.sleep(min(2**attempt,12))
+          def tracks_for(edit):
+              return {t["track"]:t for t in call("GET",f"{root}/{edit}/tracks").get("tracks",[])}
+          def has_code(track,code):
+              return any(str(code) in map(str,r.get("versionCodes",[])) for r in track.get("releases",[]))
+          edit=call("POST",root,{})["id"]
+          committed=False
+          try:
+              tracks=tracks_for(edit)
+              production=tracks.get("production",{})
+              internal=tracks.get("internal",{})
+              if has_code(production,10):
+                  print("Version 10 already exists in production; no second publication made.")
+                  for release in production.get("releases",[]):
+                      if "10" in [str(v) for v in release.get("versionCodes",[])]:
+                          print("Current code 10 production release:",json.dumps({
+                              "status":release.get("status"),"fraction":release.get("userFraction"),
+                              "versions":release.get("versionCodes")}))
+                  raise SystemExit(0)
+              assert any("9" in map(str,r.get("versionCodes",[])) and r.get("status")=="completed" for r in production.get("releases",[])), "Safety hold: production is not on expected completed code 9."
+              assert any("10" in map(str,r.get("versionCodes",[])) and r.get("status")=="completed" for r in internal.get("releases",[])), "Safety hold: signed code 10 is not on Internal Testing."
+              assert not any(r.get("status")=="inProgress" for r in production.get("releases",[])), \
+                  "Safety hold: another production staged rollout is active."
+              notes=("Restores online multiplayer while retaining the Google Play Games "
+                     "leaderboard and achievement fixes. Existing matches and guest identities "
+                     "are preserved when you update. Challenge friends with an invitation code "
+                     "or find an opponent online.")
+              assert len(notes)<=500
+              release={"track":"production","releases":[{
+                  "name":"UTTT 1.1.6 Online Multiplayer Fix",
+                  "versionCodes":["10"],
+                  "status":"completed",
+                  "releaseNotes":[{"language":"en-US","text":notes}]
+              }]}
+              print("Promoting existing signed code 10 from Internal Testing to Production (100%).")
+              call("PUT",f"{root}/{edit}/tracks/production",release,may_retry=False)
+              call("POST",f"{root}/{edit}:commit",{},may_retry=False)
+              committed=True
+          finally:
+              if not committed:
+                  try:
+                      call("DELETE",f"{root}/{edit}",may_retry=False)
+                  except Exception:
+                      pass
+          verification=call("POST",root,{})["id"]
+          try:
+              t=tracks_for(verification)
+              prod=t.get("production",{})
+              releases=[r for r in prod.get("releases",[]) if "10" in [str(v) for v in r.get("versionCodes",[])]]
+              assert releases, "Version 10 not visible in production track after commit"
+              assert any(r.get("status")=="completed" for r in releases)
+              print("VERIFIED GOOGLE PLAY PRODUCTION CODE 10",json.dumps([{
+                  "name":r.get("name"),
+                  "status":r.get("status"),
+                  "fraction":r.get("userFraction"),
+                  "versions":r.get("versionCodes")
+              } for r in releases]))
+              assert has_code(t.get("internal",{}),10), "Internal Testing code 10 disappeared unexpectedly"
+              print("Internal Testing code 10 retained.")
+          finally:
+              call("DELETE",f"{root}/{verification}",may_retry=False)
+          PY
+      - name: Record production deployment
+        if: success()
+        run: |
+          {
+            echo '## UTTT 1.1.6 Online Multiplayer Fix — Google Play production'
+            echo '- Promoted previously signed and CI-verified Android version code **10** (1.1.6-beta01) from Internal Testing.'
+            echo '- Production rollout: **100%**. No new bundle uploaded.'
+            echo '- Prior production version: code 9. Code 7 previously introduced online multiplayer in a verified production rollout.'
+            echo '- API reread verified production version code 10 and retained the internal release.'
+            echo '- Monitor Android vitals, actual device gameplay, and backend usage.'
+          } >> "$GITHUB_STEP_SUMMARY"
