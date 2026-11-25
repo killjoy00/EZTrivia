@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "db151e281a8035af56d9b18a42d14294bf0adeae",
+  "sha": "124f825bd01f4c16c7ef1bb9ddf7a978bd17c3b9",
   "version": "1.4",
   "destination": "TestFlight",
-  "purpose": "Private iPhone TestFlight build for Star/Run PR #80: Haven Hive drones reload with the guns (base shot 5.5); Normal Worlds 2-4 ordinary enemies have 6% more health. No public App Store submission.",
-  "attempt": 42,
-  "reason": "PR #80 squash-merged to StarRun main after CI passed on its head dd63f3b (139 checks, 0 failures). Difficulty experiment: mid Hangar 55%, max 84%, no Hangar 0%. Only private TestFlight device QA requested."
+  "purpose": "Private iPhone TestFlight device QA for Star/Run PR #92 and PR #94: redesigned destinations and Custodian, guided first flight, mobile UI improvements. No public App Store submission.",
+  "attempt": 43,
+  "reason": "Owner authorized PR #92 squash merge with only full checkpoint research still pending; 13/14 active checks passed, no failures, including native compile, playable, fleet, progression, Endless and all 21 Archive cells. PR #94 included. Private TestFlight QA only."
 }
