@@ -1,9 +1,9 @@
 {
   "enabled": true,
-  "source_sha": "db151e281a8035af56d9b18a42d14294bf0adeae",
-  "version_code": "12",
-  "version_name": "1.4.8",
-  "release_notes": "Haven's Hive drones now fire faster with fire-rate upgrades. Enemies in Worlds 2-4 are a little tougher on Normal.",
+  "source_sha": "124f825bd01f4c16c7ef1bb9ddf7a978bd17c3b9",
+  "version_code": "13",
+  "version_name": "1.4.9",
+  "release_notes": "Redesigned destinations and Custodian fight, guided first flight, improved mobile cards and counter feedback.",
   "publish_internal": true,
   "release_status": "draft"
 }
