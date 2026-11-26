@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 QUESTIONS = Path(__file__).resolve().parent.parent / "Sources" / "EZTriviaCore" / "Questions"
-EXPECTED = {"easy": 50, "medium": 50, "hard": 40}
+EXPECTED = {"easy": 100, "medium": 100, "hard": 80}
 
 
 def seed_end(text: str, start: int) -> int:

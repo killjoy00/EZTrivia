@@ -4,8 +4,8 @@ EZ Trivia is a native SwiftUI trivia game for iPhone. Players can jump straight 
 
 ## Highlights
 
-- Sixteen categories, including Mythology & Legends and Video Games
-- 2,341 hand-authored questions with Easy, Medium, and Hard tiers
+- Eighteen categories, including Wordplay & Language and Inventions & Technology
+- 5,001 bundled questions with Easy, Medium, and Hard tiers
 - **Quick Play:** one tap launches ten different categories on a 3 Easy / 4 Medium / 3 Hard ramp
 - Ten-question category rounds with immediate feedback and short explanations
 - A deterministic Daily Challenge shared by every player, with local streak tracking
@@ -31,20 +31,20 @@ The deployment target is iOS 17.0. Debug builds use Google's official test AdMob
 
 ## Question catalog
 
-The app ships 2,341 questions:
+The app ships 5,001 questions:
 
 | Category | Easy | Medium | Hard |
 | --- | ---: | ---: | ---: |
-| Each of the 15 text categories | 50 | 50 | 40 |
+| Each of the 17 text categories | 100 | 100 | 80 |
 | World Flags | 51 | 91 | 99 |
 
-Every question appears exactly once. Tests fail the build if a prompt is duplicated, a tier shares questions with another, answers are malformed, or a category/difficulty pool no longer holds its expected depth: fifty questions at Easy and Medium, forty at Hard.
+Every question appears exactly once. Tests fail the build if a prompt is duplicated, a tier shares questions with another, answers are malformed, or a category/difficulty pool no longer holds its expected depth: 100 questions at Easy and Medium, 80 at Hard.
 
 `Scripts/analyze_questions.py` reports on the catalog without a Swift toolchain: length bias, giveaway answers, explanations that never name their answer, and prompts that restate a question already in the category. `Scripts/append_seeds.py` authors new questions against those same rules and refuses a seed that reuses a keyed answer the category already has. `Scripts/check_seed_syntax.py` parses the seed files as Swift array literals and catches a malformed splice in under a second rather than minutes into a CI build.
 
 The local catalog contains all 249 ISO 3166-1 flag assets. Five are not asked because their artwork is identical to another valid answer, and three more are excluded because the bundled design is contested or no longer current. The remaining 241 flags are askable. Near-identical flags at phone size are never offered against one another, and flag distractors are redrawn from the same difficulty pool each time.
 
-Answer order is shuffled at presentation time. Daily Challenges use seeded selection, while Friend Challenges use a repository-owned seeded algorithm so another device receives the same questions and option order. Version-3 Friend Challenge codes use an explicit sixteen-category roster and carry a checksum, allowing future releases to reject incompatible or mistyped codes instead of silently producing a different round. Friend Challenge links embed that same code in the `eztrivia` URL scheme; the code remains visible in shared text as a fallback.
+Answer order is shuffled at presentation time. Daily Challenges use seeded selection, while Friend Challenges use a repository-owned seeded algorithm so another device receives the same questions and option order. New Friend Challenges use version-4 codes and all eighteen categories. Updated clients still reproduce version-3 rounds from their original ordered catalog. Daily Challenges continue using the original catalog on both platforms. Friend Challenge links embed that same code in the `eztrivia` URL scheme; the code remains visible in shared text as a fallback.
 
 Quick Play is intentionally non-deterministic: it chooses ten different categories and follows the same 3 Easy / 4 Medium / 3 Hard progression as the Daily and Friend Challenge, preferring questions the player has not recently seen.
 
@@ -103,7 +103,7 @@ There is no additional code switch to turn it on. Live display requires the matc
 
 ### Game Center and achievements
 
-The bundle identifier is `com.rsm.eztrivia`, and the target contains the Game Center entitlement. Category leaderboards rank monotonic lifetime points; the Daily leaderboard ranks the day's weighted score. `Scripts/configure_game_center.py` idempotently provisions the seventeen leaderboards during an authenticated TestFlight archive.
+The bundle identifier is `com.rsm.eztrivia`, and the target contains the Game Center entitlement. Category leaderboards rank monotonic lifetime points; the Daily leaderboard ranks the day's weighted score. `Scripts/configure_game_center.py` idempotently provisions the nineteen leaderboards during an authenticated TestFlight archive.
 
 The original thirteen Game Center achievement definitions remain unchanged and consume Apple's full 1,000-point per-app achievement budget. EZ Trivia therefore adds six newer progression badges as in-app/iCloud achievements rather than changing live Game Center IDs or exceeding Apple's point limit. The Game Center definitions are mirrored in `EZTriviaApp/Achievements.swift` and `RELEASE_SETUP.md`. Required 1024×1024 artwork for the Game Center achievements is checked into `Artwork/Achievements`.
 

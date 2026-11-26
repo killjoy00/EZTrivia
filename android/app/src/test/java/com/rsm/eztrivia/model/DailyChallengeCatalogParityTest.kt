@@ -75,23 +75,23 @@ class DailyChallengeCatalogParityTest {
             assertEquals(
                 "Daily v2 fingerprint mismatch for internal day $day",
                 expected,
-                fingerprint(challenge),
+                catalogFingerprint(challenge),
             )
             goldenSetContainsAFlag = goldenSetContainsAFlag ||
                 challenge.any { it.category == TriviaCategory.FLAGS }
         }
         assertTrue(goldenSetContainsAFlag)
     }
+}
 
-    private fun fingerprint(questions: List<TriviaQuestion>): ULong {
-        val payload = questions.joinToString("\u001D") { question ->
-            "${question.id}\u001F${question.correctAnswerIndex}\u001F${question.answers.joinToString("\u001E")}"
-        }
-        var hash = 14_695_981_039_346_656_037UL
-        payload.encodeToByteArray().forEach { byte ->
-            hash = hash xor byte.toUByte().toULong()
-            hash *= 1_099_511_628_211UL
-        }
-        return hash
+internal fun catalogFingerprint(questions: List<TriviaQuestion>): ULong {
+    val payload = questions.joinToString("\u001D") { question ->
+        "${question.id}\u001F${question.correctAnswerIndex}\u001F${question.answers.joinToString("\u001E")}"
     }
+    var hash = 14_695_981_039_346_656_037UL
+    payload.encodeToByteArray().forEach { byte ->
+        hash = hash xor byte.toUByte().toULong()
+        hash *= 1_099_511_628_211UL
+    }
+    return hash
 }

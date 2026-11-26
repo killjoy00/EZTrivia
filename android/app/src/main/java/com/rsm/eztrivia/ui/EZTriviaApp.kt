@@ -455,6 +455,8 @@ internal fun categorySymbol(category: TriviaCategory): String = when (category) 
     TriviaCategory.ART -> "🎨"
     TriviaCategory.MYTHOLOGY -> "⚡"
     TriviaCategory.VIDEO_GAMES -> "🎮"
+    TriviaCategory.WORDPLAY -> "🔤"
+    TriviaCategory.TECHNOLOGY -> "💡"
 }
 
 @Composable
@@ -945,4 +947,6 @@ fun categoryColor(category: TriviaCategory): Color = when (category) {
     TriviaCategory.ART -> Color(0xFFDB5C33)
     TriviaCategory.MYTHOLOGY -> Color(0xFF8C7029)
     TriviaCategory.VIDEO_GAMES -> Color(0xFF2E8C8C)
+    TriviaCategory.WORDPLAY -> Color(0xFF993B70)
+    TriviaCategory.TECHNOLOGY -> Color(0xFF387399)
 }

@@ -16,8 +16,9 @@ class PlayGamesIdsTest {
     }
 
     @Test
-    fun everyCategoryHasExactlyOneLeaderboard() {
-        assertEquals(TriviaCategory.entries.toSet(), PlayGamesIds.categoryLeaderboards.keys)
+    fun everyProvisionedCategoryHasExactlyOneLeaderboard() {
+        val awaitingProvisioning = setOf(TriviaCategory.WORDPLAY, TriviaCategory.TECHNOLOGY)
+        assertEquals(TriviaCategory.entries.toSet() - awaitingProvisioning, PlayGamesIds.categoryLeaderboards.keys)
         assertEquals(
             PlayGamesIds.categoryLeaderboards.size,
             PlayGamesIds.categoryLeaderboards.values.toSet().size,

@@ -9,8 +9,8 @@ private let dailyV2GoldenFingerprints: [Int: UInt64] = [
     512: 4_921_592_935_424_845_763,
 ]
 
-private func dailyV2Fingerprint(_ challenge: DailyChallenge) -> UInt64 {
-    let payload = challenge.questions.map { question in
+func catalogFingerprint(_ questions: [TriviaQuestion]) -> UInt64 {
+    let payload = questions.map { question in
         "\(question.id)\u{1F}\(question.correctAnswerIndex)\u{1F}\(question.answers.joined(separator: "\u{1E}"))"
     }.joined(separator: "\u{1D}")
 
@@ -71,7 +71,7 @@ private func dailyV2Fingerprint(_ challenge: DailyChallenge) -> UInt64 {
     var goldenSetContainsAFlag = false
     for (day, expected) in dailyV2GoldenFingerprints {
         let challenge = DailyChallenge.crossPlatformChallenge(for: day)
-        let actual = dailyV2Fingerprint(challenge)
+        let actual = catalogFingerprint(challenge.questions)
         #expect(actual == expected)
         goldenSetContainsAFlag = goldenSetContainsAFlag || challenge.questions.contains { $0.category == .flags }
     }

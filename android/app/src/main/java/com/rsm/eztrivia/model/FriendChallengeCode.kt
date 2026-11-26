@@ -34,7 +34,9 @@ data class FriendChallengeCode(
     }
 
     companion object {
-        const val CODE_VERSION = 3
+        const val CODE_VERSION = FriendChallenge.CODE_VERSION
+        private fun supports(version: Int): Boolean =
+            version == FriendChallenge.ORIGINAL_CODE_VERSION || version == CODE_VERSION
         private const val BODY_LENGTH = 19
         private const val PREFIX_LENGTH = 3
         private const val ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -43,7 +45,9 @@ data class FriendChallengeCode(
         fun parse(rawValue: String): FriendChallengeCode? {
             val compact = normalized(rawValue)
             if (compact.length != PREFIX_LENGTH + BODY_LENGTH) return null
-            if (!compact.startsWith(prefix(CODE_VERSION))) return null
+            if (!compact.startsWith("EZ")) return null
+            val version = compact[2].digitToIntOrNull() ?: return null
+            if (!supports(version)) return null
 
             val body = compact.drop(PREFIX_LENGTH)
             val decodedSeed = decode(body.substring(0, 13)) ?: return null
@@ -55,9 +59,10 @@ data class FriendChallengeCode(
 
             val score = decodedScore.toInt()
             val points = decodedPoints.toInt()
-            if (decodedChecksum != checksum(decodedSeed, score, points, CODE_VERSION)) return null
+            if (decodedChecksum != checksum(decodedSeed, score, points, version)) return null
 
             return FriendChallengeCode(
+                version = version,
                 seed = decodedSeed,
                 targetScore = score,
                 targetPoints = points,
@@ -71,7 +76,7 @@ data class FriendChallengeCode(
                 return RejectionReason.Unreadable
             }
             val version = compact.getOrNull(2)?.digitToIntOrNull() ?: return RejectionReason.Unreadable
-            return if (version != CODE_VERSION) {
+            return if (!supports(version)) {
                 RejectionReason.UnsupportedVersion(version)
             } else {
                 RejectionReason.Unreadable

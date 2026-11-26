@@ -8,18 +8,19 @@ import org.junit.Test
 
 class PlayGamesBoardTest {
     @Test
-    fun dailyFirstThenEveryCategoryMatchesIosBoardSelector() {
+    fun dailyFirstThenProvisionedCategoriesInAppOrder() {
         val boards = PlayGamesBoard.all
         assertEquals(17, boards.size)
+        val configuredCategories = TriviaCategory.entries.filter { it in PlayGamesIds.categoryLeaderboards }
         assertEquals(PlayGamesIds.dailyLeaderboard, boards.first().id)
         assertEquals("Daily Challenge", boards.first().title)
         assertTrue(boards.first().isDaily)
         assertEquals(
-            TriviaCategory.entries.map(TriviaCategory::title),
+            configuredCategories.map(TriviaCategory::title),
             boards.drop(1).map(PlayGamesBoard::title),
         )
         assertEquals(
-            TriviaCategory.entries.map { PlayGamesIds.categoryLeaderboards.getValue(it) },
+            configuredCategories.map { PlayGamesIds.categoryLeaderboards.getValue(it) },
             boards.drop(1).map(PlayGamesBoard::id),
         )
         assertTrue(boards.drop(1).all { !it.isDaily })

@@ -38,6 +38,7 @@ object PlayGamesIds {
 
     const val dailyLeaderboard = "CgkI19vb0OoLEAIQFA"
 
+    // Wordplay and Technology scores stay local until their Play Games IDs are provisioned.
     val categoryLeaderboards: Map<TriviaCategory, String> = mapOf(
         TriviaCategory.FOOTBALL to "CgkI19vb0OoLEAIQFQ",
         TriviaCategory.BASKETBALL to "CgkI19vb0OoLEAIQFg",

@@ -4,7 +4,7 @@ import java.net.URI
 import java.net.URLDecoder
 
 /**
- * Android implementation of Friend Challenge v3.
+ * Android implementation of versioned Friend Challenges.
  *
  * Every random choice mirrors the repository-owned Swift algorithm: category
  * order, question selection, ordinary answer order, and flag distractor redraw.
@@ -13,27 +13,12 @@ import java.net.URLDecoder
  */
 object FriendChallenge {
     const val QUESTION_COUNT = 10
-    const val CODE_VERSION = 3
+    const val CODE_VERSION = 4
+    const val ORIGINAL_CODE_VERSION = 3
     const val MAXIMUM_POINTS = 1_650
 
-    val categoryRoster: List<TriviaCategory> = listOf(
-        TriviaCategory.FOOTBALL,
-        TriviaCategory.BASKETBALL,
-        TriviaCategory.SOCCER,
-        TriviaCategory.FLAGS,
-        TriviaCategory.HISTORY,
-        TriviaCategory.SCIENCE,
-        TriviaCategory.MOVIES,
-        TriviaCategory.TV,
-        TriviaCategory.GEOGRAPHY,
-        TriviaCategory.MUSIC,
-        TriviaCategory.ANIMALS,
-        TriviaCategory.FOOD,
-        TriviaCategory.LITERATURE,
-        TriviaCategory.ART,
-        TriviaCategory.MYTHOLOGY,
-        TriviaCategory.VIDEO_GAMES,
-    )
+    val categoryRoster: List<TriviaCategory> =
+        DailyChallenge.categoryRoster + listOf(TriviaCategory.WORDPLAY, TriviaCategory.TECHNOLOGY)
 
     val difficultyRamp: List<TriviaDifficulty> = listOf(
         TriviaDifficulty.EASY,
@@ -49,13 +34,19 @@ object FriendChallenge {
     )
 
     init {
-        check(CODE_VERSION == FriendChallengeCode.CODE_VERSION)
         check(difficultyRamp.sumOf { Scoring.points(it) } == MAXIMUM_POINTS)
     }
 
-    fun challenge(seed: ULong, bank: List<TriviaQuestion>): List<TriviaQuestion> {
+    fun challenge(
+        seed: ULong,
+        catalog: List<TriviaQuestion>,
+        version: Int = CODE_VERSION,
+    ): List<TriviaQuestion> {
+        val isOriginal = version <= ORIGINAL_CODE_VERSION
+        val roster = if (isOriginal) DailyChallenge.categoryRoster else categoryRoster
+        val bank = if (isOriginal) DailyChallenge.originalQuestions(catalog) else catalog
         val generator = SeededGenerator(seed xor 0x465249454E442121UL)
-        val categories = categoryRoster.deterministicallyShuffled(generator).take(QUESTION_COUNT)
+        val categories = roster.deterministicallyShuffled(generator).take(QUESTION_COUNT)
         val usedIds = mutableSetOf<String>()
         val questions = mutableListOf<TriviaQuestion>()
 

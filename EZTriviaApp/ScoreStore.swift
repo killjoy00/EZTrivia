@@ -460,7 +460,7 @@ final class ScoreStore: ObservableObject {
             }
             for result in friendResultsByAttemptID.values {
                 playedCategoryRawValues.formUnion(
-                    FriendChallenge.challenge(for: result.code.seed).questions.map { $0.category.rawValue }
+                    FriendChallenge.challenge(for: result.code.seed, version: result.code.version).questions.map { $0.category.rawValue }
                 )
             }
         }

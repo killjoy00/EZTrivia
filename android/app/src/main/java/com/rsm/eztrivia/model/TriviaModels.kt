@@ -22,7 +22,9 @@ enum class TriviaCategory(
     LITERATURE("literature", "Books & Literature", "Books, authors & stories"),
     ART("art", "Art & Architecture", "Masterpieces & monuments"),
     MYTHOLOGY("mythology", "Mythology & Legends", "Gods, heroes & folklore"),
-    VIDEO_GAMES("videoGames", "Video Games", "Consoles, classics & studios");
+    VIDEO_GAMES("videoGames", "Video Games", "Consoles, classics & studios"),
+    WORDPLAY("wordplay", "Wordplay & Language", "Words, expressions & scripts"),
+    TECHNOLOGY("technology", "Inventions & Technology", "Devices, inventors & ideas");
 
     companion object {
         private val byWireName = entries.associateBy(TriviaCategory::wireName)

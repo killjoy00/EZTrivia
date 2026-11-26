@@ -88,6 +88,8 @@ struct FriendChallengeLobbyView: View {
     /// for a mistake that is not there.
     private var invalidCodeMessage: String {
         switch FriendChallengeCode.rejectionReason(for: codeText) {
+        case .unsupportedVersion(let version) where version > FriendChallenge.codeVersion:
+            "Update EZ Trivia to play this challenge."
         case .unsupportedVersion:
             "That code came from an older version of EZ Trivia. Ask your friend for a new one."
         default:
@@ -126,7 +128,7 @@ struct FriendChallengeLobbyView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Have a challenge link or code?").font(.headline)
-                    TextField("EZ3-XXXX-XXXX-XXXX-XXXX-XXX", text: $codeText)
+                    TextField("EZ4-XXXX-XXXX-XXXX-XXXX-XXX", text: $codeText)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .keyboardType(.asciiCapable)
@@ -198,7 +200,8 @@ struct FriendChallengeGameView: View {
     @State private var started = false
     @State private var showExitConfirmation = false
 
-    private var attemptID: String { "v\(FriendChallenge.codeVersion)-\(seed)" }
+    private var version: Int { invitation?.version ?? FriendChallenge.codeVersion }
+    private var attemptID: String { "v\(version)-\(seed)" }
     private var savedResult: FriendChallengeResult? {
         scores.friendResult(forAttemptID: attemptID)
     }
@@ -249,7 +252,7 @@ struct FriendChallengeGameView: View {
             guard !started, savedResult == nil else { return }
             started = true
             feedback.prepare()
-            engine = TriviaEngine(questions: FriendChallenge.challenge(for: seed).questions)
+            engine = TriviaEngine(questions: FriendChallenge.challenge(for: seed, version: version).questions)
         }
     }
 

@@ -23,16 +23,17 @@ Mixed Quick Play, Daily Challenge, and Friend Challenge questions identify their
   deterministic cross-platform modes need to redraw the same answer choices
 
 The Android client ports the shared domain models, weighted scoring, round-engine
-behavior, deterministic RNG primitive, Friend Challenge v3, and Daily Challenge
+behavior, deterministic RNG primitive, Friend Challenge v3 and v4, and Daily Challenge
 v2. Category rounds, Quick Play, Daily, Scores/history, local achievement facts,
 result-card sharing, and Friend Challenges are playable offline.
 
 ## Deterministic cross-platform modes
 
-Friend Challenge v3 deliberately uses repository-owned deterministic algorithms
+Friend Challenges deliberately use repository-owned deterministic algorithms
 for category order, question selection, answer order, and flag distractor draws.
-An iOS-created `EZ3` code therefore maps to the same questions and choices on
-Android. The code's attempt identity is version + seed, so altering a claimed
+New challenges use `EZ4` and include the expanded catalog. An iOS-created
+`EZ3` or `EZ4` code maps to the same questions and choices on updated Android
+builds. The original catalog remains available for `EZ3`. The code's attempt identity is version + seed, so altering a claimed
 target score or point total cannot create a second attempt at the same round.
 Android accepts both `eztrivia://challenge/...` links and the public GitHub Pages
 challenge handoff used by iOS sharing.

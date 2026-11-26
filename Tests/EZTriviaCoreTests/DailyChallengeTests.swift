@@ -75,8 +75,10 @@ import Testing
     }
 }
 
-@Test func dailyCategoryRosterCoversEveryCategory() {
-    #expect(Set(DailyChallenge.categoryRoster) == Set(TriviaCategory.allCases))
+@Test func dailyVersionTwoRetainsItsOriginalCategories() {
+    #expect(DailyChallenge.categoryRoster.count == 16)
+    #expect(Set(DailyChallenge.categoryRoster) == Set(QuestionBank.original.map(\.category)))
+    #expect(Set(TriviaCategory.allCases).subtracting(DailyChallenge.categoryRoster) == [.wordplay, .technology])
 }
 
 @Test func everyDayFollowsTheSameDifficultyRamp() {

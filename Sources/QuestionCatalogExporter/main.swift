@@ -72,7 +72,7 @@ for question in sorted {
         question.answers[question.correctAnswerIndex],
         question.explanation,
         question.visual.flatMap { flagReviewNotes[$0] } ?? "",
-        metadata?.sourceURL ?? "",
+        metadata?.sourceURL ?? QuestionBank.sourceURLs[question.id] ?? "",
         metadata?.verifiedOn ?? "",
         metadata?.reviewAfter ?? ""
     ]

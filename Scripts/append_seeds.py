@@ -59,10 +59,11 @@ def swift_literal(value: str) -> str:
 
 def render(seed: dict) -> str:
     answers = ", ".join(swift_literal(a) for a in seed["answers"])
+    source = f', sourceURL: {swift_literal(seed["source"])}' if seed.get("source") else ""
     return (
         f'        QuestionSeed({swift_literal(seed["prompt"])},\n'
         f'                     [{answers}], {seed["correct"]},\n'
-        f'                     {swift_literal(seed["explanation"])}),\n'
+        f'                     {swift_literal(seed["explanation"])}{source}),\n'
     )
 
 

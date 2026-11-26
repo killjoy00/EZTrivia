@@ -167,6 +167,8 @@ def parse_seed_block(block: str, filename: str, tier: str) -> list[dict]:
         if not index_match:
             sys.exit(f"{filename} {tier}: could not find keyed index for '{prompt[:40]}'")
 
+        source_match = re.search(r'sourceURL:\s*"((?:[^"\\]|\\.)*)"', body)
+        source = swift_string_literals(source_match[0])[0] if source_match else ""
         seeds.append(
             {
                 "prompt": prompt,
@@ -174,6 +176,7 @@ def parse_seed_block(block: str, filename: str, tier: str) -> list[dict]:
                 "correct": int(index_match.group(1)),
                 "explanation": explanation,
                 "visual": "",
+                "source": source,
             }
         )
     return seeds
@@ -244,7 +247,7 @@ def build_text_rows() -> list[list[str]]:
                         seed["answers"][seed["correct"]],
                         seed["explanation"],
                         "",
-                        source,
+                        source or seed["source"],
                         verified,
                         review,
                     ]
