@@ -1,0 +1,165 @@
+name: Ultimate Tic/Tac/Toe Android v5 banner overlap hotfix draft
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/ultttt-android-v5-banner-hotfix-request.json'
+permissions:
+  contents: read
+concurrency:
+  group: ultttt-android-v5-banner-hotfix
+  cancel-in-progress: false
+
+jobs:
+  stage-draft:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: main
+          fetch-depth: 0
+          path: ultttt
+
+      - name: Validate exact merged hotfix source and AdMob IDs
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          request='.github/ultttt-android-v5-banner-hotfix-request.json'
+          test "$(jq -r '.stage_draft' "$request")" = true
+          test "$(jq -r '.publish_now' "$request")" = false
+          test "$(jq -r '.package_name' "$request")" = 'com.killjoy00.ultttt'
+          test "$(jq -r '.version_code' "$request")" = '5'
+          test "$(jq -r '.version_name' "$request")" = '1.1.1'
+          test "$(jq -r '.play_ads_declaration_confirmed' "$request")" = true
+          test "$(jq -r '.play_data_safety_confirmed' "$request")" = true
+          test "$(jq -r '.track' "$request")" = 'production'
+          app_id="$(jq -r '.admob_android_app_id' "$request")"
+          banner_id="$(jq -r '.admob_android_banner_unit_id' "$request")"
+          test "$app_id" = 'ca-app-pub-1217971050094766~2079128067'
+          test "$banner_id" = 'ca-app-pub-1217971050094766/7292373402'
+          source_sha="$(jq -r '.source_sha' "$request")"
+          [[ "$source_sha" =~ ^[a-f0-9]{40}$ ]]
+          git -C ultttt merge-base --is-ancestor "$source_sha" origin/main
+          git -C ultttt checkout --quiet --detach "$source_sha"
+          test "$(git -C ultttt rev-parse HEAD)" = "$source_sha"
+          grep -Fq 'Modifier.fillMaxSize().safeDrawingPadding()' ultttt/android/app/src/main/java/com/killjoy00/ultttt/MainActivity.kt
+          grep -Fq 'End the game Surface. Its contents must not draw over the ad slot.' ultttt/android/app/src/main/java/com/killjoy00/ultttt/MainActivity.kt
+          grep -Fq 'adSize.getHeightInPixels(context).toDp()' ultttt/android/app/src/main/java/com/killjoy00/ultttt/AndroidMonetization.kt
+          grep -Fq 'com.android.vending.BILLING' ultttt/android/app/src/main/AndroidManifest.xml
+          curl --fail-with-body -sS --location https://killjoy00.github.io/app-ads.txt > "$RUNNER_TEMP/app-ads.txt"
+          grep -Fxq 'google.com, pub-1217971050094766, DIRECT, f08c47fec0942fa0' "$RUNNER_TEMP/app-ads.txt"
+          test -n "$(jq -r '.release_notes' "$request")"
+          {
+            echo "app_id=$app_id"
+            echo "banner_id=$banner_id"
+          } >> "$GITHUB_OUTPUT"
+          echo 'Verified signed banner hotfix will be saved as an unpublished draft.'
+
+      - name: Authenticate to Play with existing publisher account
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Require active Remove Ads purchase before staging hotfix
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt/oneTimeProducts/com.killjoy00.ultttt.remove_ads'
+          curl --fail-with-body -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$url" > "$RUNNER_TEMP/product.json"
+          jq -e '[.purchaseOptions[] | select(.state == "ACTIVE" and .buyOption != null and any(.regionalPricingAndAvailabilityConfigs[]?; .regionCode == "US" and .price.currencyCode == "USD" and (.price.units | tostring) == "1" and .price.nanos == 990000000))] | length > 0' "$RUNNER_TEMP/product.json" > /dev/null
+          echo 'Active $1.99 Remove Ads verified.'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Verify shared upload signing certificate
+        env:
+          UPLOAD_KEY_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          UPLOAD_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$UPLOAD_KEY_B64" && test -n "$UPLOAD_PASSWORD"
+          umask 077
+          printf '%s' "$UPLOAD_KEY_B64" | base64 --decode > "$RUNNER_TEMP/ultttt-upload.p12"
+          chmod 600 "$RUNNER_TEMP/ultttt-upload.p12"
+          keytool -list -keystore "$RUNNER_TEMP/ultttt-upload.p12" \
+            -storetype PKCS12 -storepass "$UPLOAD_PASSWORD" -alias upload > /dev/null
+
+      - name: Build tested and signed version 5 using actual Android AdMob IDs
+        working-directory: ultttt
+        env:
+          ULTTTT_VERSION_CODE: '5'
+          ULTTTT_VERSION_NAME: '1.1.1'
+          ULTTTT_REQUIRE_LIVE_ADMOB: 'true'
+          ULTTTT_ADMOB_ANDROID_APP_ID: ${{ steps.release.outputs.app_id }}
+          ULTTTT_ADMOB_ANDROID_BANNER_UNIT_ID: ${{ steps.release.outputs.banner_id }}
+          ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/ultttt-upload.p12
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -p android testDebugUnitTest assembleDebug bundleRelease
+          bundle=android/app/build/outputs/bundle/release/app-release.aab
+          mapping=android/app/build/outputs/mapping/release/mapping.txt
+          test -s "$bundle" && test -s "$mapping"
+          unzip -Z1 "$bundle" | grep -Fxq 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map'
+          jarsigner -verify "$bundle"
+          manifest_dir=android/app/build/intermediates/merged_manifest/release
+          test -d "$manifest_dir"
+          grep -R -Fq 'ca-app-pub-1217971050094766~2079128067' "$manifest_dir"
+          build_config_dir=android/app/build/generated/source/buildConfig/release
+          test -d "$build_config_dir"
+          grep -R -Fq 'ca-app-pub-1217971050094766/7292373402' "$build_config_dir"
+          grep -R -Fq 'ADMOB_CONFIGURED = true' "$build_config_dir"
+          echo 'Validated production app/banner IDs, signed bundle, and embedded R8 mapping.'
+
+      - name: Archive signed hotfix App Bundle and R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultttt-android-v5-1.1.1-banner-hotfix-signed
+          path: |
+            ultttt/android/app/build/outputs/bundle/release/app-release.aab
+            ultttt/android/app/build/outputs/mapping/release/mapping.txt
+            ultttt/android/app/build/outputs/native-debug-symbols/release/*.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Prepare exact Play Store release notes
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/play-notes"
+          jq -r '.release_notes' .github/ultttt-android-v5-banner-hotfix-request.json > "$RUNNER_TEMP/play-notes/whatsnew-en-US"
+
+      - name: Save Android hotfix to production as DRAFT - do not roll out
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.killjoy00.ultttt
+          releaseFiles: ultttt/android/app/build/outputs/bundle/release/app-release.aab
+          track: production
+          status: draft
+          releaseName: Ultimate Tic/Tac/Toe 1.1.1 - banner layout fix
+          whatsNewDirectory: ${{ runner.temp }}/play-notes
+
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ultttt-upload.p12"

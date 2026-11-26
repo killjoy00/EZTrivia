@@ -1,0 +1,63 @@
+name: Ultimate TTT - Fix Google Play developer website for AdMob
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ultttt-play-set-developer-website.yml'
+permissions:
+  contents: read
+jobs:
+  save:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify authorized sellers file before changing Play
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --retry-all-errors 'https://killjoy00.github.io/app-ads.txt' > "$RUNNER_TEMP/app-ads.txt"
+          test "$(cat "$RUNNER_TEMP/app-ads.txt")" = 'google.com, pub-1217971050094766, DIRECT, f08c47fec0942fa0'
+          echo "Verified publisher line at developer website root."
+      - name: Authenticate using existing EZTrivia Google Play credentials
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+      - name: Set Ultimate TTT developer contact website to matching domain
+        shell: bash
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          base='https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.killjoy00.ultttt/edits'
+          token_header="Authorization: Bearer $PLAY_ACCESS_TOKEN"
+          curl --fail-with-body -sS -X POST -H "$token_header" -H 'Content-Type: application/json' \
+            -d '{}' "$base" > "$RUNNER_TEMP/edit.json"
+          edit="$(jq -r '.id // empty' "$RUNNER_TEMP/edit.json")"
+          test -n "$edit"
+          trap 'curl -sS -X DELETE -H "$token_header" "$base/$edit" >/dev/null || true' EXIT
+          curl --fail-with-body -sS -H "$token_header" "$base/$edit/details" > "$RUNNER_TEMP/details-before.json"
+          before="$(jq -r '.contactWebsite // ""' "$RUNNER_TEMP/details-before.json")"
+          echo "Previous Play developer website: ${before:-[missing]}"
+          desired='https://killjoy00.github.io/Ultttt/'
+          if [[ "$before" == "$desired" ]]; then
+            echo "Google Play developer website already correct; no edit to commit."
+            exit 0
+          fi
+          curl --fail-with-body -sS -X PATCH -H "$token_header" -H 'Content-Type: application/json' \
+            -d '{"contactWebsite":"https://killjoy00.github.io/Ultttt/"}' \
+            "$base/$edit/details" > "$RUNNER_TEMP/details-after.json" || {
+              jq -r '.error.message // "PATCH failed without API reason"' "$RUNNER_TEMP/details-after.json"
+              exit 1
+            }
+          test "$(jq -r '.contactWebsite' "$RUNNER_TEMP/details-after.json")" = "$desired"
+          curl --fail-with-body -sS -X POST -H "$token_header" -H 'Content-Type: application/json' \
+            -d '{}' "$base/$edit:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW" \
+            > "$RUNNER_TEMP/commit.json" || {
+              jq -r '.error.message // "COMMIT failed without API reason"' "$RUNNER_TEMP/commit.json"
+              exit 1
+            }
+          jq -e '.id | length > 0' "$RUNNER_TEMP/commit.json" >/dev/null
+          echo "Google Play website change saved: $desired"
+          echo "Google Play will send the updated developer website for review automatically."

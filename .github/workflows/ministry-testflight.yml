@@ -1,0 +1,249 @@
+name: Ministry TestFlight (EZTrivia shared Apple credentials)
+
+# The Apple API key remains in EZTrivia. Only an immutable, merged Ministry
+# commit approved in the central release request can reach TestFlight.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/ministry-testflight-request.json']
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: 'Approved 40-character ministry/main commit SHA'
+        type: string
+        required: true
+      version:
+        description: 'Version for TestFlight build'
+        type: string
+        default: '0.1.0'
+        required: true
+
+permissions:
+  contents: read
+concurrency:
+  group: ministry-testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    name: Sign Ministry and upload to TestFlight
+    if: github.ref == 'refs/heads/main'
+    runs-on: xcode-27
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/ministry
+          ref: main
+          fetch-depth: 0
+          path: ministry
+          persist-credentials: false
+
+      - name: Validate exact approved source from Ministry main
+        id: approved
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ inputs.source_sha }}
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            test -f .github/ministry-testflight-request.json
+            SOURCE_SHA="$(jq -r '.sha // empty' .github/ministry-testflight-request.json)"
+            VERSION="$(jq -r '.version // empty' .github/ministry-testflight-request.json)"
+            test "$(jq -r '.repository' .github/ministry-testflight-request.json)" = 'killjoy00/ministry'
+            test "$(jq -r '.bundleID' .github/ministry-testflight-request.json)" = 'org.killjoy00.ministry'
+            test "$(jq -r '.target' .github/ministry-testflight-request.json)" = 'testflight'
+          else
+            SOURCE_SHA="$DISPATCH_SHA"
+            VERSION="$DISPATCH_VERSION"
+          fi
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::Expected immutable 40-character Ministry commit SHA'; exit 1; }
+          [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]] || { echo '::error::Invalid iOS version'; exit 1; }
+          git -C ministry fetch --quiet origin main
+          git -C ministry merge-base --is-ancestor "$SOURCE_SHA" origin/main || {
+            echo '::error::Refusing to sign source not merged into Ministry main'
+            exit 1
+          }
+          git -C ministry checkout --quiet --detach "$SOURCE_SHA"
+          test "$(git -C ministry rev-parse HEAD)" = "$SOURCE_SHA"
+          grep -Fq 'name="iOS Xcode Project"' ministry/export_presets.cfg
+          grep -Fq 'application/bundle_identifier="org.killjoy00.ministry"' ministry/export_presets.cfg
+          grep -Fq 'application/app_store_team_id="3564X3VTDB"' ministry/export_presets.cfg
+          grep -Fq 'application/export_project_only=true' ministry/export_presets.cfg
+          test -f ministry/scenes/mobile_main.tscn
+          echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '27'
+
+      - name: Verify required Apple SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          (( ${sdk%%.*} >= 27 )) || { echo "::error::iOS 27 SDK required, got $sdk"; exit 1; }
+
+      - name: Verify existing EZTrivia Apple credentials
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID" || { echo '::error::EZTrivia ASC_KEY_ID missing'; exit 1; }
+          test -n "$ASC_ISSUER_ID" || { echo '::error::EZTrivia ASC_ISSUER_ID missing'; exit 1; }
+          test -n "$ASC_KEY_P8" || { echo '::error::EZTrivia ASC_KEY_P8 missing'; exit 1; }
+          test "$APPLE_TEAM_ID" = '3564X3VTDB' || { echo '::error::Wrong Apple developer team'; exit 1; }
+          umask 077
+          mkdir -p "$HOME/private_keys"
+          key="$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          if ! grep -q 'BEGIN' "$key" && grep -q '\\n' "$key"; then
+            printf '%b' "$(cat "$key")" > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          if ! grep -q 'BEGIN' "$key" && base64 -D < "$key" > "$key.tmp" 2>/dev/null; then
+            if grep -q 'BEGIN' "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi
+          fi
+          if ! grep -q 'BEGIN' "$key"; then
+            body="$(tr -d '\n\r ' < "$key")"
+            { echo '-----BEGIN PRIVATE KEY-----'
+              echo "$body" | fold -w 64
+              echo '-----END PRIVATE KEY-----'; } > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          chmod 600 "$key"
+          openssl pkey -in "$key" -noout >/dev/null 2>&1 || { echo '::error::Existing ASC key cannot be parsed'; exit 1; }
+
+      - name: Install pinned Godot 4.7.2 iOS exporter
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://github.com/godotengine/godot/releases/download/4.7.2-stable'
+          root="$RUNNER_TEMP/ministry-godot"
+          mkdir -p "$root" "$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable"
+          curl -fsSL --retry 3 "$base/Godot_v4.7.2-stable_macos.universal.zip" -o "$root/engine.zip"
+          curl -fsSL --retry 3 "$base/Godot_v4.7.2-stable_export_templates.tpz" -o "$root/templates.tpz"
+          unzip -oq "$root/engine.zip" -d "$root"
+          godot="$(find "$root" -maxdepth 8 -type f -name Godot -print -quit)"
+          test -n "$godot"
+          chmod +x "$godot"
+          ln -s "$godot" "$root/godot"
+          echo "$root" >> "$GITHUB_PATH"
+          unzip -oqj "$root/templates.tpz" 'templates/ios.zip' \
+            -d "$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable"
+          test -s "$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable/ios.zip"
+          "$root/godot" --version
+
+      - name: Import Ministry and create unsigned Xcode project
+        working-directory: ministry
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/ios
+          godot --headless --path . --editor --import --quit
+          godot --headless --path . --export-release 'iOS Xcode Project' build/ios/MinistryOfCoincidences.zip
+          # Godot project-only mode normally writes sibling Xcode resources
+          # rather than a ZIP; support both outputs without losing frameworks.
+          project="$(find build/ios -maxdepth 4 -name '*.xcodeproj' -type d -print -quit)"
+          if [[ -z "$project" && -s build/ios/MinistryOfCoincidences.zip ]]; then
+            mkdir -p build/ios/extracted
+            unzip -oq build/ios/MinistryOfCoincidences.zip -d build/ios/extracted
+            project="$(find build/ios -maxdepth 6 -name '*.xcodeproj' -type d -print -quit)"
+          fi
+          test -n "$project" || { echo '::error::No Xcode project exported by Godot'; exit 1; }
+          test -d "$project"
+          xcodebuild -list -project "$project"
+
+      - name: Archive with local ad-hoc signatures
+        working-directory: ministry
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          VERSION: ${{ steps.approved.outputs.version }}
+        run: |
+          set -euo pipefail
+          project="$(find build/ios -maxdepth 6 -name '*.xcodeproj' -type d -print -quit)"
+          test -n "$project"
+          scheme="$(basename "$project" .xcodeproj)"
+          build="$((1000 + GITHUB_RUN_NUMBER))"
+          echo "MINISTRY_BUILD_NUMBER=$build" >> "$GITHUB_ENV"
+          xcodebuild archive \
+            -project "$project" -scheme "$scheme" \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Ministry.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY=- \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$build" \
+            2>&1 | tee "$RUNNER_TEMP/ministry-archive.log"
+          app="$(find "$RUNNER_TEMP/Ministry.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' -type d -print -quit)"
+          test -n "$app"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")" = 'org.killjoy00.ministry'
+          codesign --verify --deep --strict "$app"
+
+      - name: Preserve signed archive even if upload fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ministry-testflight-archive-${{ github.run_number }}
+          path: ${{ runner.temp }}/Ministry.xcarchive
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Apple-managed distribution signing and TESTFLIGHT upload
+        shell: bash
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          VERSION: ${{ steps.approved.outputs.version }}
+          SOURCE: ${{ steps.approved.outputs.sha }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/MinistryExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>destination</key><string>upload</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Ministry.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/MinistryExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/MinistryExport" -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee "$RUNNER_TEMP/ministry-upload.log"
+          echo '## Ministry TestFlight upload' >> "$GITHUB_STEP_SUMMARY"
+          echo "- Approved Ministry/main SHA: $SOURCE" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: $VERSION ($MINISTRY_BUILD_NUMBER)" >> "$GITHUB_STEP_SUMMARY"
+          echo '- Destination: TestFlight, not App Store public review' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Surface only archive or upload errors
+        if: failure()
+        run: |
+          for f in "$RUNNER_TEMP/ministry-archive.log" "$RUNNER_TEMP/ministry-upload.log"; do
+            if [ -f "$f" ]; then grep -E 'error:|ERROR:|ITMS-|409' "$f" | head -30 || true; fi
+          done
+
+      - name: Remove temporary Apple private key
+        if: always()
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          if [ -n "$ASC_KEY_ID" ]; then rm -f "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8"; fi

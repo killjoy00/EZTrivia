@@ -1,0 +1,60 @@
+name: Android Content Rating Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Audit shipped trivia content
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan question catalog
+        env:
+          OUTPUT: ${{ runner.temp }}/content-rating-evidence.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          python Scripts/audit_android_content_rating.py \
+            --input QuestionReview.csv \
+            --output "$OUTPUT"
+
+          jq -e '.questionCount == 2341' "$OUTPUT" >/dev/null
+          jq -e '.candidateCounts.referredViolence > 0' "$OUTPUT" >/dev/null
+          jq -e '.candidateCounts.illegalOrRecreationalDrugs > 0' "$OUTPUT" >/dev/null
+          jq -e '.candidateCounts.alcohol > 0' "$OUTPUT" >/dev/null
+          jq -e '.candidateCounts.sexOrNudity > 0' "$OUTPUT" >/dev/null
+          jq -e '.candidateCounts.strongProfanity == 0' "$OUTPUT" >/dev/null
+
+      - name: Summarize evidence
+        env:
+          OUTPUT: ${{ runner.temp }}/content-rating-evidence.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '## Android IARC content evidence'
+            echo
+            echo "- Questions audited: **$(jq -r '.questionCount' "$OUTPUT")**"
+            echo "- Referred-violence keyword candidates: **$(jq -r '.candidateCounts.referredViolence' "$OUTPUT")**"
+            echo "- Illegal/recreational-drug keyword candidates: **$(jq -r '.candidateCounts.illegalOrRecreationalDrugs' "$OUTPUT")**"
+            echo "- Alcohol keyword candidates: **$(jq -r '.candidateCounts.alcohol' "$OUTPUT")**"
+            echo "- Sex/nudity keyword candidates: **$(jq -r '.candidateCounts.sexOrNudity' "$OUTPUT")**"
+            echo "- Gambling-term keyword candidates: **$(jq -r '.candidateCounts.gamblingTerms' "$OUTPUT")**"
+            echo "- Strong-profanity keyword candidates: **$(jq -r '.candidateCounts.strongProfanity' "$OUTPUT")**"
+            echo
+            echo '_These are evidence candidates, not automated IARC answers; review context before submission._'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive content-rating evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-content-rating-evidence
+          path: ${{ runner.temp }}/content-rating-evidence.json
+          if-no-files-found: error
+          retention-days: 30

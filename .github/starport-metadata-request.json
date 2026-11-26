@@ -1,0 +1,8 @@
+{
+  "repository": "killjoy00/Starport",
+  "sha": "1e62fad1f8670a90f292b8ed727574dcd2799cfc",
+  "mode": "apply",
+  "intent": "Prepare App Store copy only; inspect TestFlight icon state; no public release",
+  "retryReason": "Apple reported StarPort name unavailable; preserve the existing StarPort Stories record.",
+  "attempt": 2
+}

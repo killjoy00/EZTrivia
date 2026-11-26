@@ -1,0 +1,9 @@
+{
+  "bundleID": "com.rsm.starrun",
+  "productID": "com.rsm.starrun.remove_ads",
+  "priceUSD": "1.99",
+  "baseTerritory": "USA",
+  "mode": "draft_only",
+  "attempt": 4,
+  "notes": "Preserve Apple's existing $1.99 one-time price, the currently configured availability, and the verified screenshot. Do not submit or launch."
+}

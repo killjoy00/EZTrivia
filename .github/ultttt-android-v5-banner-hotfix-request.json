@@ -1,0 +1,17 @@
+{
+  "stage_draft": true,
+  "publish_now": false,
+  "package_name": "com.killjoy00.ultttt",
+  "repository": "killjoy00/Ultttt",
+  "source_sha": "bf2b3abaf45e316b061a5aafaa299311b62e0bbc",
+  "version_code": 5,
+  "version_name": "1.1.1",
+  "track": "production",
+  "play_ads_declaration_confirmed": true,
+  "play_data_safety_confirmed": true,
+  "admob_android_app_id": "ca-app-pub-1217971050094766~2079128067",
+  "admob_android_banner_unit_id": "ca-app-pub-1217971050094766/7292373402",
+  "remove_ads_product_id": "com.killjoy00.ultttt.remove_ads",
+  "remove_ads_usd": "1.99",
+  "release_notes": "Fixed an issue where the ad banner could cover the tic-tac-toe board. Ads now stay at the bottom, outside the gameplay area, with better spacing around Android navigation controls."
+}

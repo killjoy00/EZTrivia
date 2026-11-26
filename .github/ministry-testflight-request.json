@@ -1,0 +1,7 @@
+{
+  "repository": "killjoy00/ministry",
+  "bundleID": "org.killjoy00.ministry",
+  "target": "testflight",
+  "sha": "5dd23f4b64842f39b64f4c125c31d478fd4098b5",
+  "version": "1.0"
+}

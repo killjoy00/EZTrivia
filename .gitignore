@@ -12,3 +12,7 @@ __pycache__/
 *.keystore
 *.p12
 android/keystore.properties
+
+# Firebase Android configuration is fetched from Firebase Management API by
+# configured CI/release workflows and must not be committed to the public repo.
+android/app/google-services.json

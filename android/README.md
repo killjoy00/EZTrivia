@@ -4,6 +4,10 @@ This directory contains the native Android client. The iOS SwiftUI app remains
 in `EZTriviaApp/`, with shared deterministic game contracts owned by
 `Sources/EZTriviaCore/`.
 
+## Recent player-feedback improvements
+
+Mixed Quick Play, Daily Challenge, and Friend Challenge questions identify their category above the question. The Settings tab includes a persisted Dark mode toggle; its appearance also applies when Daily or Friend Challenge opens in a separate Android activity. The shared soccer question about league-table points now names the sport.
+
 ## Foundation contract
 
 - Kotlin + Jetpack Compose UI

@@ -1,13 +1,19 @@
 package com.rsm.eztrivia.playgames
 
 import android.app.Activity
+import android.util.Log
 import com.google.android.gms.games.PlayGames
+import com.google.android.gms.games.FriendsResolutionRequiredException
+import com.google.android.gms.games.leaderboard.LeaderboardScore
+import com.google.android.gms.games.leaderboard.LeaderboardVariant
 import com.rsm.eztrivia.data.PlayerState
 import com.rsm.eztrivia.model.AchievementCatalog
 import com.rsm.eztrivia.model.DailyChallenge
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.tasks.await
 
 data class PlayGamesConnectionState(
     val isChecking: Boolean = true,
@@ -114,11 +120,88 @@ class PlayGamesManager(private val activity: Activity) {
             .addOnFailureListener(::recordError)
     }
 
+
+    /**
+     * Native rank data for the in-app Leaderboards screen. Mirrors the iOS
+     * global/friends reader without opening a second Play Games Activity.
+     * The platform owns identity and standings; we never synthesize ranks.
+     *
+     * Each Google score buffer must be fully copied and released before the
+     * coroutine returns to Compose.
+     */
+    suspend fun loadLeaderboard(
+        board: PlayGamesBoard,
+        friendsOnly: Boolean,
+        forceReload: Boolean = false,
+    ): PlayGamesLeaderboardSnapshot {
+        check(_connection.value.isAuthenticated) { "Connect Google Play Games to view rankings." }
+        val client = PlayGames.getLeaderboardsClient(activity)
+        val span = if (board.isDaily) LeaderboardVariant.TIME_SPAN_DAILY else LeaderboardVariant.TIME_SPAN_ALL_TIME
+        val collection = if (friendsOnly) LeaderboardVariant.COLLECTION_FRIENDS else LeaderboardVariant.COLLECTION_PUBLIC
+
+        val loaded = try {
+            client.loadTopScores(board.id, span, collection, 10, forceReload).await().get()
+                ?: error("This leaderboard is not available yet.")
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            // 26504 means Google could not obtain fresh scores and had no cache;
+            // it is NOT proof that a published board contains zero players.
+            Log.w(TAG, "Top rankings unavailable: board=${board.title}, friends=$friendsOnly", error)
+            throw error
+        }
+        val leaders: List<PlayGamesRankRow>
+        val playerCount: Long?
+        try {
+            val scores = loaded.scores
+            leaders = (0 until scores.count).map { index ->
+                scores.get(index).toRankRow()
+            }
+            playerCount = loaded.leaderboard?.variants
+                ?.firstOrNull { it.timeSpan == span && it.collection == collection }
+                ?.numScores?.takeIf { it >= 0L }
+        } finally {
+            loaded.release()
+        }
+
+        // Personal rank is supplementary. Google's own samples report 26504
+        // from this particular API even after public rankings loaded. Do not
+        // throw away valid global results because this second request failed.
+        var personalRankUnavailable = false
+        val local = try {
+            client.loadCurrentPlayerLeaderboardScore(board.id, span, collection)
+                .await().get()?.toRankRow()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (permission: FriendsResolutionRequiredException) {
+            // Preserve the consent flow for the Friends collection.
+            throw permission
+        } catch (error: Exception) {
+            personalRankUnavailable = true
+            Log.w(TAG, "Personal leaderboard rank unavailable: board=${board.title}, friends=$friendsOnly", error)
+            null
+        }
+        return PlayGamesLeaderboardSnapshot(
+            localPlayer = local,
+            leaders = leaders,
+            totalPlayerCount = playerCount,
+            personalRankUnavailable = personalRankUnavailable,
+        )
+    }
+
+    private fun LeaderboardScore.toRankRow(): PlayGamesRankRow = PlayGamesRankRow(
+        playerId = scoreHolder?.playerId.orEmpty(),
+        rank = rank,
+        playerName = scoreHolderDisplayName,
+        formattedScore = displayScore,
+    )
+
     private fun recordError(error: Exception) {
         _connection.value = _connection.value.copy(errorMessage = error.localizedMessage)
     }
 
     private companion object {
+        const val TAG = "EZTriviaLeaderboards"
         const val REQUEST_ACHIEVEMENTS = 7101
         const val REQUEST_LEADERBOARDS = 7102
     }

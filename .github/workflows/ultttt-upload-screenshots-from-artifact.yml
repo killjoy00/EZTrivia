@@ -1,0 +1,112 @@
+name: Finalize Ultttt five real iPhone screenshots
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ultttt-upload-screenshots-from-artifact.yml"
+      - "Scripts/upload_ultttt_screenshots.py"
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+concurrency:
+  group: ultttt-screenshot-artifact-upload
+  cancel-in-progress: false
+jobs:
+  compose-and-apply:
+    name: Compose five captured SwiftUI screens and upload to Apple iOS 1.0 draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out approved screenshot uploader
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Confirm exact app, Apple draft, and captured run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,pathlib
+          r=json.loads(pathlib.Path(".github/ultttt-screenshots-request.json").read_text())
+          assert r["repository"]=="killjoy00/Ultttt"
+          assert r["bundleID"]=="com.killjoy00.ultttt"
+          assert r["appName"]=="Ultimate Tic/Tac/Toe"
+          assert r["version"]=="1.0" and r["mode"]=="apply"
+          assert r["sha"]=="e741f4489242c27aac16b9525bf1ebae8d28113c"
+          assert r["displayType"]=="APP_IPHONE_67"
+          print("Pinned Ultttt 1.0 and screenshot identity confirmed.")
+          PY
+          gh api repos/killjoy00/eztrivia/actions/runs/43983523938 \
+            --jq '.head_sha' > "$RUNNER_TEMP/source-run-sha"
+          test "$(cat "$RUNNER_TEMP/source-run-sha")" = "b9382b0b4910d29178392074404d7919075db7df"
+          echo "Verified immutable source CI run for five real captures."
+
+      - name: Recover five already captured real iPhone screens
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ultttt-raw"
+          gh run download 43983523938 \
+            --repo killjoy00/eztrivia \
+            --name UltimateTicTacToe-real-ios-captures \
+            --dir "$RUNNER_TEMP/ultttt-raw"
+          for scene in board setup tutorial statistics settings; do
+            test -s "$RUNNER_TEMP/ultttt-raw/$scene.png" || {
+              echo "::error::Missing genuine captured app UI: $scene"
+              exit 1
+            }
+          done
+          echo "Downloaded all five actual SwiftUI screenshots."
+
+      - name: Prepare isolated Python image/Apple API environment
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/ultttt-python"
+          "$RUNNER_TEMP/ultttt-python/bin/python" -m pip install --quiet \
+            Pillow "PyJWT[crypto]"
+
+      - name: Compose Apple-approved 1290x2796 marketing screenshots
+        env:
+          SCREENSHOT_SOURCE: ${{ runner.temp }}/ultttt-raw
+        run: |
+          "$RUNNER_TEMP/ultttt-python/bin/python" \
+            Scripts/compose_ultttt_screenshots.py
+          test "$(find "$RUNNER_TEMP/ultttt-appstore" -name '*.png' | wc -l | tr -d ' ')" = 5
+
+      - name: Add and verify five screenshots on Apple's existing 1.0 draft
+        env:
+          SCREENSHOT_SOURCE: ${{ runner.temp }}/ultttt-appstore
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID"
+          test -n "$ASC_ISSUER_ID"
+          test -n "$ASC_KEY_P8"
+          "$RUNNER_TEMP/ultttt-python/bin/python" \
+            Scripts/upload_ultttt_screenshots.py
+
+      - name: Keep final Apple-sized images for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ultttt-App-Store-5-real-screenshots
+          path: ${{ runner.temp }}/ultttt-appstore/*.png
+          if-no-files-found: ignore
+          retention-days: 60
+
+      - name: Report only verified result
+        if: success()
+        run: |
+          {
+            echo "### Ultimate Tic/Tac/Toe - App Store screenshots"
+            echo "- Uploaded **5 actual iPhone UI** screenshots"
+            echo "- Apple iOS 1.0 en-US APP_IPHONE_67 image set"
+            echo "- Apple confirmed screenshot assets have processed"
+            echo "- No public App Review submission or TestFlight release"
+          } >> "$GITHUB_STEP_SUMMARY"

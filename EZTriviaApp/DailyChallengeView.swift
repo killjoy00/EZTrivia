@@ -89,6 +89,7 @@ struct DailyChallengeView: View {
             } else if engine.currentQuestion != nil {
                 RoundPlayer(
                     engine: $engine,
+                    roundKind: .dailyChallenge,
                     tint: .orange,
                     finishTitle: "Finish",
                     onAnswer: { correct in

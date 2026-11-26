@@ -1,0 +1,120 @@
+name: Play closed test submit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/play-closed-test-submit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PACKAGE_NAME: com.rsm.eztrivia
+      TRACK_NAME: production-access
+      VERSION_CODE: "2"
+    steps:
+      - name: Authenticate to Google Play Developer API
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Submit existing closed-test draft
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}"
+          auth=(-H "Authorization: Bearer ${ACCESS_TOKEN}" -H "Content-Type: application/json")
+          edit_id=""
+
+          cleanup() {
+            if [ -n "$edit_id" ]; then
+              curl --silent --show-error -X DELETE "${base}/edits/${edit_id}" "${auth[@]}" >/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          edit_json="$(curl --fail-with-body --silent --show-error -X POST "${base}/edits" "${auth[@]}" -d '{}')"
+          edit_id="$(jq -r '.id' <<<"$edit_json")"
+          track_url="${base}/edits/${edit_id}/tracks/${TRACK_NAME}"
+          track_json="$(curl --fail-with-body --silent --show-error "$track_url" "${auth[@]}")"
+
+          release_count="$(jq '(.releases // []) | length' <<<"$track_json")"
+          if [ "$release_count" != "1" ]; then
+            echo "::error::Expected exactly one release on ${TRACK_NAME}; found ${release_count}. Refusing to modify the track."
+            exit 1
+          fi
+
+          current_version="$(jq -r '.releases[0].versionCodes[0] // ""' <<<"$track_json")"
+          current_status="$(jq -r '.releases[0].status // ""' <<<"$track_json")"
+          current_name="$(jq -r '.releases[0].name // ""' <<<"$track_json")"
+
+          if [ "$current_version" != "$VERSION_CODE" ]; then
+            echo "::error::Expected versionCode ${VERSION_CODE}, found ${current_version}. Refusing to modify the track."
+            exit 1
+          fi
+
+          if [ "$current_status" = "completed" ]; then
+            echo "Closed-test release is already completed; nothing to submit."
+            echo "CLOSED_TEST_SUBMIT_BEGIN"
+            echo "track=${TRACK_NAME}"
+            echo "versionCode=${VERSION_CODE}"
+            echo "releaseName=${current_name}"
+            echo "releaseStatus=completed"
+            echo "action=none-already-completed"
+            echo "CLOSED_TEST_SUBMIT_END"
+            exit 0
+          fi
+
+          if [ "$current_status" != "draft" ]; then
+            echo "::error::Expected draft release, found ${current_status}. Refusing to modify the track."
+            exit 1
+          fi
+
+          jq '.releases[0].status = "completed"' <<<"$track_json" > "$RUNNER_TEMP/track-completed.json"
+          update_code="$(curl --silent --show-error -o "$RUNNER_TEMP/update-response.json" -w '%{http_code}' \
+            -X PUT "$track_url" "${auth[@]}" --data-binary @"$RUNNER_TEMP/track-completed.json")"
+          if [ "$update_code" != "200" ]; then
+            cat "$RUNNER_TEMP/update-response.json"
+            echo "::error::Closed-track update failed with HTTP ${update_code}"
+            exit 1
+          fi
+
+          # Explicitly fail rather than cancel if another review has started.
+          commit_code="$(curl --silent --show-error -o "$RUNNER_TEMP/commit-response.json" -w '%{http_code}' \
+            -X POST "${base}/edits/${edit_id}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW" "${auth[@]}" -d '{}')"
+          if [ "$commit_code" != "200" ]; then
+            cat "$RUNNER_TEMP/commit-response.json"
+            if [ "$commit_code" = "400" ] && jq -e '.error.details[]? | select(.reason == "CHANGES_ALREADY_IN_REVIEW")' "$RUNNER_TEMP/commit-response.json" >/dev/null; then
+              echo "::error::Another Play review started before commit. Nothing was cancelled; submission stopped safely."
+            else
+              echo "::error::Play edit commit failed with HTTP ${commit_code}. The edit will be abandoned."
+            fi
+            exit 1
+          fi
+          edit_id=""
+
+          verify_edit="$(curl --fail-with-body --silent --show-error -X POST "${base}/edits" "${auth[@]}" -d '{}')"
+          edit_id="$(jq -r '.id' <<<"$verify_edit")"
+          verify_json="$(curl --fail-with-body --silent --show-error "${base}/edits/${edit_id}/tracks/${TRACK_NAME}" "${auth[@]}")"
+          verified_name="$(jq -r --arg version "$VERSION_CODE" '[.releases[]? | select(any(.versionCodes[]?; . == $version)) | .name // ""] | first // ""' <<<"$verify_json")"
+          verified_status="$(jq -r --arg version "$VERSION_CODE" '[.releases[]? | select(any(.versionCodes[]?; . == $version)) | .status // ""] | first // "absent"' <<<"$verify_json")"
+
+          echo "CLOSED_TEST_SUBMIT_BEGIN"
+          echo "track=${TRACK_NAME}"
+          echo "versionCode=${VERSION_CODE}"
+          echo "releaseName=${verified_name}"
+          echo "releaseStatus=${verified_status}"
+          echo "action=submitted-existing-draft"
+          echo "CLOSED_TEST_SUBMIT_END"

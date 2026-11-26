@@ -11,9 +11,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.LoadAdError
 import com.rsm.eztrivia.BuildConfig
 import com.rsm.eztrivia.MainActivity
 
@@ -29,9 +31,21 @@ fun AdBanner(
     if (!consent.canRequestAds || purchase.hasRemovedAds) return
 
     val adView = remember(activity, BuildConfig.ADMOB_BANNER_ID) {
+        activity.adConsentManager.markBannerLoading()
         AdView(activity).apply {
             setAdSize(AdSize.BANNER)
             adUnitId = BuildConfig.ADMOB_BANNER_ID
+            adListener = object : AdListener() {
+                override fun onAdLoaded() {
+                    activity.adConsentManager.markBannerLoaded()
+                }
+
+                override fun onAdFailedToLoad(error: LoadAdError) {
+                    activity.adConsentManager.markBannerFailed(
+                        "${error.code}: ${error.message}"
+                    )
+                }
+            }
             loadAd(AdRequest.Builder().build())
         }
     }

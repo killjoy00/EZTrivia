@@ -1,0 +1,61 @@
+name: Ministry Google Play listing sync
+on:
+  push:
+    branches: [main]
+    paths: ['.github/ministry-play-listing-request.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ministry-play-listing
+  cancel-in-progress: false
+jobs:
+  listing:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/ministry
+          ref: main
+          fetch-depth: 0
+          path: ministry
+          persist-credentials: false
+      - name: Verify approved source and mode
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, pathlib, re
+          r=json.loads(pathlib.Path('.github/ministry-play-listing-request.json').read_text())
+          assert r["repository"]=="killjoy00/ministry"
+          assert re.fullmatch('[0-9a-f]{40}',r["sha"])
+          assert r["mode"] in ('inspect','apply')
+          print('source_sha='+r['sha'])
+          print('mode='+r['mode'])
+          PY
+      - name: Pin Ministry metadata
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.release.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          git -C ministry fetch --quiet origin main
+          git -C ministry merge-base --is-ancestor "$SOURCE_SHA" origin/main
+          git -C ministry checkout --quiet --detach "$SOURCE_SHA"
+          test -f ministry/docs/app-store/en-US.json
+          test -f ministry/docs/MOBILE_PRIVACY.md
+      - name: Install Play API client dependencies
+        run: python3 -m pip install --quiet google-auth requests
+      - name: Inspect or apply Ministry listing
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          SYNC_MODE: ${{ steps.release.outputs.mode }}
+        run: |
+          test -n "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"
+          python3 Scripts/ministry_play_listing.py ministry/docs/app-store/en-US.json

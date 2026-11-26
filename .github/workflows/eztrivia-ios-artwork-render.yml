@@ -1,0 +1,59 @@
+name: Render approved EZ Trivia App Store artwork
+
+on:
+  pull_request:
+    paths:
+      - Scripts/prepare_eztrivia_ios14_artwork.py
+      - .github/workflows/eztrivia-ios-artwork-render.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install image tools and Inter fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-inter
+          python3 -m pip install --disable-pip-version-check --quiet Pillow
+      - name: Download actual EZ Trivia simulator captures
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p artwork_source
+          gh api "repos/killjoy00/EZTrivia/actions/artifacts/9997153447/zip" > /tmp/eztrivia_iphone_screens.zip
+          unzip -o -q /tmp/eztrivia_iphone_screens.zip -d artwork_source
+          test -s artwork_source/01-home.png
+          test -s artwork_source/03-answered.png
+          test -s artwork_source/04-daily.png
+      - name: Render and check dimensions
+        run: |
+          python3 Scripts/prepare_eztrivia_ios14_artwork.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          expected={
+            "EZTrivia_product_header_3840x1646.png":(3840,1646),
+            "EZTrivia_search_results_1920x1280.png":(1920,1280),
+            "EZTrivia_screenshot_home_1320x2868.png":(1320,2868),
+            "EZTrivia_screenshot_daily_1320x2868.png":(1320,2868),
+            "EZTrivia_screenshot_explanation_1320x2868.png":(1320,2868)
+          }
+          for filename,dims in expected.items():
+            path=Path("artwork_generated")/filename
+            with Image.open(path) as im:
+              if im.size!=dims: raise ValueError(f"Wrong dimensions for {filename}: {im.size}")
+            print(filename, path.stat().st_size, "bytes")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-ios-14-approved-artwork
+          path: artwork_generated/*.png
+          if-no-files-found: error
+          retention-days: 30

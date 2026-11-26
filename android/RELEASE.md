@@ -19,10 +19,11 @@ The Gradle release build accepts release inputs through environment variables:
 - `ANDROID_ADMOB_BANNER_ID` — Android banner ad-unit ID (`ca-app-pub-.../...`)
 
 When the signing variables are absent, the release build stays unsigned. That is
-the mode used by ordinary CI. When the AdMob variables are absent, the build
-uses Google's official sample Android app/banner IDs so CI can compile, shrink,
-and package the advertising code without committing production credentials.
-Production releases must provide the Android-specific real IDs.
+the mode used by ordinary CI. Unsigned builds with incomplete, invalid, or mixed
+AdMob IDs use the complete Google sample Android app/banner pair. A signed
+Gradle build rejects any incomplete or sample pair, or IDs from different
+publishers. The signed GitHub Play workflow additionally verifies the expected
+EZ Trivia publisher.
 
 ## 2. Build the signed Play bundle
 
@@ -48,6 +49,15 @@ Keep the matching R8 mapping file with the release record:
 
     android/app/build/outputs/mapping/release/mapping.txt
 
+Native crash and ANR symbolication: release builds request `ndk.debugSymbolLevel =
+"SYMBOL_TABLE"` so the Android Gradle plugin can automatically include native
+symbol metadata in future Play AABs. Some prebuilt third-party libraries may
+already be stripped, limiting available symbols; review build warnings.
+An older Play version (such as the already-uploaded v9) cannot be corrected
+by uploading a symbols ZIP generated from a different build. Use exact-matching
+symbols from that original release if available, or leave its advisory warning
+alone. Never re-upload the same version code to address this warning.
+
 Upload the `.aab` to Play Console → **Internal testing**. Start at version code
 `1`; every later upload must use a larger version code.
 
@@ -57,82 +67,115 @@ Use **Play App Signing** in Play Console. The upload key authenticates the bundl
 you upload; Google holds and uses the separate app-signing key that signs APKs
 delivered to players.
 
-After the first bundle is accepted, Play Console exposes the app-signing
-certificate fingerprint. That fingerprint is also required for verified Friend
-Challenge app links.
+The Play app-signing certificate used by the current Internal Testing build has
+already been retrieved from generated APK metadata and verified against the live
+Digital Asset Links statement. See `android/DIGITAL_ASSET_LINKS.md`.
 
 ## 4. Android ads and consent
 
-Create a separate **Android** EZ Trivia app in AdMob for package
-`com.rsm.eztrivia`; do not reuse the iOS AdMob app ID. Create a banner ad unit
-and store both resulting IDs as repository secrets:
+Android uses publisher `pub-1217971050094766`, which is also published in the
+root `https://killjoy00.github.io/app-ads.txt` seller record. It needs its own
+AdMob app entry and Banner unit; do not reuse the iOS app/ad-unit IDs.
+
+AdMob API inventory management cannot use the Play service account. Google
+requires OAuth from an authenticated AdMob user. The repository therefore has a
+manual **Android AdMob Production** workflow plus
+`Scripts/configure_admob_android.py`. After the one-time OAuth secret described
+in `android/ADMOB.md` is installed, the workflow can discover the Android app
+and Banner unit and attempts to create them if absent. Google's app/ad-unit
+create methods are limited-access, so a 403 means the missing inventory must be
+created once in the AdMob UI and the workflow re-run for verification.
+
+Store the resulting public SDK identifiers as Actions secrets:
 
 - `ANDROID_ADMOB_APP_ID`
 - `ANDROID_ADMOB_BANNER_ID`
 
 The app requests advertising consent through Google's User Messaging Platform
-before making its first ad request. Configure the applicable Privacy & messaging
-message in AdMob before production testing. The banner is suppressed whenever
-UMP says ads cannot yet be requested and after the Remove Ads entitlement is
-owned.
+before making its first ad request. Configure and **publish** the applicable
+Privacy & messaging message in AdMob before production testing. The banner is
+suppressed whenever UMP says ads cannot yet be requested and after the Remove
+Ads entitlement is owned.
 
-The GitHub Internal Testing workflow passes these secrets into Gradle when they
-exist. A build without them is deliberately a sample-ad build and must not be
-promoted to production.
+The signed Internal Testing workflow now requires both production AdMob secrets
+and validates that their publisher prefix matches EZ Trivia. Ordinary unsigned
+CI still uses Google's sample IDs. See `android/ADMOB.md` for the full account,
+OAuth, UMP, and runtime checklist.
 
 ## 5. Google Play Billing — Remove Ads
 
-Create and activate a one-time Google Play product with this exact product ID:
+The active one-time Google Play product uses this exact product ID:
 
     com.rsm.eztrivia.removeads
 
-It should behave as a non-consumable entitlement: the app never consumes the
-purchase. Configure its default purchase option, localized title/description,
-and price in Play Console. The Android client queries Google Play for current
-ownership, acknowledges completed purchases, supports pending purchases, and
-provides a restore/recheck action. A successful ownership query is authoritative,
-so a refund or revocation removes the cached entitlement again.
+It behaves as a non-consumable entitlement: the app never consumes the
+purchase. The Android client queries Google Play for current ownership,
+acknowledges completed purchases, supports pending purchases, and provides a
+restore/recheck action. A successful ownership query is authoritative, so a
+refund or revocation removes the cached entitlement again.
 
 Billing should be tested with a license tester using an app installed from a
 Google Play testing track; a locally sideloaded build is not a valid end-to-end
 purchase test.
 
-## 6. App Links for Friend Challenge URLs
+## 6. Google Play Games Saved Games
+
+The Android client contains a Google Play Games Saved Games integration for
+private cross-device progress. Before production testing, enable **Saved Games**
+for the linked Play Games Services project in Play Console. The app uses this
+snapshot name:
+
+    eztrivia-player-state-v1
+
+Local DataStore state remains the source used by gameplay. Cloud I/O is
+asynchronous: if Play Games or the network is unavailable, the player continues
+offline and the app retries after authentication/state changes or a manual sync
+from Settings.
+
+Conflicts are resolved manually instead of using a last-device-wins policy. The
+cloud envelope carries shared baselines plus per-installation additive counters,
+so lifetime points and completed-round totals from two independently played
+devices can be added without double-counting the same device on repeated syncs.
+Question-progress/achievement facts are monotonic unions; Daily and Friend
+Challenge one-attempt records keep the earliest completion; bounded histories
+are deduplicated; and clear-history timestamps prevent an older snapshot from
+restoring cleared recent/seen state.
+
+Before production, test from Play-installed Internal Testing builds on **two
+Android devices signed into the same Play Games profile**:
+
+1. Sync both devices once.
+2. Take both offline and make different category/Quick Play progress on each.
+3. Complete a Daily/Friend Challenge on one device, and different question
+   progress on the other.
+4. Reconnect device A and wait for sync, then reconnect device B to force a
+   realistic conflict/merge.
+5. Re-open both apps and confirm lifetime points, round counters, histories,
+   question progress, and one-attempt results converge without loss or duplicate
+   counting.
+6. Clear recent category history on one device, sync, then verify an older cloud
+   copy from the other device cannot resurrect the cleared category history or
+   seen-question cycle.
+
+The first production release that advertises Android cross-device progress must
+not ship until Saved Games is enabled and this two-device test passes.
+
+## 7. App Links for Friend Challenge URLs
 
 `AndroidManifest.xml` declares `android:autoVerify="true"` on the
-`https://killjoy00.github.io/EZTrivia/challenge.html` intent filter, so a
-challenge link shared from an iOS player can open the Android app directly.
+`https://killjoy00.github.io/EZTrivia/challenge.html` intent filter.
 
-Verification only succeeds once the **domain** publishes a Digital Asset Links
-file naming this app's signing certificate. Note the path: it is served from the
-domain root, not from this project's `/EZTrivia/` Pages path, so it belongs in
-the `killjoy00.github.io` repository, not this one.
+The root-domain Digital Asset Links statement is live and verified at:
 
     https://killjoy00.github.io/.well-known/assetlinks.json
 
-Contents:
+It names package `com.rsm.eztrivia`, relation
+`delegate_permission/common.handle_all_urls`, and the Google Play app-signing
+SHA-256 certificate. `android/DIGITAL_ASSET_LINKS.md` records the fingerprint and
+the automated verification run. Re-run the manual verifier after any app-signing
+key rotation, package/domain change, or assetlinks edit.
 
-```json
-[
-  {
-    "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.rsm.eztrivia",
-      "sha256_cert_fingerprints": ["PASTE_SHA256_FINGERPRINT_HERE"]
-    }
-  }
-]
-```
-
-Use the **app signing certificate** fingerprint, not the upload certificate:
-Play Console → your app → Test and release → Setup → App signing → *SHA-256
-certificate fingerprint*. Colons included, uppercase hex.
-
-Until that file is live with the right fingerprint, the link still works — it
-just opens in a browser. Nothing regresses in the meantime.
-
-To check verification on a device once it is published:
+To check verification on a device:
 
     adb shell pm get-app-links com.rsm.eztrivia
 
@@ -145,9 +188,10 @@ Ordinary Android CI builds all of the following without signing credentials:
 - release Android App Bundle (`.aab`)
 - R8 mapping file
 
-That means App Bundle packaging, Play Billing, Google Mobile Ads/UMP, and the
-shrinker run on every relevant PR rather than being discovered for the first
-time during a Play upload.
+That means App Bundle packaging, Play Billing, Google Mobile Ads/UMP, Play Games
+Saved Games code, and the shrinker run on every relevant PR rather than being
+discovered for the first time during a Play upload. Unit tests also exercise the
+Saved Games merge contract without requiring live Play Games credentials.
 
 ## What is already handled
 
@@ -159,6 +203,12 @@ time during a Play upload.
 - Daily reminders re-armed after reboot and after an app update.
 - R8 keep rules for kotlinx.serialization.
 - Google Play Games v2 authentication, achievements, and leaderboards.
-- Android AdMob/UMP code path and Google Play Billing Remove Ads code path; the
-  real AdMob IDs, UMP message, and Play product still require console setup and
-  runtime validation before production submission.
+- Conflict-safe Google Play Games Saved Games client integration and local merge
+  bookkeeping; Play Console Saved Games enablement and real two-device runtime
+  validation still remain before production.
+- Android AdMob/UMP code path and Google Play Billing Remove Ads code path.
+- The Google Play Remove Ads product is active; runtime purchase/restore/refund
+  validation still remains.
+- AdMob inventory automation and a production-ID release guard are present; the
+  authenticated AdMob inventory run, published Privacy & messaging configuration,
+  and Play-installed ad/entitlement runtime test remain before production.

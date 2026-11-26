@@ -1,0 +1,5 @@
+{
+  "bundleID": "org.killjoy00.ministry",
+  "destination": "internal-testflight",
+  "approved": true
+}

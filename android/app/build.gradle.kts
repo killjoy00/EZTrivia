@@ -6,31 +6,45 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Firebase setup is intentionally optional for ordinary source CI. Once the
+// repository contains a valid google-services.json (or a release workflow
+// materializes one before Gradle starts), Crashlytics and its mapping upload
+// plugin turn on automatically. Firebase Analytics is deliberately not used.
+val firebaseConfigFile = file("google-services.json")
+val crashlyticsConfigured = firebaseConfigFile.isFile
+if (crashlyticsConfigured) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
+
 val releaseVersionCode = providers.environmentVariable("EZTRIVIA_VERSION_CODE").orNull?.toIntOrNull()
 val releaseVersionName = providers.environmentVariable("EZTRIVIA_VERSION_NAME").orNull
 val uploadKeystorePath = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PATH")
 val uploadKeystorePassword = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PASSWORD")
 
-// Ordinary CI uses Google's official sample IDs so ad/consent code is compiled
-// and R8-tested without requiring production credentials. Signed Play releases
-// should provide both Android-specific AdMob IDs through these environment vars.
-// Treat the pair atomically: partial production configuration falls back to the
-// complete Google sample pair rather than mixing real and demo identifiers.
+// Ordinary CI uses the complete Google sample pair unless both production IDs
+// are valid and belong to the same publisher. Never mix sample and real IDs.
+// A signed release must have a complete, non-sample production pair.
+val samplePublisher = "ca-app-pub-3940256099942544"
 val configuredAdMobAppId = providers.environmentVariable("ANDROID_ADMOB_APP_ID").orNull
-    ?.takeIf { it.isNotBlank() }
+    ?.trim()?.takeIf { it.isNotBlank() }
 val configuredAdMobBannerId = providers.environmentVariable("ANDROID_ADMOB_BANNER_ID").orNull
-    ?.takeIf { it.isNotBlank() }
-val hasProductionAdMobPair = configuredAdMobAppId != null && configuredAdMobBannerId != null
-val adMobAppId = if (hasProductionAdMobPair) {
-    configuredAdMobAppId!!
-} else {
-    "ca-app-pub-3940256099942544~3347511713"
+    ?.trim()?.takeIf { it.isNotBlank() }
+val hasProductionAdMobPair =
+    configuredAdMobAppId != null &&
+        configuredAdMobBannerId != null &&
+        configuredAdMobAppId.matches(Regex("ca-app-pub-[0-9]+~[0-9]+")) &&
+        configuredAdMobBannerId.matches(Regex("ca-app-pub-[0-9]+/[0-9]+")) &&
+        configuredAdMobAppId.substringBefore('~') == configuredAdMobBannerId.substringBefore('/') &&
+        configuredAdMobAppId.substringBefore('~') != samplePublisher
+
+require(!(uploadKeystorePath.isPresent && uploadKeystorePassword.isPresent) || hasProductionAdMobPair) {
+    "Signed Android releases require a complete non-sample AdMob app/banner pair from the same publisher."
 }
-val adMobBannerId = if (hasProductionAdMobPair) {
-    configuredAdMobBannerId!!
-} else {
-    "ca-app-pub-3940256099942544/6300978111"
-}
+val adMobAppId = if (hasProductionAdMobPair) checkNotNull(configuredAdMobAppId)
+    else "ca-app-pub-3940256099942544~3347511713"
+val adMobBannerId = if (hasProductionAdMobPair) checkNotNull(configuredAdMobBannerId)
+    else "ca-app-pub-3940256099942544/6300978111"
 
 android {
     namespace = "com.rsm.eztrivia"
@@ -45,6 +59,7 @@ android {
 
         manifestPlaceholders["adMobAppId"] = adMobAppId
         buildConfigField("String", "ADMOB_BANNER_ID", "\"$adMobBannerId\"")
+        buildConfigField("Boolean", "CRASHLYTICS_CONFIGURED", crashlyticsConfigured.toString())
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -72,6 +87,13 @@ android {
             // rules, which live in proguard-rules.pro.
             isMinifyEnabled = true
             isShrinkResources = true
+
+            // Bundle native symbol-table metadata for Google Play Android vitals.
+            // This lets Play symbolicate native crashes/ANRs without an extra
+            // upload. This only applies to future builds, not already-uploaded v9.
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -160,6 +182,17 @@ dependencies {
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
+    // Google Play flagged an older transitive Fragment SDK in Android v9.
+    // Align any runtime Fragment artifacts with the current stable release
+    // without introducing Fragment into this Compose-first app when unused.
+    constraints {
+        implementation("androidx.fragment:fragment:1.9.1") {
+            because("Use the supported AndroidX Fragment release for transitive dependencies")
+        }
+        implementation("androidx.fragment:fragment-ktx:1.9.1") {
+            because("Keep transitive Fragment KTX aligned with Fragment")
+        }
+    }
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -167,10 +200,15 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.2.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     implementation("com.google.android.gms:play-services-games-v2:22.0.0")
     implementation("com.google.android.gms:play-services-ads:25.4.0")
     implementation("com.google.android.ump:user-messaging-platform:4.0.0")
     implementation("com.android.billingclient:billing:9.1.0")
+
+    val firebaseBom = platform("com.google.firebase:firebase-bom:34.19.0")
+    implementation(firebaseBom)
+    implementation("com.google.firebase:firebase-crashlytics")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")

@@ -1,0 +1,92 @@
+name: Android AdMob Production
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/android-admob-production.yml
+      - Scripts/configure_admob_android.py
+      - android/ADMOB.md
+      - android/RELEASE.md
+  workflow_dispatch:
+    inputs:
+      create_missing:
+        description: Attempt to create the Android AdMob app/banner when absent
+        required: true
+        type: boolean
+        default: true
+      publisher_id:
+        description: AdMob publisher ID verified by app-ads.txt
+        required: true
+        type: string
+        default: pub-1217971050094766
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate AdMob configurator
+        run: |
+          python -m py_compile Scripts/configure_admob_android.py
+          python Scripts/configure_admob_android.py --help >/dev/null
+
+  configure:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate OAuth secret
+        env:
+          ADMOB_OAUTH_CREDENTIALS_JSON: ${{ secrets.ADMOB_OAUTH_CREDENTIALS_JSON }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$ADMOB_OAUTH_CREDENTIALS_JSON" ]]; then
+            echo "::error::Missing ADMOB_OAUTH_CREDENTIALS_JSON. AdMob requires user OAuth; see android/ADMOB.md for the one-time setup."
+            exit 1
+          fi
+          python - <<'PY'
+          import json, os
+          value = json.loads(os.environ["ADMOB_OAUTH_CREDENTIALS_JSON"])
+          missing = [k for k in ("client_id", "client_secret", "refresh_token") if not str(value.get(k, "")).strip()]
+          if missing:
+              raise SystemExit("ADMOB_OAUTH_CREDENTIALS_JSON is missing: " + ", ".join(missing))
+          print("AdMob OAuth credential bundle is present and structurally valid.")
+          PY
+
+      - name: Configure or verify Android AdMob inventory
+        env:
+          ADMOB_OAUTH_CREDENTIALS_JSON: ${{ secrets.ADMOB_OAUTH_CREDENTIALS_JSON }}
+          ADMOB_PUBLISHER_ID: ${{ inputs.publisher_id }}
+        run: |
+          set -euo pipefail
+          args=(--publisher-id "$ADMOB_PUBLISHER_ID" --output "$RUNNER_TEMP/eztrivia-admob.json")
+          if [[ "${{ inputs.create_missing }}" == "true" ]]; then
+            args+=(--create)
+          fi
+          python Scripts/configure_admob_android.py "${args[@]}"
+
+      - name: Show non-secret production IDs
+        run: cat "$RUNNER_TEMP/eztrivia-admob.json"
+
+      - name: Archive AdMob inventory evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: eztrivia-android-admob-inventory
+          path: ${{ runner.temp }}/eztrivia-admob.json
+          if-no-files-found: error
+          retention-days: 30

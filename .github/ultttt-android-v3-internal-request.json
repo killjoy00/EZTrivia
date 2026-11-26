@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "repository": "killjoy00/Ultttt",
+  "source_sha": "681f92cb9f573621d59fb12712f53600c632c72e",
+  "package_name": "com.killjoy00.ultttt",
+  "version_code": 3,
+  "version_name": "1.1.0-beta01",
+  "track": "internal",
+  "publish_internal": true,
+  "release_notes": "Android internal test: prepare the new banner-ad and Remove Ads purchase system. Live banners are not enabled in this build. Play Billing permission and R8 mapping included."
+}

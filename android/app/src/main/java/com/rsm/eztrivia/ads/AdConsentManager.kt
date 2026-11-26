@@ -13,10 +13,20 @@ import kotlinx.coroutines.flow.asStateFlow
 class AdConsentManager(
     private val activity: Activity,
 ) {
+    enum class BannerStatus {
+        NOT_REQUESTED,
+        LOADING,
+        LOADED,
+        FAILED,
+    }
+
     data class State(
         val canRequestAds: Boolean = false,
         val privacyOptionsRequired: Boolean = false,
         val isChecking: Boolean = true,
+        val mobileAdsInitialized: Boolean = false,
+        val bannerStatus: BannerStatus = BannerStatus.NOT_REQUESTED,
+        val bannerErrorMessage: String? = null,
         val errorMessage: String? = null,
     )
 
@@ -36,10 +46,9 @@ class AdConsentManager(
             activity,
             parameters,
             {
-                // A freshly updated consent state can say ads are requestable
-                // while UMP still has a required form to present. Wait until
-                // loadAndShowConsentFormIfRequired has definitively completed
-                // before initializing Mobile Ads or exposing canRequestAds.
+                // Complete this launch's required consent form before exposing
+                // ad eligibility or initializing Mobile Ads. If no form is
+                // required, UMP invokes this callback immediately.
                 UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
                     if (formError != null) {
                         _state.value = _state.value.copy(errorMessage = formError.message)
@@ -65,6 +74,27 @@ class AdConsentManager(
         }
     }
 
+    fun markBannerLoading() {
+        _state.value = _state.value.copy(
+            bannerStatus = BannerStatus.LOADING,
+            bannerErrorMessage = null,
+        )
+    }
+
+    fun markBannerLoaded() {
+        _state.value = _state.value.copy(
+            bannerStatus = BannerStatus.LOADED,
+            bannerErrorMessage = null,
+        )
+    }
+
+    fun markBannerFailed(message: String) {
+        _state.value = _state.value.copy(
+            bannerStatus = BannerStatus.FAILED,
+            bannerErrorMessage = message,
+        )
+    }
+
     private fun refreshState(isChecking: Boolean = _state.value.isChecking) {
         val canRequestAds = consentInformation.canRequestAds()
         val privacyRequired =
@@ -79,7 +109,9 @@ class AdConsentManager(
 
         if (canRequestAds && !didInitializeAds) {
             didInitializeAds = true
-            MobileAds.initialize(activity.applicationContext) {}
+            MobileAds.initialize(activity.applicationContext) {
+                _state.value = _state.value.copy(mobileAdsInitialized = true)
+            }
         }
     }
 }

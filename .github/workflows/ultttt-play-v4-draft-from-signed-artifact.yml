@@ -1,0 +1,77 @@
+name: Ultimate TTT v4 - Save signed Android ads build as Play draft
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ultttt-play-v4-draft-from-signed-artifact.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: ultttt-v4-play-draft-release
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate staging authorization and exact ID ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          request='.github/ultttt-android-v4-production-request.json'
+          test "$(jq -r '.enabled' "$request")" = true
+          test "$(jq -r '.package_name' "$request")" = "com.killjoy00.ultttt"
+          test "$(jq -r '.version_code' "$request")" = "4"
+          test "$(jq -r '.version_name' "$request")" = "1.1.0"
+          test "$(jq -r '.hold_for_manual_review' "$request")" = true
+          test "$(jq -r '.play_data_safety_verified' "$request")" = true
+          test "$(jq -r '.play_ads_declaration_confirmed' "$request")" = false
+          test "$(jq -r '.admob_android_app_id' "$request")" = "ca-app-pub-1217971050094766~2079128067"
+          test "$(jq -r '.admob_android_banner_unit_id' "$request")" = "ca-app-pub-1217971050094766/7292373402"
+          test -n "$(jq -r '.release_notes' "$request")"
+          echo "Only a Play draft will be saved; no rollout or automated review."
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download the exact previously tested and signed v4 bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: ultttt-google-play-v4-production-signed
+          run-id: 44682606767
+          github-token: ${{ github.token }}
+          repository: killjoy00/EZTrivia
+          path: signed-v4
+
+      - name: Reverify signed code 4 bundle and matching R8 mapping
+        shell: bash
+        run: |
+          set -euo pipefail
+          aab='signed-v4/bundle/release/app-release.aab'
+          mapping='signed-v4/mapping/release/mapping.txt'
+          test -s "$aab"
+          test -s "$mapping"
+          unzip -Z1 "$aab" | grep -Fxq 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map'
+          jarsigner -verify "$aab"
+          echo "Verified the same signed code-4 bundle and embedded obfuscation mapping."
+      - name: Prepare Google Play release notes
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/play-notes"
+          jq -r '.release_notes' .github/ultttt-android-v4-production-request.json \
+            > "$RUNNER_TEMP/play-notes/whatsnew-en-US"
+
+      - name: Save as DRAFT on Google Play production track - DO NOT ROLL OUT
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.killjoy00.ultttt
+          releaseFiles: signed-v4/bundle/release/app-release.aab
+          track: production
+          status: draft
+          releaseName: Ultimate Tic/Tac/Toe 1.1.0
+          whatsNewDirectory: ${{ runner.temp }}/play-notes

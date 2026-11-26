@@ -79,13 +79,42 @@ jobs:
           assert actual_order == expected_order, "Android flag order drifted from Swift FlagCatalog"
           PY
 
+      - name: Audit AndroidX Fragment runtime resolution
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle :app:dependencyInsight --dependency androidx.fragment:fragment --configuration releaseRuntimeClasspath --console=plain \
+            | tee "$RUNNER_TEMP/fragment-dependencies.txt"
+          if grep -Fq 'androidx.fragment:fragment:' "$RUNNER_TEMP/fragment-dependencies.txt"; then
+            if ! grep -Fq 'androidx.fragment:fragment:1.9.1' "$RUNNER_TEMP/fragment-dependencies.txt"; then
+              echo "::error::Fragment SDK did not resolve to 1.9.1."
+              exit 1
+            fi
+          fi
+
+      - name: Reject incomplete AdMob configuration for signed builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_UPLOAD_KEYSTORE_PATH="$RUNNER_TEMP/admob-guard-unused.p12"
+          export ANDROID_UPLOAD_KEYSTORE_PASSWORD="unused-test-password"
+          export ANDROID_ADMOB_APP_ID="ca-app-pub-1217971050094766~1085041409"
+          export ANDROID_ADMOB_BANNER_ID=""
+          if gradle help --console=plain > "$RUNNER_TEMP/admob-guard.txt" 2>&1; then
+            echo "::error::Signed build accepted a partial AdMob pair."
+            exit 1
+          fi
+          grep -F "Signed Android releases require a complete non-sample AdMob app/banner pair" "$RUNNER_TEMP/admob-guard.txt"
+
       - name: Unit tests
         run: gradle testDebugUnitTest --stacktrace
 
       - name: Surface unit test failures
         if: failure()
         run: |
-          find app/build/test-results/testDebugUnitTest -type f -name '*.xml' -print -exec cat {} \;
+          if [ -d app/build/test-results/testDebugUnitTest ]; then
+            find app/build/test-results/testDebugUnitTest -type f -name '*.xml' -print -exec cat {} \;
+          fi
 
       - name: Lint
         run: gradle lintDebug --stacktrace
@@ -99,8 +128,130 @@ jobs:
       - name: Assemble release APK (exercises R8)
         run: gradle assembleRelease --stacktrace
 
+      - name: Verify R8 keeps reflective WorkManager constructors
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapping="app/build/outputs/mapping/release/mapping.txt"
+          test -s "$mapping"
+
+          python3 - "$mapping" <<'PY'
+          import sys
+          from pathlib import Path
+
+          mapping = Path(sys.argv[1]).read_text(errors="replace").splitlines()
+          required = [
+              "androidx.work.impl.WorkDatabase_Impl",
+              "androidx.work.OverwritingInputMerger",
+              "androidx.work.ArrayCreatingInputMerger",
+          ]
+
+          blocks = {}
+          current = None
+          for line in mapping:
+              if line and not line[0].isspace() and " -> " in line and line.endswith(":"):
+                  current = line.split(" -> ", 1)[0]
+                  blocks[current] = []
+              elif current is not None and line[:1].isspace():
+                  blocks[current].append(line.strip())
+
+          failures = []
+          for class_name in required:
+              members = blocks.get(class_name)
+              if members is None:
+                  failures.append(f"{class_name}: class missing from release mapping")
+                  continue
+              if not any("<init>" in member for member in members):
+                  failures.append(f"{class_name}: constructor stripped by R8")
+
+          if failures:
+              print("Release reflection audit failed:")
+              for failure in failures:
+                  print(f" - {failure}")
+              raise SystemExit(1)
+
+          print("Release reflection audit passed:")
+          for class_name in required:
+              print(f" - {class_name}: constructor retained")
+          PY
+
+      - name: Audit packaged Play manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -f "$apk"
+
+          apkanalyzer="$(command -v apkanalyzer || true)"
+          if [ -z "$apkanalyzer" ]; then
+            apkanalyzer="$(find "$ANDROID_HOME/cmdline-tools" -type f -name apkanalyzer -print -quit 2>/dev/null || true)"
+          fi
+          if [ -z "$apkanalyzer" ] || [ ! -x "$apkanalyzer" ]; then
+            echo "::error::apkanalyzer is unavailable on the Android runner"
+            exit 1
+          fi
+
+          application_id="$($apkanalyzer manifest application-id "$apk")"
+          target_sdk="$($apkanalyzer manifest target-sdk "$apk")"
+          debuggable="$($apkanalyzer manifest debuggable "$apk")"
+          permissions="$($apkanalyzer manifest permissions "$apk")"
+
+          echo "Application ID: $application_id"
+          echo "Target SDK: $target_sdk"
+          echo "Debuggable: $debuggable"
+          printf '%s\n' "$permissions"
+
+          [ "$application_id" = "com.rsm.eztrivia" ] || {
+            echo "::error::Unexpected packaged application ID: $application_id"
+            exit 1
+          }
+          [ "$target_sdk" = "36" ] || {
+            echo "::error::Unexpected packaged target SDK: $target_sdk"
+            exit 1
+          }
+          [ "$debuggable" = "false" ] || {
+            echo "::error::Release APK must not be debuggable"
+            exit 1
+          }
+          grep -Fq 'com.google.android.gms.permission.AD_ID' <<< "$permissions" || {
+            echo "::error::Google Mobile Ads is present but packaged AD_ID permission is missing; Play Advertising ID declaration/release behavior would drift"
+            exit 1
+          }
+          if grep -Eq 'android\.permission\.ACCESS_(FINE|COARSE)_LOCATION' <<< "$permissions"; then
+            echo "::error::Release APK unexpectedly requests Android location permission"
+            exit 1
+          fi
+
+          {
+            echo '## Android packaged manifest audit'
+            echo
+            echo "- Application ID: **$application_id**"
+            echo "- Target SDK: **$target_sdk**"
+            echo "- Release debuggable: **$debuggable**"
+            echo '- Google Play Advertising ID permission: **present**'
+            echo '- Fine/coarse Android location permissions: **absent**'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Bundle release AAB (Play packaging check)
         run: gradle bundleRelease --stacktrace
+
+      - name: Audit native symbols for actual Android App Bundle
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Scripts/prepare_native_symbols.py \
+            --aab android/app/build/outputs/bundle/release/app-release.aab \
+            --out "$RUNNER_TEMP/android-ci-native-debug-symbols.zip" \
+            --report "$RUNNER_TEMP/android-ci-native-symbols-report.json" \
+            --intermediates android/app/build/intermediates
+          python3 - "$RUNNER_TEMP/android-ci-native-symbols-report.json" <<'PY'
+          import json
+          import sys
+          report = json.load(open(sys.argv[1]))
+          assert report["symbol_count"] > 0, "No genuine native symbols found"
+          print(f"Native symbols: {report['symbol_count']} available, {report['unavailable_count']} already stripped")
+          PY
 
       - name: Upload CI Android artifacts
         uses: actions/upload-artifact@v4
@@ -111,5 +262,8 @@ jobs:
             android/app/build/outputs/apk/release/app-release-unsigned.apk
             android/app/build/outputs/bundle/release/app-release.aab
             android/app/build/outputs/mapping/release/mapping.txt
+            ${{ runner.temp }}/fragment-dependencies.txt
+            ${{ runner.temp }}/android-ci-native-symbols-report.json
+            ${{ runner.temp }}/android-ci-native-debug-symbols.zip
           if-no-files-found: error
           retention-days: 14

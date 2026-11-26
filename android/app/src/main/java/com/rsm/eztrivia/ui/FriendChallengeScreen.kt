@@ -218,7 +218,7 @@ fun FriendChallengeHomeCard(onClick: () -> Unit) {
                 color = friendChallengeTint.copy(alpha = 0.14f),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Text("2", color = friendChallengeTint, fontWeight = FontWeight.Bold)
+                    Text("✦", color = friendChallengeTint, fontWeight = FontWeight.Bold)
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -444,6 +444,8 @@ private fun FriendChallengeRoundScreen(
                 }
             }
 
+            item { QuestionCategoryLabel(question.category) }
+
             question.visual?.let { visual ->
                 item { FriendFlagVisual(visual, answered) }
             }
@@ -565,6 +567,7 @@ private fun FriendExplanationCard(question: TriviaQuestion, selectedIndex: Int?)
                 fontWeight = FontWeight.Bold,
             )
             Text(question.explanation, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            QuestionReportButton(question, selectedIndex)
         }
     }
 }

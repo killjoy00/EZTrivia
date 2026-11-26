@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "publish_production": true,
+  "hold_for_manual_review": true,
+  "play_ads_declaration_confirmed": false,
+  "play_data_safety_verified": true,
+  "repository": "killjoy00/Ultttt",
+  "source_sha": "d59bf480f0cdf7840e4f0f6ba43b4f6c669c4f10",
+  "package_name": "com.killjoy00.ultttt",
+  "version_code": 4,
+  "version_name": "1.1.0",
+  "track": "production",
+  "admob_android_app_id": "ca-app-pub-1217971050094766~2079128067",
+  "admob_android_banner_unit_id": "ca-app-pub-1217971050094766/7292373402",
+  "remove_ads_product_id": "com.killjoy00.ultttt.remove_ads",
+  "remove_ads_usd": "1.99",
+  "release_notes": "Added a one-time Remove Ads option, updated advertising privacy choices, and improvements to the free Android experience."
+}

@@ -21,9 +21,23 @@
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="${adMobAppId}" />
+        <!-- Debug overrides this to false before Firebase's startup provider runs.
+             Release builds keep it true so even very-early startup crashes can be
+             captured once the Firebase Android config is materialized. -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="true" />
 
+        <!--
+          Trivia rounds plus Play Games, Billing, and ad/consent bridges keep
+          live session state in memory. Rotation changes are therefore handled
+          in-place instead of destroying/recreating the Activity. Compose still
+          receives the new Configuration and remeasures for the new window size.
+        -->
         <activity
             android:name=".MainActivity"
+            android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -33,10 +47,14 @@
 
         <activity
             android:name=".DailyChallengeActivity"
+            android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize"
             android:exported="false" />
 
         <activity
             android:name=".FriendChallengeActivity"
+            android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true"
             android:launchMode="singleTop">
             <intent-filter>

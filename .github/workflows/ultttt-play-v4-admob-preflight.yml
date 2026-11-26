@@ -1,0 +1,125 @@
+name: Ultimate TTT - v4 signed AdMob release preflight
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/ultttt-android-v4-production-candidate.json'
+permissions:
+  contents: read
+concurrency:
+  group: ultttt-ads-v4-preflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: main
+          fetch-depth: 0
+          path: ultttt
+
+      - name: Verify requested code 4 and exact Android AdMob IDs
+        id: ids
+        shell: bash
+        run: |
+          set -euo pipefail
+          file=.github/ultttt-android-v4-production-candidate.json
+          test -f "$file"
+          test "$(jq -r '.preflight_only' "$file")" = true
+          test "$(jq -r '.package_name' "$file")" = "com.killjoy00.ultttt"
+          test "$(jq -r '.version_code' "$file")" = "4"
+          test "$(jq -r '.version_name' "$file")" = "1.1.0"
+          source_sha="$(jq -r '.source_sha' "$file")"
+          [[ "$source_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          git -C ultttt fetch --quiet origin main
+          git -C ultttt merge-base --is-ancestor "$source_sha" origin/main || exit 1
+          git -C ultttt checkout --quiet --detach "$source_sha"
+          test "$(git -C ultttt rev-parse HEAD)" = "$source_sha"
+          app="$(jq -r '.admob_android_app_id' "$file")"
+          banner="$(jq -r '.admob_android_banner_unit_id' "$file")"
+          [[ "$app" =~ ^ca-app-pub-1217971050094766~[0-9]{10}$ ]] || exit 1
+          [[ "$banner" =~ ^ca-app-pub-1217971050094766/[0-9]{10}$ ]] || exit 1
+          test "$app" = "ca-app-pub-1217971050094766~2079128067" || exit 1
+          test "$banner" = "ca-app-pub-1217971050094766/7292373402" || exit 1
+          grep -Fq 'com.android.vending.BILLING' ultttt/android/app/src/main/AndroidManifest.xml
+          curl --fail-with-body -sS --location https://killjoy00.github.io/app-ads.txt > "$RUNNER_TEMP/app-ads.txt"
+          grep -Fxq 'google.com, pub-1217971050094766, DIRECT, f08c47fec0942fa0' "$RUNNER_TEMP/app-ads.txt"
+          echo "app_id=$app" >> "$GITHUB_OUTPUT"
+          echo "banner_id=$banner" >> "$GITHUB_OUTPUT"
+          echo "Preflight only; no Play upload on this run."
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Load existing shared Android upload signing key
+        env:
+          UPLOAD_KEY_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          UPLOAD_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$UPLOAD_KEY_B64" && test -n "$UPLOAD_PASSWORD"
+          umask 077
+          printf '%s' "$UPLOAD_KEY_B64" | base64 --decode > "$RUNNER_TEMP/ultttt-upload.p12"
+          chmod 600 "$RUNNER_TEMP/ultttt-upload.p12"
+          keytool -list -keystore "$RUNNER_TEMP/ultttt-upload.p12" \
+            -storetype PKCS12 -storepass "$UPLOAD_PASSWORD" -alias upload >/dev/null
+
+      - name: Build verified signed Android code 4 AAB with live app and banner IDs
+        working-directory: ultttt
+        env:
+          ULTTTT_VERSION_CODE: '4'
+          ULTTTT_VERSION_NAME: '1.1.0'
+          ULTTTT_REQUIRE_LIVE_ADMOB: 'true'
+          ULTTTT_ADMOB_ANDROID_APP_ID: ${{ steps.ids.outputs.app_id }}
+          ULTTTT_ADMOB_ANDROID_BANNER_UNIT_ID: ${{ steps.ids.outputs.banner_id }}
+          ANDROID_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/ultttt-upload.p12
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -p android testDebugUnitTest assembleDebug bundleRelease
+          bundle=android/app/build/outputs/bundle/release/app-release.aab
+          mapping=android/app/build/outputs/mapping/release/mapping.txt
+          test -s "$bundle" && test -s "$mapping"
+          unzip -Z1 "$bundle" | grep -Fxq 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map'
+          jarsigner -verify "$bundle"
+          release_manifest_dir=android/app/build/intermediates/merged_manifest/release
+          test -d "$release_manifest_dir"
+          grep -R -Fq 'ca-app-pub-1217971050094766~2079128067' "$release_manifest_dir"
+          if grep -R -Fq 'ca-app-pub-3940256099942544~3347511713' "$release_manifest_dir"; then
+            echo "::error::Test AdMob App ID reached merged release manifest"
+            exit 1
+          fi
+          build_config_dir=android/app/build/generated/source/buildConfig/release
+          test -d "$build_config_dir"
+          grep -R -Fq 'ca-app-pub-1217971050094766/7292373402' "$build_config_dir"
+          grep -R -Fq 'ADMOB_CONFIGURED = true' "$build_config_dir"
+          echo "Production AdMob IDs verified in actual merged release manifest and BuildConfig."
+          echo "R8 mapping embedded; signed release App Bundle verified."
+
+      - name: Archive exact tested signed production candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultttt-v4-signed-admob-preflight-not-submitted
+          path: |
+            ultttt/android/app/build/outputs/bundle/release/app-release.aab
+            ultttt/android/app/build/outputs/mapping/release/mapping.txt
+            ultttt/android/app/build/outputs/native-debug-symbols/release/*.zip
+          if-no-files-found: error
+          retention-days: 90
+      - name: Delete temporary signing keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ultttt-upload.p12"

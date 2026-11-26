@@ -26,3 +26,11 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+
+# Room and WorkManager instantiate these implementations reflectively. With the
+# AGP/R8 full-mode release shrinker, the class can survive while its no-arg
+# constructor is removed. EZ Trivia v2 crashed before MainActivity because
+# WorkDatabase_Impl had no retained constructor. Keep Room database
+# implementations and WorkManager InputMergers constructible.
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keep class * extends androidx.work.InputMerger { *; }

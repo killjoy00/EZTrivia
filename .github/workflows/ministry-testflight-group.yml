@@ -1,0 +1,34 @@
+name: Ministry TestFlight internal tester setup
+on:
+  push:
+    branches: [main]
+    paths: ['.github/ministry-testflight-group-request.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  internal-testing:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate exact app and internal-only intent
+        run: |
+          python3 - <<'PY'
+          import json,pathlib
+          r=json.loads(pathlib.Path(".github/ministry-testflight-group-request.json").read_text())
+          assert r == {"bundleID":"org.killjoy00.ministry","destination":"internal-testflight","approved":True}
+          PY
+      - name: Install Apple API client
+        run: python3 -m pip install --quiet 'PyJWT[crypto]' requests
+      - name: Ensure Ministry internal beta group and tester access
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          test -n "$ASC_KEY_ID" && test -n "$ASC_ISSUER_ID" && test -n "$ASC_KEY_P8"
+          python3 Scripts/ministry_testflight_group.py

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,6 +48,7 @@ import com.rsm.eztrivia.reminder.DailyReminderScheduler
 import com.rsm.eztrivia.reminder.NotificationPermission
 import java.text.DateFormat
 import java.util.Calendar
+import java.util.Date
 import kotlinx.coroutines.launch
 
 @Composable
@@ -57,12 +60,15 @@ fun SettingsScreen(
     onScores: () -> Unit,
 ) {
     val context = LocalContext.current
+    val activity = LocalActivity.current as? MainActivity
     val scope = rememberCoroutineScope()
     val scheduler = remember(context.applicationContext) {
         DailyReminderScheduler(context.applicationContext)
     }
-    val playGamesManager = (context as? MainActivity)?.playGamesManager
+    val playGamesManager = activity?.playGamesManager
     val playGamesConnection = playGamesManager?.connection?.collectAsState()?.value
+    val savedGamesManager = activity?.savedGamesManager
+    val savedGamesState = savedGamesManager?.state?.collectAsState()?.value
     var permissionRevision by remember { mutableIntStateOf(0) }
     val playedDays = playerState.dailyResultsByDay.keys
     val notificationsAllowed = remember(permissionRevision, settings.streakRemindersEnabled) {
@@ -87,27 +93,18 @@ fun SettingsScreen(
         },
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("Settings", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Tune the pace and feedback without changing the game.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text("Settings", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
             }
 
             item {
-                SettingsSection(title = "Gameplay") {
+                SettingsSection("Gameplay") {
                     SettingToggle(
                         title = "Auto-advance",
-                        subtitle = "Move on automatically after the explanation.",
                         checked = settings.autoAdvanceEnabled,
                         onCheckedChange = { enabled ->
                             scope.launch { settingsStore.setAutoAdvanceEnabled(enabled) }
@@ -127,39 +124,29 @@ fun SettingsScreen(
                             },
                         )
                     }
-                    Text(
-                        "The Next button always remains available. Auto-advance pauses automatically while Android touch exploration is active.",
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
 
             item {
-                SettingsSection(title = "Daily Challenge") {
+                SettingsSection("Daily Challenge") {
                     SettingToggle(
                         title = "Streak reminders",
-                        subtitle = "Only remind me when a streak of ${AppSettingsPolicy.MINIMUM_STREAK}+ days is at risk.",
                         checked = settings.streakRemindersEnabled,
                         onCheckedChange = { enabled ->
                             scope.launch { settingsStore.setStreakRemindersEnabled(enabled) }
                             if (!enabled) {
                                 scheduler.cancel()
                             } else {
-                                val needsRuntimePermission =
+                                val needsPermission =
                                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                                         ContextCompat.checkSelfPermission(
                                             context,
                                             Manifest.permission.POST_NOTIFICATIONS,
                                         ) != PackageManager.PERMISSION_GRANTED
-                                if (needsRuntimePermission) {
+                                if (needsPermission) {
                                     permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                 } else {
-                                    scheduler.refresh(
-                                        settings.copy(streakRemindersEnabled = true),
-                                        playedDays,
-                                    )
+                                    scheduler.refresh(settings.copy(streakRemindersEnabled = true), playedDays)
                                 }
                             }
                         },
@@ -179,18 +166,13 @@ fun SettingsScreen(
                                 scheduler.refresh(settings.copy(reminderHour = hour), playedDays)
                             },
                         )
-                        Text(
-                            if (notificationsAllowed) {
-                                "If today's Daily is still unplayed and your streak is on the line, Android will send one local reminder around this time."
-                            } else {
-                                "Notifications are currently blocked for EZ Trivia, so no streak reminder can appear."
-                            },
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                         if (!notificationsAllowed) {
-                            OutlinedButton(
+                            Text(
+                                "Notifications are turned off for EZ Trivia.",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            TextButton(
                                 onClick = {
                                     context.startActivity(
                                         Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
@@ -198,103 +180,79 @@ fun SettingsScreen(
                                         }
                                     )
                                 },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                            ) {
-                                Text("Open notification settings")
-                            }
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            ) { Text("Open notification settings") }
                         }
                     }
                 }
             }
 
             item {
-                SettingsSection(title = "Feedback") {
+                SettingsSection("Feedback") {
                     SettingToggle(
                         title = "Sound effects",
-                        subtitle = "Short correct, wrong, and round-complete cues.",
                         checked = settings.soundEnabled,
-                        onCheckedChange = { enabled ->
-                            scope.launch { settingsStore.setSoundEnabled(enabled) }
-                        },
+                        onCheckedChange = { scope.launch { settingsStore.setSoundEnabled(it) } },
                     )
                     HorizontalDivider()
                     SettingToggle(
                         title = "Haptics",
-                        subtitle = "Use Android's system-respecting touch feedback.",
                         checked = settings.hapticsEnabled,
-                        onCheckedChange = { enabled ->
-                            scope.launch { settingsStore.setHapticsEnabled(enabled) }
-                        },
+                        onCheckedChange = { scope.launch { settingsStore.setHapticsEnabled(it) } },
+                    )
+                }
+            }
+
+            // Android-only preference. iOS follows the OS appearance.
+            item {
+                SettingsSection("Appearance") {
+                    SettingToggle(
+                        title = "Dark mode",
+                        checked = settings.darkModeEnabled,
+                        onCheckedChange = { scope.launch { settingsStore.setDarkModeEnabled(it) } },
                     )
                 }
             }
 
             item {
-                MonetizationSettingsCard()
-            }
-
-            item {
-                SettingsSection(title = "Accessibility") {
-                    Text(
-                        "Answer choices expose their letter, text, and result state to screen readers. Question prompts are headings, touch targets use Material sizing, and auto-advance stops while touch exploration is active.",
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            item {
-                SettingsSection(title = "Google Play Games") {
+                SettingsSection("Google Play Games") {
                     when {
-                        playGamesConnection == null -> Text(
-                            "Play Games is unavailable in this activity.",
-                            modifier = Modifier.padding(16.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        playGamesConnection.isChecking -> Text(
-                            "Checking your Google Play Games profile…",
-                            modifier = Modifier.padding(16.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        playGamesConnection == null ->
+                            Text("Unavailable", modifier = Modifier.padding(16.dp))
+                        playGamesConnection.isChecking ->
+                            Text("Connecting…", modifier = Modifier.padding(16.dp))
                         playGamesConnection.isAuthenticated -> {
+                            val lastSync = savedGamesState?.lastSyncedAtMillis
                             Text(
-                                "Connected. Achievements, category lifetime scores, and today's Daily score sync automatically to Google Play Games.",
+                                when {
+                                    savedGamesState?.isSyncing == true -> "Syncing progress…"
+                                    lastSync != null -> "Progress synced ${dateTimeLabel(lastSync)}"
+                                    else -> "Connected · Progress syncs automatically"
+                                },
                                 modifier = Modifier.padding(16.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            OutlinedButton(
-                                onClick = { playGamesManager.showAchievements() },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                            ) {
-                                Text("View Play Games achievements")
-                            }
-                            OutlinedButton(
-                                onClick = { playGamesManager.showLeaderboards() },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                            ) {
-                                Text("View Play Games leaderboards")
+                            if (savedGamesState != null) {
+                                savedGamesState.errorMessage?.let { error ->
+                                    Text(
+                                        error,
+                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                TextButton(
+                                    onClick = { savedGamesManager?.syncNow() },
+                                    enabled = !savedGamesState.isSyncing,
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                ) { Text("Sync now") }
                             }
                         }
                         else -> {
-                            Text(
-                                "Not connected. Play Games normally signs in automatically; use this only to retry if automatic authentication did not complete.",
-                                modifier = Modifier.padding(16.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            OutlinedButton(
+                            Text("Not connected", modifier = Modifier.padding(16.dp))
+                            TextButton(
                                 onClick = { playGamesManager?.signIn() },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                            ) {
-                                Text("Connect Google Play Games")
-                            }
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            ) { Text("Connect Google Play Games") }
                         }
                     }
                     playGamesConnection?.errorMessage?.let { error ->
@@ -308,15 +266,7 @@ fun SettingsScreen(
                 }
             }
 
-            item {
-                SettingsSection(title = "Progress") {
-                    Text(
-                        "Gameplay history, seen questions, and settings remain stored locally on this device. When Play Games is connected, achievements and leaderboard scores are mirrored there; full cross-device gameplay sync is a separate feature.",
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            item { MonetizationSettingsCard() }
         }
     }
 }
@@ -328,7 +278,7 @@ private fun SettingsSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            title.uppercase(),
+            title,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Bold,
@@ -343,13 +293,11 @@ private fun SettingsSection(
 @Composable
 private fun SettingToggle(
     title: String,
-    subtitle: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     ListItem(
         headlineContent = { Text(title, fontWeight = FontWeight.SemiBold) },
-        supportingContent = { Text(subtitle) },
         trailingContent = {
             Switch(
                 checked = checked,
@@ -399,3 +347,6 @@ private fun hourLabel(hour: Int): String {
     }
     return DateFormat.getTimeInstance(DateFormat.SHORT).format(calendar.time)
 }
+
+private fun dateTimeLabel(millis: Long): String =
+    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(millis))

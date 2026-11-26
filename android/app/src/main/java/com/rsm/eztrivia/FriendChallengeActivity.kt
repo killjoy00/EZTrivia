@@ -4,13 +4,22 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
+import com.rsm.eztrivia.data.AppSettingsStore
 import com.rsm.eztrivia.data.PlayerStateStore
 import com.rsm.eztrivia.model.FriendChallengeLink
+import com.rsm.eztrivia.ui.EZTriviaTheme
 import com.rsm.eztrivia.ui.FriendChallengeApp
 import kotlinx.coroutines.launch
 
@@ -19,13 +28,24 @@ class FriendChallengeActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
-            MaterialTheme {
-                FriendChallengeApp(
-                    incomingUrl = incomingUrl,
-                    onIncomingUrlConsumed = { incomingUrl = null },
-                    onBackToPlay = ::returnToPlay,
-                )
+            val appearanceStore = remember(applicationContext) { AppSettingsStore(applicationContext) }
+            val appearance by appearanceStore.state.collectAsState()
+            EZTriviaTheme(darkModeEnabled = appearance.darkModeEnabled) {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .safeDrawingPadding(),
+                    ) {
+                        FriendChallengeApp(
+                            incomingUrl = incomingUrl,
+                            onIncomingUrlConsumed = { incomingUrl = null },
+                            onBackToPlay = ::returnToPlay,
+                        )
+                    }
+                }
             }
         }
         routeIncomingIntent(intent)
