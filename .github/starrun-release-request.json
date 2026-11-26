@@ -1,10 +1,10 @@
 {
   "repository": "killjoy00/StarRun",
   "bundleID": "com.rsm.starrun",
-  "sha": "2da459257bcc41484473a5209660c977cd03b89e",
-  "version": "1.4",
+  "sha": "80b033c4a84695888494d59818e583f68e88b78e",
+  "version": "1.5",
   "destination": "TestFlight",
-  "purpose": "Private TestFlight review of the updated First Flight in Star/Run PR #97.",
-  "attempt": 44,
-  "reason": "The owner requested a review build. Star/Run PR #97 is merged and all 13 active CI workflows passed."
+  "purpose": "Private TestFlight review of the Star/Run 1.5 campaign update.",
+  "attempt": 45,
+  "reason": "Owner authorized version 1.5 private testing. PRs #98 and #100 are merged, all 13 active PR #100 checks and all four exact merged-source checks passed; all Normal difficulty targets met."
 }
