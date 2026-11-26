@@ -1,0 +1,81 @@
+name: Portfolio Apple status (read only)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '11 12 * * *'
+  pull_request:
+    paths:
+      - 'Scripts/portfolio_apple_status.py'
+      - 'Scripts/test_portfolio_apple_status.py'
+      - '.github/workflows/portfolio-apple-status.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Scripts/portfolio_apple_status.py'
+      - 'Scripts/test_portfolio_apple_status.py'
+      - '.github/workflows/portfolio-apple-status.yml'
+permissions:
+  contents: read
+concurrency:
+  group: portfolio-apple-status
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s Scripts -p 'test_portfolio_apple_status.py'
+  collect:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install Apple JWT support
+        run: python3 -m pip install --quiet 'PyJWT[crypto]==2.10.1'
+      - name: Read Apple build and app version status
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: python3 Scripts/portfolio_apple_status.py "$RUNNER_TEMP/apple-status.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-apple-release-status
+          path: ${{ runner.temp }}/apple-status.json
+          retention-days: 7
+          if-no-files-found: error
+  publish:
+    needs: collect
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/download-artifact@v4
+        with:
+          name: public-apple-release-status
+          path: ${{ runner.temp }}/apple-evidence
+      - name: Validate and update only the sanitized public snapshot
+        run: |
+          set -euo pipefail
+          source="$RUNNER_TEMP/apple-evidence/apple-status.json"
+          python3 Scripts/portfolio_apple_status.py "$source" --validate
+          mkdir -p release-status
+          cp "$source" release-status/apple.json
+          git add -- release-status/apple.json
+          git diff --cached --quiet && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Refresh sanitized Apple release status"
+          git push origin HEAD:main

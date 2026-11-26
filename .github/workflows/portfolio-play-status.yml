@@ -1,0 +1,85 @@
+name: Portfolio Google Play status (read only)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 12 * * *'
+  pull_request:
+    paths:
+      - 'Scripts/portfolio_play_status.py'
+      - 'Scripts/test_portfolio_play_status.py'
+      - '.github/workflows/portfolio-play-status.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Scripts/portfolio_play_status.py'
+      - 'Scripts/test_portfolio_play_status.py'
+      - '.github/workflows/portfolio-play-status.yml'
+permissions:
+  contents: read
+concurrency:
+  group: portfolio-play-status
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s Scripts -p 'test_portfolio_play_status.py'
+  collect:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Authenticate using the existing shared publisher service account
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          credentials_json: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+      - name: Read release lifecycle without edits
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: python3 Scripts/portfolio_play_status.py "$RUNNER_TEMP/play-status.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-play-release-status
+          path: ${{ runner.temp }}/play-status.json
+          retention-days: 7
+          if-no-files-found: error
+  publish:
+    needs: collect
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/download-artifact@v4
+        with:
+          name: public-play-release-status
+          path: ${{ runner.temp }}/play-evidence
+      - name: Validate and update only the sanitized public snapshot
+        run: |
+          set -euo pipefail
+          source="$RUNNER_TEMP/play-evidence/play-status.json"
+          python3 Scripts/portfolio_play_status.py "$source" --validate
+          mkdir -p release-status
+          cp "$source" release-status/play.json
+          git add -- release-status/play.json
+          git diff --cached --quiet && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Refresh sanitized Google Play release status"
+          git push origin HEAD:main
