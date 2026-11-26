@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "apps": [
+    {
+      "id": "pack-one",
+      "name": "Pack One",
+      "source": "killjoy00/mtg-ev-analyzer",
+      "ios": {
+        "bundle": "pro.packone.app",
+        "repo": "killjoy00/mtg-ev-analyzer",
+        "workflow": "ios-testflight.yml",
+        "request": ".github/testflight-release-request.json",
+        "guide": "docs/mobile-release-runbook.md"
+      },
+      "android": {
+        "repo": "killjoy00/mtg-ev-analyzer",
+        "workflow": "android-internal-testing.yml",
+        "request": ".github/android-internal-release-request.json",
+        "guide": "docs/mobile-release-runbook.md"
+      }
+    },
+    {
+      "id": "ez-trivia",
+      "name": "EZ Trivia",
+      "source": "killjoy00/EZTrivia",
+      "ios": {
+        "bundle": "com.rsm.eztrivia",
+        "repo": "killjoy00/EZTrivia",
+        "workflow": "testflight.yml",
+        "request": ".github/eztrivia-testflight-request.json",
+        "guide": "RELEASE_SETUP.md"
+      },
+      "android": {
+        "repo": "killjoy00/EZTrivia",
+        "workflow": "android-play-internal.yml",
+        "guide": "android/PRODUCTION_RELEASE.md"
+      }
+    },
+    {
+      "id": "gold-rush",
+      "name": "Gold Rush",
+      "source": "killjoy00/GoldRush",
+      "ios": {
+        "repo": "killjoy00/GoldRush",
+        "workflow": "testflight.yml",
+        "guide": "docs/DEPLOYMENT.md"
+      },
+      "android": {
+        "repo": "killjoy00/GoldRush",
+        "workflow": "android-play-release.yml",
+        "branch": "play-release",
+        "guide": "docs/DEPLOYMENT.md"
+      }
+    },
+    {
+      "id": "ultimate-ttt",
+      "name": "Ultimate Tic/Tac/Toe",
+      "source": "killjoy00/Ultttt",
+      "ios": {
+        "bundle": "com.killjoy00.ultttt",
+        "repo": "killjoy00/EZTrivia",
+        "workflow": "ultttt-testflight.yml",
+        "request": ".github/ultttt-testflight-request.json"
+      },
+      "android": {
+        "repo": "killjoy00/EZTrivia",
+        "guide": "android/PLAY_RELEASE.md",
+        "note": "Version-specific adapters; inspect current source and approval before selecting a workflow."
+      }
+    },
+    {
+      "id": "star-run",
+      "name": "Star/Run",
+      "source": "killjoy00/StarRun",
+      "ios": {
+        "bundle": "com.rsm.starrun",
+        "repo": "killjoy00/EZTrivia",
+        "workflow": "starrun-testflight.yml",
+        "request": ".github/starrun-release-request.json",
+        "guide": "docs/NATIVE_DELIVERY.md"
+      },
+      "android": {
+        "repo": "killjoy00/EZTrivia",
+        "workflow": "starrun-play-internal.yml",
+        "request": ".github/starrun-android-release-request.json",
+        "guide": "docs/ANDROID_GOOGLE_PLAY.md"
+      }
+    },
+    {
+      "id": "ministry",
+      "name": "Ministry",
+      "source": "killjoy00/ministry",
+      "ios": {
+        "bundle": "org.killjoy00.ministry",
+        "repo": "killjoy00/EZTrivia",
+        "workflow": "ministry-testflight.yml",
+        "request": ".github/ministry-testflight-request.json"
+      },
+      "android": {
+        "repo": "killjoy00/EZTrivia",
+        "workflow": "ministry-play-internal.yml",
+        "request": ".github/ministry-android-release-request.json"
+      }
+    },
+    {
+      "id": "starport",
+      "name": "Starport",
+      "source": "killjoy00/Starport",
+      "ios": {
+        "bundle": "pro.starport.story",
+        "repo": "killjoy00/EZTrivia",
+        "workflow": "starport-testflight.yml",
+        "request": ".github/starport-release-request.json"
+      },
+      "android": {
+        "note": "No signed Android release route verified."
+      }
+    },
+    {
+      "id": "stuffy-land",
+      "name": "Stuffy Land",
+      "source": "killjoy00/Starport",
+      "ios": {
+        "bundle": "pro.stuffyland.stories",
+        "repo": "killjoy00/EZTrivia",
+        "workflow": "stuffyland-testflight.yml",
+        "request": ".github/stuffyland-release-request.json"
+      },
+      "android": {
+        "note": "No signed Android release route verified."
+      }
+    },
+    {
+      "id": "food-finder",
+      "name": "Food Finder",
+      "source": "killjoy00/foodfinder",
+      "ios": {
+        "guide": "mobile/GETTING-STARTED.md",
+        "note": "EAS documented; signed release route not verified."
+      },
+      "android": {
+        "note": "No signed Android release route verified."
+      }
+    },
+    {
+      "id": "turn-pro",
+      "name": "TurnPro",
+      "source": "killjoy00/TurnPro",
+      "ios": {
+        "note": "Future mobile app; no signed route verified."
+      },
+      "android": {
+        "note": "Future mobile app; no signed route verified."
+      }
+    }
+  ]
+}

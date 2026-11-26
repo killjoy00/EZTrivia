@@ -1,0 +1,3 @@
+# Mobile release requests
+
+Follow [CLAUDE.md](CLAUDE.md) and existing release/security rules. For portfolio release status and standardized requests see [mobile-releases/README.md](mobile-releases/README.md) and [mobile-releases/apps.json](mobile-releases/apps.json). Use the app's existing reviewed request file or authorized manual workflow; do not bypass gates, alter credentials or publish to production without explicit authorization. Treat GitHub workflow success, upload, processing, testing availability, review submission and public availability separately. The dashboard is read-only, not a publisher. For public repository output sanitize operational details and never include credentials or account/tester information.

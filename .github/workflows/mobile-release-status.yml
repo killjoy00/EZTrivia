@@ -1,0 +1,35 @@
+name: Mobile release status (read only)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'mobile-releases/**'
+      - '.github/workflows/mobile-release-status.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'mobile-releases/**'
+      - '.github/workflows/mobile-release-status.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-release-status-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate read-only report
+        run: python3 -m unittest discover -s mobile-releases -p 'test_*.py'
+      - name: Preview report (offline for PRs)
+        if: github.event_name == 'pull_request'
+        run: python3 mobile-releases/status.py >> "$GITHUB_STEP_SUMMARY"
+      - name: Refresh public evidence
+        if: github.event_name != 'pull_request'
+        run: python3 mobile-releases/status.py --live >> "$GITHUB_STEP_SUMMARY"
