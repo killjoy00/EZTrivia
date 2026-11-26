@@ -41,6 +41,8 @@ LEADERBOARDS = {
     "art": ("Art & Architecture High Scores", 1_000_000),
     "mythology": ("Mythology & Legends High Scores", 1_000_000),
     "videoGames": ("Video Games High Scores", 1_000_000),
+    "wordplay": ("Wordplay & Language High Scores", 1_000_000),
+    "technology": ("Inventions & Technology High Scores", 1_000_000),
     "daily": ("Daily Challenge", 2_000),
 }
 

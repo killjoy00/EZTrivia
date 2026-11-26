@@ -18,9 +18,9 @@ class CoreParityTest {
 
     @Test
     fun categoryRosterMatchesIos() {
-        assertEquals(16, TriviaCategory.entries.size)
+        assertEquals(18, TriviaCategory.entries.size)
         assertEquals("football", TriviaCategory.entries.first().wireName)
-        assertEquals("videoGames", TriviaCategory.entries.last().wireName)
+        assertEquals(listOf("wordplay", "technology"), TriviaCategory.entries.takeLast(2).map { it.wireName })
         assertEquals(TriviaCategory.entries, FriendChallenge.categoryRoster)
     }
 
@@ -55,7 +55,12 @@ class CoreParityTest {
             targetScore = 8,
             targetPoints = 1_350,
         )
-        assertEquals("EZ3-FXQ5-TK1V-58CG-G81A-6G4", code.displayString)
+        assertEquals("EZ4-FXQ5-TK1V-58CG-G81A-6BK", code.displayString)
+        val oldCode = "EZ3-FXQ5-TK1V-58CG-G81A-6G4"
+        val originalVersion = FriendChallengeCode.parse(oldCode)
+        assertEquals(oldCode, originalVersion?.displayString)
+        assertEquals(code.seed, originalVersion?.seed)
+        assertTrue(code.attemptId != originalVersion?.attemptId)
         assertEquals(code, FriendChallengeCode.parse(code.displayString))
     }
 

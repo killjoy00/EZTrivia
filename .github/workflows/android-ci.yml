@@ -63,8 +63,8 @@ jobs:
 
           payload = json.loads(Path(os.environ["RUNNER_TEMP"], "questions.json").read_text())
           assert payload["schemaVersion"] == 1
-          assert len(payload["questions"]) == 2341
-          assert len({q["id"] for q in payload["questions"]}) == 2341
+          assert len(payload["questions"]) == 5001
+          assert len({q["id"] for q in payload["questions"]}) == 5001
 
           flags = [q for q in payload["questions"] if q["category"] == "flags"]
           assert len(flags) == 241

@@ -13,15 +13,18 @@ import org.junit.Test
  * consumable by the Android deterministic constructor.
  */
 class FriendChallengeCatalogParityTest {
-    @Test
-    fun fullCatalogProducesStableTenQuestionChallenges() {
+    private fun bank(): List<TriviaQuestion> {
         val catalogFile = sequenceOf(
             File("build/generated/questionCatalog/questions.json"),
             File("app/build/generated/questionCatalog/questions.json"),
         ).firstOrNull(File::isFile)
         requireNotNull(catalogFile) { "generated Android question catalog was not found" }
+        return QuestionCatalog.decode(catalogFile.readText())
+    }
 
-        val bank = QuestionCatalog.decode(catalogFile.readText())
+    @Test
+    fun fullCatalogProducesStableTenQuestionChallenges() {
+        val bank = bank()
         val seeds = listOf(0UL, 1UL, 42UL, 0x123456789ABCDEF0UL, ULong.MAX_VALUE)
 
         seeds.forEach { seed ->
@@ -37,13 +40,18 @@ class FriendChallengeCatalogParityTest {
     }
 
     @Test
+    fun bothFriendChallengeVersionsMatchSwiftCatalogFixtures() {
+        val bank = bank()
+
+        assertEquals(2_589_440_570_255_946_010UL, catalogFingerprint(FriendChallenge.challenge(1UL, bank, 3)))
+        assertEquals(3_017_420_348_180_732_185UL, catalogFingerprint(FriendChallenge.challenge(1UL, bank, 4)))
+        assertEquals(14_951_453_120_897_569_346UL, catalogFingerprint(FriendChallenge.challenge(42UL, bank, 3)))
+        assertEquals(18_138_656_064_128_758_236UL, catalogFingerprint(FriendChallenge.challenge(42UL, bank, 4)))
+    }
+
+    @Test
     fun fullCatalogFlagChallengesKeepOneCorrectAndFourDistinctChoices() {
-        val catalogFile = sequenceOf(
-            File("build/generated/questionCatalog/questions.json"),
-            File("app/build/generated/questionCatalog/questions.json"),
-        ).firstOrNull(File::isFile)
-        requireNotNull(catalogFile) { "generated Android question catalog was not found" }
-        val bank = QuestionCatalog.decode(catalogFile.readText())
+        val bank = bank()
 
         val seed = (0UL..500UL).first { candidate ->
             FriendChallenge.challenge(candidate, bank).any { it.category == TriviaCategory.FLAGS }

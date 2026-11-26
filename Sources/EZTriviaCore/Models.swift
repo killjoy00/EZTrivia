@@ -1,7 +1,7 @@
 import Foundation
 
 public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendable {
-    case football, basketball, soccer, flags, history, science, movies, tv, geography, music, animals, food, literature, art, mythology, videoGames
+    case football, basketball, soccer, flags, history, science, movies, tv, geography, music, animals, food, literature, art, mythology, videoGames, wordplay, technology
 
     public var id: String { rawValue }
 
@@ -23,6 +23,8 @@ public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendabl
         case .art: "Art & Architecture"
         case .mythology: "Mythology & Legends"
         case .videoGames: "Video Games"
+        case .wordplay: "Wordplay & Language"
+        case .technology: "Inventions & Technology"
         }
     }
 
@@ -44,6 +46,8 @@ public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendabl
         case .art: "Masterpieces & monuments"
         case .mythology: "Gods, heroes & folklore"
         case .videoGames: "Consoles, classics & studios"
+        case .wordplay: "Words, expressions & scripts"
+        case .technology: "Devices, inventors & ideas"
         }
     }
 
@@ -65,6 +69,8 @@ public enum TriviaCategory: String, CaseIterable, Codable, Identifiable, Sendabl
         case .art: "paintpalette.fill"
         case .mythology: "bolt.fill"
         case .videoGames: "gamecontroller.fill"
+        case .wordplay: "textformat.abc"
+        case .technology: "lightbulb.fill"
         }
     }
 }

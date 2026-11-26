@@ -111,7 +111,7 @@ fun FriendChallengeApp(
             else -> result.fold(
                 onSuccess = { catalog ->
                     fun startRound(seed: ULong, invitation: FriendChallengeCode?) {
-                        val questions = FriendChallenge.challenge(seed, catalog)
+                        val questions = FriendChallenge.challenge(seed, catalog, invitation?.version ?: FriendChallenge.CODE_VERSION)
                         if (questions.size == FriendChallenge.QUESTION_COUNT) {
                             screen = FriendScreen.Round(seed, invitation, questions)
                         }
@@ -309,7 +309,7 @@ fun FriendChallengeLobbyScreen(
                         triedInvalidCode = false
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("EZ3-XXXX-XXXX-XXXX-XXXX-XXX") },
+                    placeholder = { Text("EZ4-XXXX-XXXX-XXXX-XXXX-XXX") },
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                 )
@@ -323,9 +323,13 @@ fun FriendChallengeLobbyScreen(
                         color = friendChallengeTint,
                     )
                 } else if (triedInvalidCode && codeText.isNotBlank()) {
-                    val message = when (FriendChallengeLink.rejectionReason(codeText)) {
+                    val message = when (val reason = FriendChallengeLink.rejectionReason(codeText)) {
                         is FriendChallengeCode.RejectionReason.UnsupportedVersion ->
-                            "That code came from an older version of EZ Trivia. Ask your friend for a new one."
+                            if (reason.version > FriendChallenge.CODE_VERSION) {
+                                "Update EZ Trivia to play this challenge."
+                            } else {
+                                "That code came from an older version of EZ Trivia. Ask your friend for a new one."
+                            }
                         else -> "That challenge link or code is incomplete or has a typo."
                     }
                     Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)

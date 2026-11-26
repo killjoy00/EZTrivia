@@ -34,8 +34,8 @@ private data class QuestionPayload(
 object QuestionCatalog {
     private val json = Json { ignoreUnknownKeys = false }
 
-    // 2341 questions is roughly a megabyte of JSON. Reading and decoding it is
-    // far too much work for a frame, and `produceState` runs its block on the
+    // Reading and decoding the bundled catalog is too much work for a frame.
+    // The `produceState` composable runs its block on the
     // composition's dispatcher -- the main thread -- so the previous blocking
     // call froze the UI behind its own loading spinner.
     //

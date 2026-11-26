@@ -37,6 +37,8 @@ CATEGORY_ORDER = [
     "art",
     "mythology",
     "videoGames",
+    "wordplay",
+    "technology",
 ]
 
 CATEGORY_TITLES = {
@@ -56,10 +58,12 @@ CATEGORY_TITLES = {
     "Art & Architecture": "art",
     "Mythology & Legends": "mythology",
     "Video Games": "videoGames",
+    "Wordplay & Language": "wordplay",
+    "Inventions & Technology": "technology",
 }
 
 DIFFICULTY_ORDER = {"easy": 0, "medium": 1, "hard": 2}
-EXPECTED_QUESTION_COUNT = 2341
+EXPECTED_QUESTION_COUNT = 5001
 EXPECTED_FLAG_COUNT = 249
 EXPECTED_ASKABLE_FLAG_COUNT = 241
 

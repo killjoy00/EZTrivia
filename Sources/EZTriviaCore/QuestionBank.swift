@@ -6,6 +6,36 @@ public enum QuestionBank {
     /// appears at more than one difficulty.
     public static let all: [TriviaQuestion] = buildAll()
 
+    /// The pre-expansion bank for Daily v2 and EZ3 Friend Challenges.
+    /// Authored questions are append-only within a tier, which also preserves IDs.
+    static let original = all.filter { question in
+        guard DailyChallenge.categoryRoster.contains(question.category) else { return false }
+        if question.category == .flags { return true }
+        let lastOrdinal = question.difficulty == .hard ? 40 : 50
+        guard let ordinal = question.id.split(separator: "-").last.flatMap({ Int($0) }) else { return false }
+        return ordinal <= lastOrdinal
+    }
+
+    /// Stable fact sources for the editorial export. Scheduled reviews are in
+    /// QuestionReviewRegistry and take precedence over these sources.
+    public static let sourceURLs: [String: String] = {
+        var sources: [String: String] = [:]
+        for (category, seeds) in seedsByCategory {
+            for difficulty in TriviaDifficulty.allCases {
+                for (offset, seed) in seeds[difficulty].enumerated() {
+                    if let source = seed.sourceURL {
+                        sources[seedID(category, difficulty, offset)] = source
+                    }
+                }
+            }
+        }
+        return sources
+    }()
+
+    private static func seedID(_ category: TriviaCategory, _ difficulty: TriviaDifficulty, _ offset: Int) -> String {
+        "\(category.rawValue)-\(difficulty.rawValue)-\(offset + 1)"
+    }
+
     /// The prompt shown for every flag question.
     ///
     /// Roughly 40 percent of the catalog is territories and dependencies rather
@@ -27,19 +57,21 @@ public enum QuestionBank {
         (.literature, LiteratureQuestions.seeds),
         (.art, ArtQuestions.seeds),
         (.mythology, MythologyQuestions.seeds),
-        (.videoGames, VideoGameQuestions.seeds)
+        (.videoGames, VideoGameQuestions.seeds),
+        (.wordplay, WordplayQuestions.seeds),
+        (.technology, TechnologyQuestions.seeds)
     ]
 
     private static func buildAll() -> [TriviaQuestion] {
         var questions: [TriviaQuestion] = []
-        questions.reserveCapacity(2100)
+        questions.reserveCapacity(5_001)
 
         for (category, seeds) in seedsByCategory {
             for difficulty in TriviaDifficulty.allCases {
                 for (offset, seed) in seeds[difficulty].enumerated() {
                     questions.append(
                         TriviaQuestion(
-                            id: "\(category.rawValue)-\(difficulty.rawValue)-\(offset + 1)",
+                            id: seedID(category, difficulty, offset),
                             category: category,
                             prompt: seed.prompt,
                             difficulty: difficulty,

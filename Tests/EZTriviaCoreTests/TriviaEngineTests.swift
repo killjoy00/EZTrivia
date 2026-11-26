@@ -133,12 +133,12 @@ import Testing
 @Test func everyCategoryHasEnoughQuestionsAtEveryDifficulty() {
     // Pinned so adding a category is a deliberate edit here rather than a
     // silent widening of every loop below.
-    #expect(TriviaCategory.allCases.count == 16)
+    #expect(TriviaCategory.allCases.count == 18)
+    #expect(QuestionBank.all.count == 5_001)
+    #expect(QuestionBank.original.count == 2_341)
     for category in TriviaCategory.allCases where category != .flags {
         for difficulty in TriviaDifficulty.allCases {
-            // Easy and medium carry the extra ten each; hard is still forty
-            // because a hard question costs far more to research well.
-            let expected = difficulty == .hard ? 40 : 50
+            let expected = difficulty == .hard ? 80 : 100
             let count = QuestionPicker.availableCount(category: category, difficulty: difficulty)
             #expect(count == expected, "\(category) \(difficulty) has \(count) questions")
         }

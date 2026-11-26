@@ -8,15 +8,14 @@ import Foundation
 /// creates a fresh random seed that the result code carries to the other player.
 public struct FriendChallenge: Sendable, Equatable {
     public static let questionCount = 10
-    public static let codeVersion = 3
-    /// Frozen for code version 3. Adding or reordering enum cases must not
-    /// silently change a challenge someone has already shared, so a catalog
-    /// change comes with a new explicit roster and a version bump together.
-    public static let categoryRoster: [TriviaCategory] = [
-        .football, .basketball, .soccer, .flags, .history, .science, .movies,
-        .tv, .geography, .music, .animals, .food, .literature, .art,
-        .mythology, .videoGames
-    ]
+    public static let codeVersion = 4
+    static let originalCodeVersion = 3
+    // Keep the order fixed for each code version.
+    public static let categoryRoster: [TriviaCategory] = DailyChallenge.categoryRoster + [.wordplay, .technology]
+
+    static func supports(_ version: Int) -> Bool {
+        version == originalCodeVersion || version == codeVersion
+    }
     public static let difficultyRamp: [TriviaDifficulty] = [
         .easy, .easy, .easy, .medium, .medium, .medium, .medium, .hard, .hard, .hard
     ]
@@ -33,11 +32,15 @@ public struct FriendChallenge: Sendable, Equatable {
     /// are not an API guarantee across Swift releases.
     public static func challenge(
         for seed: UInt64,
-        using bank: [TriviaQuestion] = QuestionBank.all
+        version: Int = codeVersion,
+        using bank: [TriviaQuestion]? = nil
     ) -> FriendChallenge {
+        let isOriginal = version <= originalCodeVersion
+        let roster = isOriginal ? DailyChallenge.categoryRoster : categoryRoster
+        let bank = bank ?? (isOriginal ? QuestionBank.original : QuestionBank.all)
         var generator = SeededGenerator(seed: seed ^ 0x4652_4945_4E44_2121)
         let categories = Array(
-            categoryRoster
+            roster
                 .deterministicallyShuffled(using: &generator)
                 .prefix(questionCount)
         )
@@ -68,12 +71,12 @@ public struct FriendChallenge: Sendable, Equatable {
 
 /// The compact hand-off between the challenger and the recipient.
 ///
-/// Format: `EZ3-XXXX-XXXX-XXXX-XXXX-XXX`
+/// Format: `EZ4-XXXX-XXXX-XXXX-XXXX-XXX`
 ///
 /// The body is Crockford Base32 so it avoids the most easily confused letters
 /// and remains practical to dictate or type. It contains a 64-bit seed, the
 /// challenger's score and weighted points, plus a checksum that catches nearly
-/// all paste and transcription errors. The version in `EZ3` is deliberately
+/// all paste and transcription errors. The version in the prefix is deliberately
 /// visible: if question selection changes in a future release, that release can
 /// reject or preserve old codes instead of silently serving different questions.
 public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
@@ -162,7 +165,7 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
         guard compact.count == prefixLength + bodyLength,
               compact.starts(with: "EZ"),
               let version = compact[2].wholeNumberValue,
-              version != FriendChallenge.codeVersion else { return .unreadable }
+              !FriendChallenge.supports(version) else { return .unreadable }
         return .unsupportedVersion(version)
     }
 
@@ -172,7 +175,9 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
         let compact = Self.normalized(rawValue)
 
         guard compact.count == Self.prefixLength + Self.bodyLength,
-              String(compact.prefix(Self.prefixLength)) == Self.prefix else { return nil }
+              compact.starts(with: "EZ"),
+              let decodedVersion = compact[2].wholeNumberValue,
+              FriendChallenge.supports(decodedVersion) else { return nil }
 
         let body = Array(compact.dropFirst(Self.prefixLength))
         guard let decodedSeed = Self.decode(Array(body[0..<13])),
@@ -188,12 +193,12 @@ public struct FriendChallengeCode: Hashable, Codable, Sendable, Identifiable {
             seed: decodedSeed,
             score: score,
             points: points,
-            version: FriendChallenge.codeVersion
+            version: decodedVersion
         ) else {
             return nil
         }
 
-        version = FriendChallenge.codeVersion
+        version = decodedVersion
         seed = decodedSeed
         targetScore = score
         targetPoints = points

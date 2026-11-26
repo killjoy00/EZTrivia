@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import EZTriviaCore
 
-private let newCategories: Set<TriviaCategory> = [.literature, .art, .mythology, .videoGames]
+private let newCategories: Set<TriviaCategory> = [.literature, .art, .mythology, .videoGames, .wordplay, .technology]
 
 private func normalizedTokens(_ value: String) -> Set<String> {
     let stopWords: Set<String> = [
@@ -147,8 +147,12 @@ private func isConspicuousLongestAnswer(_ question: TriviaQuestion) -> Bool {
         "licence", "aeroplane", "palaeontology", "artefact", "artefacts",
         "storey", "kerb", "moustache", "jewellery", "manoeuvre"
     ]
-    // Grey's Anatomy and Sydney Harbour: official names, not house style.
-    let properNouns: Set<String> = ["tv-easy-25", "art-easy-21"]
+    // Preserve official titles and names where their spelling differs.
+    let properNouns: Set<String> = [
+        "tv-easy-25", "tv-easy-70", "tv-easy-75",
+        "art-easy-21", "art-easy-90", "art-medium-95",
+        "movies-medium-51", "movies-medium-60", "history-easy-65"
+    ]
 
     for question in QuestionBank.all where !properNouns.contains(question.id) {
         let copy = ([question.prompt, question.explanation] + question.answers)

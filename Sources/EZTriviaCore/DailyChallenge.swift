@@ -78,7 +78,7 @@ public struct DailyChallenge: Sendable, Equatable {
 
     public static func today(
         in calendar: Calendar = .current,
-        using bank: [TriviaQuestion] = QuestionBank.all
+        using bank: [TriviaQuestion]? = nil
     ) -> DailyChallenge {
         challenge(for: day(for: Date(), in: calendar), using: bank)
     }
@@ -89,18 +89,19 @@ public struct DailyChallenge: Sendable, Equatable {
     /// implemented identically by Swift and Kotlin.
     public static func challenge(
         for day: Int,
-        using bank: [TriviaQuestion] = QuestionBank.all
+        using bank: [TriviaQuestion]? = nil
     ) -> DailyChallenge {
+        let catalog = bank ?? QuestionBank.original
         if day < crossPlatformStartDay {
-            return legacyChallenge(for: day, using: bank)
+            return legacyChallenge(for: day, using: catalog)
         }
-        return crossPlatformChallenge(for: day, using: bank)
+        return crossPlatformChallenge(for: day, using: catalog)
     }
 
     /// The stable v2 contract shared by iOS and Android.
     static func crossPlatformChallenge(
         for day: Int,
-        using bank: [TriviaQuestion] = QuestionBank.all
+        using bank: [TriviaQuestion] = QuestionBank.original
     ) -> DailyChallenge {
         var generator = SeededGenerator(seed: seed(for: day))
         let categories = Array(

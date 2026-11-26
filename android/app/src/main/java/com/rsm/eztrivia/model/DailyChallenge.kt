@@ -66,11 +66,12 @@ object DailyChallenge {
         return (base * 0x9E3779B97F4A7C15UL) xor 0x4441494C59212121UL
     }
 
-    fun challenge(day: Int, bank: List<TriviaQuestion>): List<TriviaQuestion> {
+    fun challenge(day: Int, catalog: List<TriviaQuestion>): List<TriviaQuestion> {
         require(isCrossPlatformDay(day)) {
             "Android Daily parity begins at day $CROSS_PLATFORM_START_DAY"
         }
 
+        val bank = originalQuestions(catalog)
         val generator = SeededGenerator(seed(day))
         val categories = categoryRoster.deterministicallyShuffled(generator).take(QUESTION_COUNT)
         val usedIds = mutableSetOf<String>()
@@ -95,6 +96,20 @@ object DailyChallenge {
         }
 
         return questions
+    }
+
+    /** The original Daily and EZ3 used the same ordered 16-category bank. */
+    internal fun originalQuestions(catalog: List<TriviaQuestion>): List<TriviaQuestion> =
+        catalog.filter { question ->
+            question.category in categoryRoster &&
+                (question.category == TriviaCategory.FLAGS ||
+                    isOriginalTextQuestion(question))
+        }
+
+    private fun isOriginalTextQuestion(question: TriviaQuestion): Boolean {
+        val lastOrdinal = if (question.difficulty == TriviaDifficulty.HARD) 40 else 50
+        val ordinal = question.id.substringAfterLast('-').toIntOrNull() ?: return false
+        return ordinal <= lastOrdinal
     }
 }
 
