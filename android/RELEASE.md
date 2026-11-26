@@ -19,12 +19,11 @@ The Gradle release build accepts release inputs through environment variables:
 - `ANDROID_ADMOB_BANNER_ID` — Android banner ad-unit ID (`ca-app-pub-.../...`)
 
 When the signing variables are absent, the release build stays unsigned. That is
-the mode used by ordinary CI. When the AdMob variables are absent, a direct
-Gradle build uses Google's official sample Android app/banner IDs so CI can
-compile, shrink, and package the advertising code without production inventory.
-The signed GitHub Play workflow is stricter: it refuses to publish a Play build
-unless both production AdMob IDs are present and belong to the expected EZ
-Trivia publisher.
+the mode used by ordinary CI. Unsigned builds with incomplete, invalid, or mixed
+AdMob IDs use the complete Google sample Android app/banner pair. A signed
+Gradle build rejects any incomplete or sample pair, or IDs from different
+publishers. The signed GitHub Play workflow additionally verifies the expected
+EZ Trivia publisher.
 
 ## 2. Build the signed Play bundle
 

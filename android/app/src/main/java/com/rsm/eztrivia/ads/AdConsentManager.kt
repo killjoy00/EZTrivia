@@ -46,7 +46,9 @@ class AdConsentManager(
             activity,
             parameters,
             {
-                refreshState()
+                // Complete this launch's required consent form before exposing
+                // ad eligibility or initializing Mobile Ads. If no form is
+                // required, UMP invokes this callback immediately.
                 UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
                     if (formError != null) {
                         _state.value = _state.value.copy(errorMessage = formError.message)

@@ -22,15 +22,29 @@ val releaseVersionName = providers.environmentVariable("EZTRIVIA_VERSION_NAME").
 val uploadKeystorePath = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PATH")
 val uploadKeystorePassword = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PASSWORD")
 
-// Ordinary CI uses Google's official sample IDs so ad/consent code is compiled
-// and R8-tested without requiring production credentials. Signed Play releases
-// should provide the Android-specific AdMob IDs through these environment vars.
-val adMobAppId = providers.environmentVariable("ANDROID_ADMOB_APP_ID").orNull
-    ?.takeIf { it.isNotBlank() }
-    ?: "ca-app-pub-3940256099942544~3347511713"
-val adMobBannerId = providers.environmentVariable("ANDROID_ADMOB_BANNER_ID").orNull
-    ?.takeIf { it.isNotBlank() }
-    ?: "ca-app-pub-3940256099942544/6300978111"
+// Ordinary CI uses the complete Google sample pair unless both production IDs
+// are valid and belong to the same publisher. Never mix sample and real IDs.
+// A signed release must have a complete, non-sample production pair.
+val samplePublisher = "ca-app-pub-3940256099942544"
+val configuredAdMobAppId = providers.environmentVariable("ANDROID_ADMOB_APP_ID").orNull
+    ?.trim()?.takeIf { it.isNotBlank() }
+val configuredAdMobBannerId = providers.environmentVariable("ANDROID_ADMOB_BANNER_ID").orNull
+    ?.trim()?.takeIf { it.isNotBlank() }
+val hasProductionAdMobPair =
+    configuredAdMobAppId != null &&
+        configuredAdMobBannerId != null &&
+        configuredAdMobAppId.matches(Regex("ca-app-pub-[0-9]+~[0-9]+")) &&
+        configuredAdMobBannerId.matches(Regex("ca-app-pub-[0-9]+/[0-9]+")) &&
+        configuredAdMobAppId.substringBefore('~') == configuredAdMobBannerId.substringBefore('/') &&
+        configuredAdMobAppId.substringBefore('~') != samplePublisher
+
+require(!(uploadKeystorePath.isPresent && uploadKeystorePassword.isPresent) || hasProductionAdMobPair) {
+    "Signed Android releases require a complete non-sample AdMob app/banner pair from the same publisher."
+}
+val adMobAppId = if (hasProductionAdMobPair) checkNotNull(configuredAdMobAppId)
+    else "ca-app-pub-3940256099942544~3347511713"
+val adMobBannerId = if (hasProductionAdMobPair) checkNotNull(configuredAdMobBannerId)
+    else "ca-app-pub-3940256099942544/6300978111"
 
 android {
     namespace = "com.rsm.eztrivia"

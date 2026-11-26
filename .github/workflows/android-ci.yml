@@ -92,6 +92,20 @@ jobs:
             fi
           fi
 
+      - name: Reject incomplete AdMob configuration for signed builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_UPLOAD_KEYSTORE_PATH="$RUNNER_TEMP/admob-guard-unused.p12"
+          export ANDROID_UPLOAD_KEYSTORE_PASSWORD="unused-test-password"
+          export ANDROID_ADMOB_APP_ID="ca-app-pub-1217971050094766~1085041409"
+          export ANDROID_ADMOB_BANNER_ID=""
+          if gradle help --console=plain > "$RUNNER_TEMP/admob-guard.txt" 2>&1; then
+            echo "::error::Signed build accepted a partial AdMob pair."
+            exit 1
+          fi
+          grep -F "Signed Android releases require a complete non-sample AdMob app/banner pair" "$RUNNER_TEMP/admob-guard.txt"
+
       - name: Unit tests
         run: gradle testDebugUnitTest --stacktrace
 
