@@ -149,6 +149,34 @@ jobs:
       - name: Verify bundle signature
         run: jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab
 
+      - name: Prepare matching native debug symbols for Play
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Scripts/prepare_native_symbols.py \
+            --aab android/app/build/outputs/bundle/release/app-release.aab \
+            --intermediates android/app/build/intermediates \
+            --out "$RUNNER_TEMP/release-native-debug-symbols.zip" \
+            --report "$RUNNER_TEMP/release-native-symbols-report.json"
+          test -s "$RUNNER_TEMP/release-native-debug-symbols.zip"
+          python3 - "$RUNNER_TEMP/release-native-symbols-report.json" <<'PY'
+          import json, sys
+          data = json.load(open(sys.argv[1]))
+          assert data["symbol_count"] > 0, "No authentic native symbols available"
+          if data["unavailable_count"]:
+              print(f"Some third-party libraries are pre-stripped: {data['unavailable_count']}; provider debug files are unavailable")
+          PY
+          unzip -l "$RUNNER_TEMP/release-native-debug-symbols.zip"
+
+      - name: Inspect signed App Bundle native symbol metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -Z -1 android/app/build/outputs/bundle/release/app-release.aab \
+            | grep -E '(^base/lib/.*\.so$|^BUNDLE-METADATA/.*debugsymbol)' \
+            | tee "$RUNNER_TEMP/release-aab-native-contents.txt"
+          echo "A separate ZIP containing matching available symbols will be uploaded with this AAB."
+
       - name: Prepare Play release notes
         env:
           RELEASE_NOTES: ${{ inputs.release_notes }}
@@ -167,6 +195,7 @@ jobs:
           releaseName: EZ Trivia ${{ inputs.version_name }} (v${{ inputs.version_code }})
           whatsNewDirectory: ${{ runner.temp }}/play-notes
           mappingFile: android/app/build/outputs/mapping/release/mapping.txt
+          debugSymbols: ${{ runner.temp }}/release-native-debug-symbols.zip
 
       - name: Archive release outputs
         uses: actions/upload-artifact@v4
@@ -175,5 +204,8 @@ jobs:
           path: |
             android/app/build/outputs/bundle/release/app-release.aab
             android/app/build/outputs/mapping/release/mapping.txt
+            ${{ runner.temp }}/release-native-debug-symbols.zip
+            ${{ runner.temp }}/release-native-symbols-report.json
+            ${{ runner.temp }}/release-aab-native-contents.txt
           if-no-files-found: error
           retention-days: 30
