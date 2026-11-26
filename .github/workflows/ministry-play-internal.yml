@@ -1,0 +1,266 @@
+name: Ministry Android Play Internal (EZTrivia shared signing)
+
+# Store credentials remain exclusively in EZTrivia, as with StarRun.
+# Only immutable, merged Ministry/main commits may be signed/published.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/ministry-android-release-request.json']
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: 'Approved 40-character commit SHA from ministry/main'
+        type: string
+        required: true
+      version_code:
+        description: 'Increasing Android versionCode'
+        type: string
+        required: true
+        default: '1'
+      version_name:
+        description: 'Player-facing versionName'
+        type: string
+        required: true
+        default: '0.1.0'
+      release_notes:
+        description: 'Internal testing release notes'
+        type: string
+        required: true
+        default: 'Initial Ministry mobile beta.'
+      publish_internal:
+        description: 'Upload AAB to Google Play internal testing, not production'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+concurrency:
+  group: ministry-google-play-internal
+  cancel-in-progress: false
+
+jobs:
+  android:
+    name: Build Play-signed Ministry from reviewed main commit
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check out Ministry main and its full ancestry
+        uses: actions/checkout@v4
+        with:
+          repository: killjoy00/ministry
+          ref: main
+          fetch-depth: 0
+          path: ministry
+          persist-credentials: false
+
+      - name: Validate source, release settings, and registered app ID
+        id: approved
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ inputs.source_sha }}
+          DISPATCH_CODE: ${{ inputs.version_code }}
+          DISPATCH_VERSION: ${{ inputs.version_name }}
+          DISPATCH_NOTES: ${{ inputs.release_notes }}
+          DISPATCH_PUBLISH: ${{ inputs.publish_internal }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            request='.github/ministry-android-release-request.json'
+            test -f "$request"
+            test "$(jq -r '.enabled // false' "$request")" = true || {
+              echo '::error::The approved Ministry Android release request is not enabled'
+              exit 1
+            }
+            SOURCE_SHA="$(jq -r '.source_sha // empty' "$request")"
+            VERSION_CODE="$(jq -r '.version_code | tostring' "$request")"
+            VERSION_NAME="$(jq -r '.version_name // empty' "$request")"
+            RELEASE_NOTES="$(jq -r '.release_notes // empty' "$request")"
+            PUBLISH="$(jq -r '.publish_internal // false | tostring' "$request")"
+          else
+            SOURCE_SHA="$DISPATCH_SHA"
+            VERSION_CODE="$DISPATCH_CODE"
+            VERSION_NAME="$DISPATCH_VERSION"
+            RELEASE_NOTES="$DISPATCH_NOTES"
+            PUBLISH="$DISPATCH_PUBLISH"
+          fi
+          [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]] || { echo '::error::Source must be a full commit SHA'; exit 1; }
+          [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]] || { echo '::error::Invalid Play version code'; exit 1; }
+          (( VERSION_CODE < 2100000000 )) || { echo '::error::Play version code too large'; exit 1; }
+          [[ "$VERSION_NAME" =~ ^[0-9][a-zA-Z0-9.+_-]{0,31}$ ]] || { echo '::error::Invalid version name'; exit 1; }
+          [[ -n "$RELEASE_NOTES" && ${#RELEASE_NOTES} -le 500 && "$RELEASE_NOTES" != *$'\n'* ]] || { echo '::error::Invalid release notes'; exit 1; }
+          [[ "$PUBLISH" == true || "$PUBLISH" == false ]] || { echo '::error::Publish must be boolean'; exit 1; }
+          git -C ministry fetch --quiet origin main
+          git -C ministry merge-base --is-ancestor "$SOURCE_SHA" origin/main || {
+            echo '::error::Refusing unmerged or unapproved Ministry source'
+            exit 1
+          }
+          git -C ministry checkout --quiet --detach "$SOURCE_SHA"
+          test "$(git -C ministry rev-parse HEAD)" = "$SOURCE_SHA"
+          grep -Fq 'name="Android Play AAB"' ministry/export_presets.cfg
+          grep -Fq 'package/unique_name="org.killjoy00.ministry"' ministry/export_presets.cfg
+          grep -Fq 'gradle_build/target_sdk="36"' ministry/export_presets.cfg
+          grep -Fq 'gradle_build/export_format=1' ministry/export_presets.cfg
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "publish_internal=$PUBLISH" >> "$GITHUB_OUTPUT"
+          {
+            echo 'release_notes<<EOFNOTES'
+            echo "$RELEASE_NOTES"
+            echo 'EOFNOTES'
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android 16 build tools and official Godot 4.7.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ANDROID_HOME:?}"
+          sdkmanager_bin="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -x "$sdkmanager_bin"
+          "$sdkmanager_bin" --sdk_root="$ANDROID_HOME" --install \
+            'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' \
+            'ndk;28.1.13356709' 'cmake;3.10.2.4988404'
+          base='https://github.com/godotengine/godot/releases/download/4.7.2-stable'
+          mkdir -p "$RUNNER_TEMP/ministry-godot" "$HOME/.local/share/godot/export_templates/4.7.2.stable"
+          curl -fsSL --retry 3 "$base/Godot_v4.7.2-stable_linux.x86_64.zip" -o "$RUNNER_TEMP/ministry-godot/engine.zip"
+          curl -fsSL --retry 3 "$base/Godot_v4.7.2-stable_export_templates.tpz" -o "$RUNNER_TEMP/ministry-godot/templates.tpz"
+          unzip -q "$RUNNER_TEMP/ministry-godot/engine.zip" -d "$RUNNER_TEMP/ministry-godot"
+          chmod +x "$RUNNER_TEMP/ministry-godot/Godot_v4.7.2-stable_linux.x86_64"
+          ln -s "$RUNNER_TEMP/ministry-godot/Godot_v4.7.2-stable_linux.x86_64" "$RUNNER_TEMP/ministry-godot/godot"
+          echo "$RUNNER_TEMP/ministry-godot" >> "$GITHUB_PATH"
+          unzip -oqj "$RUNNER_TEMP/ministry-godot/templates.tpz" \
+            'templates/android_source.zip' 'templates/android_release.apk' 'templates/android_debug.apk' \
+            -d "$HOME/.local/share/godot/export_templates/4.7.2.stable"
+          mkdir -p "$HOME/.config/godot"
+          printf '[gd_resource type="EditorSettings" format=3]\n[resource]\nexport/android/android_sdk_path="%s"\nexport/android/java_sdk_path="%s"\n' \
+            "$ANDROID_HOME" "$JAVA_HOME" > "$HOME/.config/godot/editor_settings-4.tres"
+
+      - name: Validate shared EZTrivia upload keystore and Play service account
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          PLAY_CREDENTIALS: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64" || { echo '::error::Missing EZTrivia Android keystore'; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo '::error::Missing EZTrivia keystore password'; exit 1; }
+          test -n "$PLAY_CREDENTIALS" || { echo '::error::Missing EZTrivia Play API service account'; exit 1; }
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ministry-upload.p12"
+          keytool -list -keystore "$RUNNER_TEMP/ministry-upload.p12" \
+            -storetype PKCS12 -storepass "$KEYSTORE_PASSWORD" -alias upload > /dev/null
+          chmod 600 "$RUNNER_TEMP/ministry-upload.p12"
+
+      - name: Import, install Gradle template and prepare Play version
+        working-directory: ministry
+        shell: bash
+        env:
+          VERSION_CODE: ${{ steps.approved.outputs.version_code }}
+          VERSION_NAME: ${{ steps.approved.outputs.version_name }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re,pathlib
+          path=pathlib.Path('export_presets.cfg')
+          s=path.read_text()
+          head,sep,tail=s.partition('[preset.4.options]')
+          assert sep, 'Godot Android Play AAB preset not found'
+          tail,n=re.subn(r'(?m)^version/code=[0-9]+$', 'version/code='+os.environ['VERSION_CODE'], tail, count=1)
+          assert n==1
+          tail,n=re.subn(r'(?m)^version/name="[^"]*"$', 'version/name="'+os.environ['VERSION_NAME']+'"', tail, count=1)
+          assert n==1
+          path.write_text(head+sep+tail)
+          PY
+          godot --headless --path . --editor --import --quit
+          template="$HOME/.local/share/godot/export_templates/4.7.2.stable/android_source.zip"
+          mkdir -p android/build
+          unzip -oq "$template" -d android/build
+          printf '4.7.2.stable\n' > android/.build_version
+          touch android/build/.gdignore
+          chmod +x android/build/gradlew
+          # Portrait must not become a required physical hardware feature.
+          python3 - <<'PY'
+          import pathlib,re
+          p=pathlib.Path('android/build/src/main/AndroidManifest.xml')
+          s=p.read_text()
+          feature='android.hardware.screen.portrait'
+          if feature in s:
+              s=re.sub(r'(<uses-feature[^>]*android:name="'+feature+r'"[^>]*android:required=")[^"]+(")', r'\g<1>false\g<2>', s)
+          else:
+              assert '<application' in s
+              s=s.replace('<application','<uses-feature android:name="android.hardware.screen.portrait" android:required="false" />\n    <application',1)
+          p.write_text(s)
+          PY
+
+      - name: Build persistent-upload-key signed AAB
+        working-directory: ministry
+        shell: bash
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/ministry-upload.p12
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: upload
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/android
+          godot --headless --path . --export-release 'Android Play AAB' build/android/Ministry.aab
+          test -s build/android/Ministry.aab
+          unzip -tq build/android/Ministry.aab
+          unzip -Z -1 build/android/Ministry.aab | grep -Fxq 'base/manifest/AndroidManifest.xml'
+          jarsigner -verify build/android/Ministry.aab
+
+      - name: Upload signed candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ministry-signed-play-${{ steps.approved.outputs.version_code }}-${{ github.run_number }}
+          path: ministry/build/android/Ministry.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Prepare Play internal release notes
+        if: steps.approved.outputs.publish_internal == 'true'
+        shell: bash
+        env:
+          RELEASE_NOTES: ${{ steps.approved.outputs.release_notes }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/ministry-play-notes"
+          printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/ministry-play-notes/whatsnew-en-US"
+
+      - name: Upload only to Ministry Google Play INTERNAL testing
+        if: steps.approved.outputs.publish_internal == 'true'
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: org.killjoy00.ministry
+          releaseFiles: ministry/build/android/Ministry.aab
+          track: internal
+          status: completed
+          releaseName: Ministry ${{ steps.approved.outputs.version_name }} (v${{ steps.approved.outputs.version_code }})
+          whatsNewDirectory: ${{ runner.temp }}/ministry-play-notes
+
+      - name: Release summary
+        if: always()
+        env:
+          SOURCE: ${{ steps.approved.outputs.source_sha }}
+          PUBLISH: ${{ steps.approved.outputs.publish_internal }}
+        run: |
+          echo '## Ministry Android release' >> "$GITHUB_STEP_SUMMARY"
+          echo "- Approved Ministry/main SHA: $SOURCE" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Destination: Google Play INTERNAL only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Upload requested: $PUBLISH" >> "$GITHUB_STEP_SUMMARY"
+          echo 'If Play rejects the existing upload certificate or API access, update the Ministry app settings in Play Console. Do not duplicate signing secrets.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete temporary keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ministry-upload.p12"

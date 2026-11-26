@@ -2,8 +2,9 @@ name: TestFlight
 
 # Uploads a signed build to TestFlight.
 #
-# Runs only on manual dispatch or a v* tag — never on ordinary pushes. Every
-# upload consumes a build number and notifies testers.
+# Runs on manual dispatch, a v* tag, or a reviewed release-request file merged
+# into main. Ordinary app-code pushes and pull requests never upload a build.
+# Every upload consumes a build number and notifies testers.
 #
 # Signing is entirely cloud-based: -allowProvisioningUpdates with an App Store
 # Connect API key creates the certificate and provisioning profile on demand.
@@ -19,14 +20,62 @@ on:
   workflow_dispatch:
   push:
     tags: ["v*"]
+    branches: [main]
+    paths:
+      - ".github/eztrivia-testflight-request.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eztrivia-testflight-upload
+  cancel-in-progress: false
 
 jobs:
   testflight:
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Main-branch release requests are reviewable PR changes. A changed
+      # request file is the only additional automatic TestFlight trigger.
+      - name: Validate reviewed EZ Trivia TestFlight request
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import re
+
+          path = pathlib.Path(".github/eztrivia-testflight-request.json")
+          request = json.loads(path.read_text())
+          expected = {
+              "app": "EZTrivia",
+              "bundleID": "com.rsm.eztrivia",
+              "channel": "testflight",
+          }
+          for name, value in expected.items():
+              if request.get(name) != value:
+                  raise SystemExit(f"Unexpected TestFlight request {name}; refusing upload")
+          if not re.fullmatch(r"[a-z0-9][a-z0-9-]{8,79}", request.get("releaseReason", "")):
+              raise SystemExit("TestFlight releaseReason must be a descriptive release identifier")
+          requested_version = request.get("version", "")
+          if not re.fullmatch(r"[1-9][0-9]*\.[0-9]+\.[0-9]+", requested_version):
+              raise SystemExit("TestFlight request must specify a numeric iOS version such as 1.3.1")
+          # Check both Release and Debug Xcode marketing versions. A stale
+          # version can archive successfully, but Apple rejects upload if its
+          # pre-release train has already closed after approval.
+          project = pathlib.Path("EZTrivia.xcodeproj/project.pbxproj").read_text()
+          project_versions = re.findall(r"MARKETING_VERSION\s*=\s*([0-9]+\.[0-9]+\.[0-9]+);", project)
+          if len(project_versions) != 2 or any(v != requested_version for v in project_versions):
+              raise SystemExit(f"TestFlight requested {requested_version}, but Xcode marketing versions are {project_versions}")
+          print(f"Approved in-repository EZ Trivia TestFlight request verified: iOS {requested_version}.")
+          PY
 
       # Fail early and readably rather than as a cryptic signing error forty
       # lines into an xcodebuild log.
@@ -91,12 +140,19 @@ jobs:
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          # Apple requires the iOS 26 SDK or later for any App Store upload:
-          # a build made with 18.5 is rejected at validation with a 409. Pinned
-          # to the 26 major so patch updates to the runner image are tolerated
+          # Apple requires the iOS 27 SDK or later from April 2027:
+          # the release job must reject older toolchains. Pinned
+          # to the 27 major so patch updates to the runner image are tolerated
           # but the SDK floor is never crossed downward. The probe step reports
           # what is actually installed if this ever needs raising.
-          xcode-version: '26'
+          xcode-version: '27'
+      - name: Verify App Store iOS SDK floor
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          major="${sdk%%.*}"
+          if (( major < 27 )); then echo "::error::iOS 27 SDK required, found $sdk"; exit 1; fi
 
       - name: Install xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify

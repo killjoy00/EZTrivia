@@ -1,0 +1,93 @@
+name: Ultimate Tic/Tac/Toe App Store preflight
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/ultttt-release-request.json"
+      - ".github/workflows/ultttt-app-store.yml"
+      - "Scripts/ultttt_preflight.py"
+      - "Scripts/ultttt_configure.py"
+      - "Scripts/ultttt_iap_price.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ultttt-apple-preflight
+  cancel-in-progress: false
+jobs:
+  inspect:
+    name: Check new Apple app using shared EZTrivia credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate approved immutable release
+        id: approved
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, pathlib, re
+          r=json.loads(pathlib.Path(".github/ultttt-release-request.json").read_text())
+          assert r["repository"]=="killjoy00/Ultttt"
+          assert r["bundleID"]=="com.killjoy00.ultttt"
+          assert r["appName"]=="Ultimate Tic/Tac/Toe"
+          assert r["mode"] in ("inspect","configure","price")
+          print("mode="+r["mode"])
+          assert re.fullmatch(r"[a-f0-9]{40}",r["sha"])
+          print("sha="+r["sha"])
+          PY
+      - name: Checkout pinned Ultttt source for verification
+        uses: actions/checkout@v4
+        with:
+          repository: killjoy00/Ultttt
+          ref: ${{ steps.approved.outputs.sha }}
+          path: ultttt
+          persist-credentials: false
+      - name: Assert bundle ID and App Store name match
+        run: |
+          set -euo pipefail
+          test "$(git -C ultttt rev-parse HEAD)" = "${{ steps.approved.outputs.sha }}"
+          grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER: com.killjoy00.ultttt' ultttt/project.yml
+          grep -Fq 'CFBundleDisplayName: Ultimate Tic/Tac/Toe' ultttt/project.yml
+          python3 - <<'PY'
+          import json
+          a=json.load(open("ultttt/docs/app-store/en-US.json"))
+          assert a["appName"]=="Ultimate Tic/Tac/Toe" and a["bundleID"]=="com.killjoy00.ultttt"
+          print("Pinned Apple app identity matches the iOS source.")
+          PY
+      - name: Verify existing Apple secrets (never print values)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID" || { echo "::error::Missing ASC_KEY_ID"; exit 1; }
+          test -n "$ASC_ISSUER_ID" || { echo "::error::Missing ASC_ISSUER_ID"; exit 1; }
+          test -n "$ASC_KEY_P8" || { echo "::error::Missing ASC_KEY_P8"; exit 1; }
+          test -n "$APPLE_TEAM_ID" || { echo "::error::Missing APPLE_TEAM_ID"; exit 1; }
+          echo "All four shared Apple credentials are available."
+      - name: Install App Store Connect API client
+        run: python3 -m pip install --quiet 'PyJWT[crypto]' requests pillow
+      - name: Inspect Apple resources without changing anything
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: python3 Scripts/ultttt_preflight.py
+      - name: Prepare App Store listing, Game Center and Remove Ads draft
+        if: steps.approved.outputs.mode == 'configure'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: python3 Scripts/ultttt_configure.py
+      - name: Apply approved $1.99 Remove Ads price and verify Apple readback
+        if: steps.approved.outputs.mode == 'price'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: python3 Scripts/ultttt_iap_price.py

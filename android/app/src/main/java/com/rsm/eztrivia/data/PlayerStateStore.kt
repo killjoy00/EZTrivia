@@ -99,6 +99,13 @@ data class PlayerState(
     fun seenQuestions(category: TriviaCategory, difficulty: TriviaDifficulty): Set<String> =
         seenQuestionIds[PlayerStateReducer.cacheKey(category, difficulty)].orEmpty()
 
+    /** The best percentage among the 50 recent category rounds, matching iOS ScoreStore. */
+    fun bestCategoryScore(category: TriviaCategory, difficulty: TriviaDifficulty): Int? =
+        recentCategoryResults.asSequence()
+            .filter { it.category == category.wireName && it.difficulty == difficulty.wireName }
+            .map(CategoryRoundResult::percentage)
+            .maxOrNull()
+
     fun dailyResult(day: Int): DailyResult? = dailyResultsByDay[day]
 
     fun dailyStreak(today: Int): Int = DailyStreak.current(dailyResultsByDay.keys, today)

@@ -6,11 +6,23 @@
 	<false/>
 	<key>NSPrivacyTrackingDomains</key>
 	<array/>
-	<!-- The app ships no analytics or crash-reporting SDK and collects nothing
-	     itself. GoogleMobileAds declares its own collection in the privacy
-	     manifest bundled with that SDK; Apple aggregates the two at submission. -->
+	<!-- First-party iCloud Key-Value Storage synchronizes saved gameplay.
+	     Google Mobile Ads and UMP declare their own SDK collection separately. -->
 	<key>NSPrivacyCollectedDataTypes</key>
-	<array/>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeGameplayContent</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<!-- ScoreStore keeps the local leaderboard and the seen-question set in

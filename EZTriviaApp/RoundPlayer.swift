@@ -11,6 +11,7 @@ struct RoundPlayer: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var scores: ScoreStore
     @Binding var engine: TriviaEngine
+    let roundKind: TriviaRoundKind
     let tint: Color
     /// Label for the final button of the round.
     let finishTitle: String
@@ -24,6 +25,21 @@ struct RoundPlayer: View {
                 VStack(spacing: answered ? 14 : 20) {
                     header
                     if let question = engine.currentQuestion {
+                        if roundKind.showsQuestionCategory {
+                            HStack {
+                                Text(question.category.title)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(tint)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        tint.opacity(0.13),
+                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    )
+                                    .accessibilityLabel("Category: \(question.category.title)")
+                                Spacer(minLength: 0)
+                            }
+                        }
                         if let visual = question.visual {
                             QuestionVisual(value: visual, maxHeight: visualHeight(fitting: proxy.size.height))
                         }

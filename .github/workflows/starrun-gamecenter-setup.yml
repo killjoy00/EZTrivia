@@ -1,0 +1,92 @@
+name: StarRun Game Center setup
+on:
+  push:
+    branches: [main]
+    paths: ['.github/starrun-gamecenter-request.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: starrun-gamecenter-setup
+  cancel-in-progress: false
+jobs:
+  setup:
+    name: Provision UTC Daily board and achievements
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate approved immutable source
+        id: approved
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json,pathlib,re
+          p=pathlib.Path(".github/starrun-gamecenter-request.json")
+          if not p.is_file():
+              raise SystemExit("No approved StarRun Game Center request found")
+          d=json.loads(p.read_text())
+          assert d.get("repository")=="killjoy00/StarRun"
+          assert d.get("bundleID")=="com.rsm.starrun"
+          assert re.fullmatch("[0-9a-f]{40}",d.get("sha",""))
+          print("sha="+d["sha"])
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/StarRun
+          ref: ${{ steps.approved.outputs.sha }}
+          path: starrun
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install client dependencies and badge renderer
+        run: pip install --quiet "pyjwt[crypto]" requests pillow
+      - name: Generate 1024px RGB artwork for 17 Apple achievements
+        run: python3 starrun/tools/render_game_center_artwork.py
+      - name: Validate existing shared Apple API credentials
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID"
+          test -n "$ASC_ISSUER_ID"
+          test -n "$ASC_KEY_P8"
+          mkdir -p "$HOME/private_keys"
+          key="$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          if ! grep -q BEGIN "$key" && grep -q '\\n' "$key"; then
+            printf '%b' "$(cat "$key")" > "$key.tmp" && mv "$key.tmp" "$key"
+          fi
+          if ! grep -q BEGIN "$key" && base64 -d < "$key" > "$key.tmp" 2>/dev/null; then
+            if grep -q BEGIN "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi
+          fi
+          if ! grep -q BEGIN "$key"; then
+            body=$(tr -d '\n\r ' < "$key")
+            { echo '-----BEGIN PRIVATE KEY-----'
+              echo "$body" | fold -w 64
+              echo '-----END PRIVATE KEY-----'; } > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          chmod 600 "$key"
+          openssl pkey -in "$key" -noout
+          echo "Existing Apple key parsed"
+      - name: Provision online Daily board and Apple achievement metadata
+        working-directory: starrun
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_PATH: /home/runner/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+        run: python3 tools/provision_game_center.py
+      - name: Preserve Apple-required badge artwork
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarRun-GameCenter-artwork-1024
+          path: starrun/build/game-center-artwork
+          if-no-files-found: ignore
+          retention-days: 45

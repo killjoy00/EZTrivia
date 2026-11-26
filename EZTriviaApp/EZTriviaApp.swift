@@ -26,11 +26,17 @@ struct EZTriviaApp: App {
                 .environmentObject(streakReminder)
                 .environmentObject(reviewPrompt)
                 .environmentObject(purchases)
-                .task { await purchases.start() }
+                .task {
+                    // Resolve the paid Remove Ads entitlement before initializing
+                    // any advertising SDK or asking for advertising tracking.
+                    await purchases.start()
+                    if !purchases.hasRemovedAds {
+                        adConsent.configure()
+                    }
+                }
                 .tint(.indigo)
                 .onAppear {
                     gameCenter.authenticate()
-                    adConsent.configure()
                 }
                 // Rescheduled on the way out as well as on the way in: the
                 // reminder is a promise about a day that may turn over while

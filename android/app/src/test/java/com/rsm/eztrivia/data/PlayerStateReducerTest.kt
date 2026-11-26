@@ -5,6 +5,7 @@ import com.rsm.eztrivia.model.TriviaCategory
 import com.rsm.eztrivia.model.TriviaDifficulty
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -195,4 +196,21 @@ class PlayerStateReducerTest {
         assertEquals(original.playedCategoryRawValues, cleared.playedCategoryRawValues)
         assertEquals(original.perfectDifficultyRawValues, cleared.perfectDifficultyRawValues)
     }
+    @Test
+    fun homeCategoryBestScoresMatchIosRecentHistory() {
+        val state = PlayerState(
+            recentCategoryResults = listOf(
+                CategoryRoundResult("science-easy-1", "science", "easy", 3, 10, 100),
+                CategoryRoundResult("science-easy-2", "science", "easy", 9, 10, 200),
+                CategoryRoundResult("science-medium", "science", "medium", 7, 10, 300),
+                CategoryRoundResult("history-easy", "history", "easy", 10, 10, 400),
+            ),
+        )
+
+        assertEquals(90, state.bestCategoryScore(TriviaCategory.SCIENCE, TriviaDifficulty.EASY))
+        assertEquals(70, state.bestCategoryScore(TriviaCategory.SCIENCE, TriviaDifficulty.MEDIUM))
+        assertNull(state.bestCategoryScore(TriviaCategory.SCIENCE, TriviaDifficulty.HARD))
+        assertNull(state.bestCategoryScore(TriviaCategory.HISTORY, TriviaDifficulty.HARD))
+    }
+
 }

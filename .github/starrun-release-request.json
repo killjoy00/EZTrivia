@@ -1,0 +1,10 @@
+{
+  "repository": "killjoy00/StarRun",
+  "bundleID": "com.rsm.starrun",
+  "sha": "2da459257bcc41484473a5209660c977cd03b89e",
+  "version": "1.4",
+  "destination": "TestFlight",
+  "purpose": "Private TestFlight review of the updated First Flight in Star/Run PR #97.",
+  "attempt": 44,
+  "reason": "The owner requested a review build. Star/Run PR #97 is merged and all 13 active CI workflows passed."
+}

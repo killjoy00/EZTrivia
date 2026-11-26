@@ -1,0 +1,6 @@
+{
+  "purpose": "Diagnose Apple signing-certificate cap blocking Stuffy Land 0.1.3",
+  "runType": "READ_ONLY",
+  "noMutations": true,
+  "relatedRun": "https://github.com/killjoy00/EZTrivia/actions/runs/42936042308"
+}

@@ -56,3 +56,11 @@ import Testing
     #expect(FriendChallengeLink.code(from: URL(string: "eztrivia://settings")!) == nil)
     #expect(FriendChallengeLink.code(from: URL(string: "eztrivia://challenge/not-a-code")!) == nil)
 }
+
+@Test func categoryContextIsVisibleOnlyInMixedQuestionRounds() {
+    #expect(TriviaRoundKind.allCases.count == 4)
+    #expect(!TriviaRoundKind.category.showsQuestionCategory)
+    #expect(TriviaRoundKind.quickPlay.showsQuestionCategory)
+    #expect(TriviaRoundKind.dailyChallenge.showsQuestionCategory)
+    #expect(TriviaRoundKind.friendChallenge.showsQuestionCategory)
+}

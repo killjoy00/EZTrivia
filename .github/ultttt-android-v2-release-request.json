@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "repository": "killjoy00/Ultttt",
+  "source_sha": "9f9d46d050521cc2a53b9533df0a468c98e2a6ee",
+  "package_name": "com.killjoy00.ultttt",
+  "version_code": 2,
+  "version_name": "1.0.1",
+  "track": "production",
+  "publish_production": true,
+  "release_notes": "Nine boards, one big win. Play against three computer difficulty levels or pass-and-play with a friend. Includes saved games, undo, replay, light and dark themes, and improved turn highlighting.",
+  "retry_attempt": 2,
+  "review_submission": "manual_play_console_send_for_review_after_commit"
+}

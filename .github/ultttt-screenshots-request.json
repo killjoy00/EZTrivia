@@ -1,0 +1,16 @@
+{
+  "repository": "killjoy00/Ultttt",
+  "sha": "e741f4489242c27aac16b9525bf1ebae8d28113c",
+  "bundleID": "com.killjoy00.ultttt",
+  "appName": "Ultimate Tic/Tac/Toe",
+  "version": "1.0",
+  "mode": "apply",
+  "displayType": "APP_IPHONE_67",
+  "screens": [
+    "board",
+    "setup",
+    "tutorial",
+    "statistics",
+    "settings"
+  ]
+}

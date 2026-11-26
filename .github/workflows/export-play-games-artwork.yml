@@ -1,0 +1,60 @@
+name: Export existing EZ Trivia graphics for Play Games setup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/export-play-games-artwork.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    name: Generate reusable game icon and feature graphic
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install asset generator dependency
+        run: python -m pip install --disable-pip-version-check pillow
+      - name: Generate exact existing Google Play assets
+        run: |
+          python Scripts/make_play_store_icon.py
+          python Scripts/make_play_feature_graphic.py
+          mkdir -p docs/play-games-assets
+          cp play-store-assets/icon.png docs/play-games-assets/game-icon.png
+          cp play-store-assets/feature-graphic.png docs/play-games-assets/feature-graphic.png
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          icon = Path('docs/play-games-assets/game-icon.png')
+          with Image.open(icon) as im:
+              # PGS explicitly accepts 32-bit PNG, whereas its feature graphic needs 24-bit.
+              im.convert('RGBA').save(icon, format='PNG', optimize=True)
+          for name, size, mode in (('game-icon.png', (512, 512), 'RGBA'), ('feature-graphic.png', (1024, 500), 'RGB')):
+              path = Path('docs/play-games-assets') / name
+              with Image.open(path) as im:
+                  assert im.size == size, (name, im.size)
+                  assert im.mode == mode, (name, im.mode)
+              assert path.stat().st_size < 1024 * 1024, (name, path.stat().st_size)
+              print(f'{path}: {size}, {path.stat().st_size} bytes')
+          PY
+      - name: Commit reusable assets to the repository
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/play-games-assets/game-icon.png docs/play-games-assets/feature-graphic.png
+          if git diff --cached --quiet; then
+            echo 'Graphics are already up to date.'
+          else
+            git commit -m 'docs: publish existing EZ Trivia game graphics [skip ci]'
+            git push origin HEAD:main
+          fi

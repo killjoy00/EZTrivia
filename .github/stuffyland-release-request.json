@@ -1,0 +1,16 @@
+{
+  "repository": "killjoy00/Starport",
+  "bundleID": "pro.stuffyland.stories",
+  "sha": "eece48722afaa422d5d9eec9389b6181a10e9ba3",
+  "version": "0.1.4",
+  "destination": "TestFlight",
+  "purpose": "Stuffy Land 0.1.4: add the author's complete 3,447-word Opal and the Great Stuffy Land Wobble-Palooza as a 19-section read-along, retaining every paragraph verbatim, bookmarks and on-device Read to Me. No live ads.",
+  "validation": {
+    "pullRequest": "https://github.com/killjoy00/Starport/pull/18",
+    "storyTests": "https://github.com/killjoy00/Starport/actions/runs/42955679830",
+    "nativeBuild": "https://github.com/killjoy00/Starport/actions/runs/42955679830",
+    "productionAdsEnabled": false
+  },
+  "attempt": 9,
+  "reason": "Release user-supplied original Wobble-Palooza read-along from immutable merged app commit using proven TestFlight automatic signing, without changing StarPort or production ad settings."
+}

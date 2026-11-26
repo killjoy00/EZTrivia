@@ -17,13 +17,14 @@ permissions:
 
 jobs:
   system-bars:
-    name: System bars (${{ matrix.navigation }})
+    name: System bars (API ${{ matrix.api }}, ${{ matrix.navigation }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         navigation: [gestural, threebutton]
+        api: [35, 36]
 
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +47,7 @@ jobs:
       - name: Verify controls stay clear of Android navigation UI
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api }}
           target: google_apis
           arch: x86_64
           profile: pixel_2
@@ -58,7 +59,7 @@ jobs:
             adb shell cmd overlay enable-exclusive --category "com.android.internal.systemui.navbar.${{ matrix.navigation }}"
             sleep 3
             adb shell cmd overlay list | grep -E "\[x\].*${{ matrix.navigation }}"
-            gradle -p android connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.rsm.eztrivia.MainSystemBarInsetsTest,com.rsm.eztrivia.DailySystemBarInsetsTest,com.rsm.eztrivia.FriendSystemBarInsetsTest --stacktrace
+            gradle -p android connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.rsm.eztrivia.MainSystemBarInsetsTest,com.rsm.eztrivia.DailySystemBarInsetsTest,com.rsm.eztrivia.FriendSystemBarInsetsTest,com.rsm.eztrivia.ScoresParityNavigationTest,com.rsm.eztrivia.SettingsParityNavigationTest --stacktrace
 
       - name: Surface instrumentation results
         if: always()

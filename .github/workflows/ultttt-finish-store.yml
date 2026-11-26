@@ -1,0 +1,49 @@
+name: Ultimate Tic/Tac/Toe finish App Store draft
+
+# Uses existing Apple account credentials to complete only game metadata and
+# an internal TestFlight group. Never sends anything for public review.
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ultttt-finish-store.yml"
+      - "Scripts/ultttt_finish_store.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: ultttt-finish-store-draft
+  cancel-in-progress: false
+
+jobs:
+  apple-metadata:
+    name: Save age rating, Board category and internal TestFlight group
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Ensure existing Apple credentials are available
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          test -n "$ASC_KEY_ID"
+          test -n "$ASC_ISSUER_ID"
+          test -n "$ASC_KEY_P8"
+      - name: Install Apple API dependencies in temporary environment
+        run: |
+          python3 -m venv "$RUNNER_TEMP/asc-env"
+          "$RUNNER_TEMP/asc-env/bin/python" -m pip install --quiet 'PyJWT[crypto]' requests
+      - name: Set safe Apple draft metadata and internal testing group
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/asc-env/bin/python" Scripts/ultttt_finish_store.py

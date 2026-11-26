@@ -212,6 +212,7 @@ struct FriendChallengeGameView: View {
             } else if engine.currentQuestion != nil {
                 RoundPlayer(
                     engine: $engine,
+                    roundKind: .friendChallenge,
                     tint: .indigo,
                     finishTitle: invitation == nil ? "Create challenge" : "See results",
                     onAnswer: { correct in

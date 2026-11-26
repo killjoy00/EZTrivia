@@ -1,0 +1,10 @@
+{
+  "repository": "killjoy00/Starport",
+  "bundleID": "pro.starport.story",
+  "sha": "346416feea3e262fca982822660480f3366bf504",
+  "version": "0.4.0",
+  "destination": "TestFlight",
+  "purpose": "StarPort only: expanded The Door That Opens Tomorrow manuscript (16.9k words), redesigned direct-entry home screen, preserves v3 reading progress; production ads remain disabled. Stuffy Land untouched.",
+  "attempt": 9,
+  "reason": "Upload StarPort-only 0.4.0 beta after passed Swift story tests; GitHub iOS simulator validation remains independently gated."
+}

@@ -35,6 +35,8 @@
 	<string>$(ADMOB_BANNER_ID)</string>
 	<key>GADApplicationIdentifier</key>
 	<string>$(ADMOB_APP_ID)</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>We use a device identifier to show more relevant ads and measure advertising performance.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSApplicationCategoryType</key>

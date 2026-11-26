@@ -1,6 +1,6 @@
 # EZTrivia Privacy Policy
 
-**Effective date: September 17, 2026**
+**Effective date: November 20, 2026**
 
 EZTrivia is a trivia game. This policy explains the information used when you play, sync progress, view ads, make a purchase, report a problem or question, or use platform gaming services.
 
@@ -16,7 +16,9 @@ EZTrivia is a trivia game. This policy explains the information used when you pl
 
 ## Tracking and consent
 
-EZTrivia does not directly sell personal information. Where advertising is enabled, the app uses Google's User Messaging Platform to present applicable advertising privacy choices before ad requests are made where required. Available privacy choices can also be reopened from the app when Google requires that option.
+EZTrivia does not directly sell personal information. Where advertising is enabled, the app uses Google's User Messaging Platform (UMP) to present applicable regional advertising privacy choices before ad requests are made. Available privacy choices can also be reopened from the app when Google requires that option.
+
+On iOS, versions that support App Tracking Transparency (ATT) request Apple's tracking permission after applicable UMP messages and before starting Google Mobile Ads. You may decline tracking without losing access to the game. Google states that when ATT is denied, its Mobile Ads SDK does not transmit Apple's advertising identifier (IDFA) with ad requests. Ads may still appear based on available inventory and your applicable regional privacy choices. Tracking permission can be changed in iOS **Settings → Privacy & Security → Tracking**. Players who own the Remove Ads purchase are not asked for advertising tracking as part of app launch.
 
 ## Platform progress sync
 

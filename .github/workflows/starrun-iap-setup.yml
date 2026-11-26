@@ -1,0 +1,105 @@
+name: StarRun Remove Ads App Review setup
+on:
+  push:
+    branches: [main]
+    paths: [".github/starrun-iap-request.json"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: starrun-iap-review
+  cancel-in-progress: false
+jobs:
+  apple-review:
+    name: Set up IAP and actual Remove Ads review image
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate pinned StarRun source
+        id: pinned
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json,pathlib
+          p=json.loads(pathlib.Path(".github/starrun-iap-request.json").read_text())
+          assert p["repository"]=="killjoy00/StarRun" and p["bundleID"]=="com.rsm.starrun"
+          assert p["productID"]=="com.rsm.starrun.remove_ads" and p["type"]=="NON_CONSUMABLE"
+          assert p["mode"]=="create_draft" and p["sourceSha"]=="4e4f9072525b44ea816e6211392feb63a5b7bc5d"
+          print("sha="+p["sourceSha"])
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: killjoy00/StarRun
+          ref: ${{ steps.pinned.outputs.sha }}
+          path: starrun
+          persist-credentials: false
+      - name: Install Godot 4.6.3
+        working-directory: starrun
+        run: bash tools/install-godot.sh
+      - name: Capture real Settings UI at iPhone resolution
+        working-directory: starrun
+        env:
+          STARRUN_IAP_REVIEW_CAPTURE: "1"
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "4e4f9072525b44ea816e6211392feb63a5b7bc5d"
+          godot --headless --path . --editor --import --quit
+          xvfb-run -a godot --path . --audio-driver Dummy --script tests/screenshot_harness.gd -- --output="$RUNNER_TEMP/starrun-iap-capture" 2>&1 | tee "$RUNNER_TEMP/iap-capture.log"
+          grep -q "SCREENSHOT MATRIX: 72 of 72 screens" "$RUNNER_TEMP/iap-capture.log"
+          test -s "$RUNNER_TEMP/starrun-iap-capture/390x844/settings.png"
+      - name: Install secure Apple API/image tooling
+        run: python3 -m pip install --quiet "PyJWT[crypto]" pillow
+      - name: Normalize existing Apple API key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/apple-auth"
+          key="$RUNNER_TEMP/apple-auth/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > "$key"
+          if grep -q '\\n' "$key"; then
+            printf '%b' "$(cat "$key")" > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          if ! grep -q 'BEGIN' "$key" && base64 -d < "$key" > "$key.tmp" 2>/dev/null; then
+            if grep -q 'BEGIN' "$key.tmp"; then mv "$key.tmp" "$key"; else rm -f "$key.tmp"; fi
+          fi
+          if ! grep -q 'BEGIN' "$key"; then
+            body=$(tr -d '\n\r ' < "$key")
+            { echo "-----BEGIN PRIVATE KEY-----"
+              echo "$body" | fold -w 64
+              echo "-----END PRIVATE KEY-----"; } > "$key.tmp"
+            mv "$key.tmp" "$key"
+          fi
+          chmod 600 "$key"
+          openssl pkey -in "$key" -noout 2>/dev/null || { echo "::error::Existing Apple key unreadable"; exit 1; }
+      - name: Verify Apple non-consumable and localization
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_FILE: ${{ runner.temp }}/apple-auth/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+        run: python3 Scripts/setup_starrun_iap.py
+      - name: Upload App Review purchase screenshot
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_FILE: ${{ runner.temp }}/apple-auth/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+          SCREENSHOT_SOURCE: ${{ runner.temp }}/starrun-iap-capture
+        run: python3 Scripts/upload_starrun_iap_review.py
+      - name: Preserve real screenshot and Apple-size review image
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarRun-Remove-Ads-review-image
+          path: |
+            ${{ runner.temp }}/StarRun-Remove-Ads-Review.png
+            ${{ runner.temp }}/starrun-iap-capture/390x844/settings.png
+          if-no-files-found: ignore
+          retention-days: 90
+      - name: Clear Apple key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/apple-auth"
