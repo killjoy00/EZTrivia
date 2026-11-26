@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "checked_at": "2026-11-26T20:24:44Z",
+  "run_id": "45890809376",
+  "apps": {
+    "ez-trivia": {
+      "package": "com.rsm.eztrivia",
+      "tracks": {
+        "production": {
+          "result": "ok",
+          "releases": [
+            {
+              "state": "PUBLISHED",
+              "codes": [
+                "12"
+              ]
+            }
+          ]
+        },
+        "internal": {
+          "result": "ok",
+          "releases": [
+            {
+              "state": "PUBLISHED",
+              "codes": [
+                "12"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "ultimate-ttt": {
+      "package": "com.killjoy00.ultttt",
+      "tracks": {
+        "production": {
+          "result": "ok",
+          "releases": [
+            {
+              "state": "PUBLISHED",
+              "codes": [
+                "10"
+              ]
+            }
+          ]
+        },
+        "internal": {
+          "result": "ok",
+          "releases": [
+            {
+              "state": "PUBLISHED",
+              "codes": [
+                "10"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "star-run": {
+      "package": "com.rsm.starrun",
+      "tracks": {
+        "production": {
+          "result": "ok",
+          "releases": [
+            {
+              "state": "PUBLISHED",
+              "codes": [
+                "14"
+              ]
+            }
+          ]
+        },
+        "internal": {
+          "result": "ok",
+          "releases": [
+            {
+              "state": "DRAFT",
+              "codes": [
+                "14"
+              ]
+            },
+            {
+              "state": "PUBLISHED",
+              "codes": [
+                "2"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "ministry": {
+      "package": "org.killjoy00.ministry",
+      "tracks": {
+        "production": {
+          "result": "unavailable",
+          "releases": []
+        },
+        "internal": {
+          "result": "ok",
+          "releases": [
+            {
+              "state": "PUBLISHED",
+              "codes": [
+                "4"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}
