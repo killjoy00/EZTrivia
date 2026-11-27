@@ -2,8 +2,8 @@
   "app": "EZTrivia",
   "bundleID": "com.rsm.eztrivia",
   "channel": "testflight",
-  "releaseReason": "ios-category-labels-version-140-20261120",
-  "audit": "MOBILE_PARITY.md",
-  "description": "Requested EZTrivia iOS version 1.4 with mixed-round category labels, TestFlight only; no Android release or public App Store submission",
-  "version": "1.4.0"
+  "releaseReason": "question-catalog-editorial-corrections-20261126",
+  "audit": "QuestionReview.csv",
+  "description": "TestFlight build for the expanded 5,001-question catalog with repeated facts replaced and reviewed question errors corrected.",
+  "version": "1.4.1"
 }
