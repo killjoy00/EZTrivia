@@ -1,12 +1,20 @@
 {
   "schema_version": 1,
-  "checked_at": "2026-11-26T20:24:47Z",
-  "run_id": "45890809516",
+  "checked_at": "2026-11-27T21:06:16Z",
+  "run_id": "46068033596",
   "apps": {
     "ez-trivia": {
       "bundle": "com.rsm.eztrivia",
       "result": "ok",
       "builds": [
+        {
+          "version": "1.4.1",
+          "build": "38",
+          "processing": "VALID",
+          "internal": "IN_BETA_TESTING",
+          "external": "READY_FOR_BETA_SUBMISSION",
+          "expired": false
+        },
         {
           "version": "1.4.0",
           "build": "37",
@@ -308,6 +316,14 @@
       "result": "ok",
       "builds": [
         {
+          "version": "1.5",
+          "build": "1045",
+          "processing": "VALID",
+          "internal": "IN_BETA_TESTING",
+          "external": "READY_FOR_BETA_SUBMISSION",
+          "expired": false
+        },
+        {
           "version": "1.4",
           "build": "1044",
           "processing": "VALID",
@@ -534,14 +550,6 @@
         {
           "version": "0.8.3",
           "build": "1014",
-          "processing": "VALID",
-          "internal": "IN_BETA_TESTING",
-          "external": "READY_FOR_BETA_SUBMISSION",
-          "expired": false
-        },
-        {
-          "version": "0.8.2",
-          "build": "1013",
           "processing": "VALID",
           "internal": "IN_BETA_TESTING",
           "external": "READY_FOR_BETA_SUBMISSION",
