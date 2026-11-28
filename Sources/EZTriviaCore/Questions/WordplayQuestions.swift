@@ -158,7 +158,7 @@ enum WordplayQuestions {
         QuestionSeed("Which spelling completes \"She tied a ___ around the gift\"?",
                      ["ribon", "ribban", "ribbon", "ribben"], 2,
                      "A ribbon is a narrow strip of fabric often used as decoration.", sourceURL: "https://www.merriam-webster.com/"),
-        QuestionSeed("Which pair is short for \"you are\"?",
+        QuestionSeed("Which word is short for \"you are\"?",
                      ["You'd", "You're", "Yours", "Your"], 1,
                      "You're combines you and are, with the apostrophe standing in for the missing letter.", sourceURL: "https://www.merriam-webster.com/"),
         QuestionSeed("What does \"can't\" stand for?",
