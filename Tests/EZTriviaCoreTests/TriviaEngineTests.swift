@@ -440,7 +440,8 @@ import Testing
                 return total + 1.0 / Double(tied)
             }
             let rate = expectedCorrect / Double(pool.count)
-            #expect(rate <= 0.35,
+            let limit = category == .wordplay || category == .technology ? 0.30 : 0.35
+            #expect(rate <= limit,
                     "\(category.title) / \(difficulty.title): longest-answer heuristic scores \(rate)")
         }
     }

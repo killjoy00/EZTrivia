@@ -36,7 +36,7 @@ data class FriendChallengeCode(
     companion object {
         const val CODE_VERSION = FriendChallenge.CODE_VERSION
         private fun supports(version: Int): Boolean =
-            version == FriendChallenge.ORIGINAL_CODE_VERSION || version == CODE_VERSION
+            version in FriendChallenge.ORIGINAL_CODE_VERSION..CODE_VERSION
         private const val BODY_LENGTH = 19
         private const val PREFIX_LENGTH = 3
         private const val ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"

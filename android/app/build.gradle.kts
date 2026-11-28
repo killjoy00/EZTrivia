@@ -144,6 +144,9 @@ val generateQuestionCatalog = tasks.register<Exec>("generateQuestionCatalog") {
     inputs.file(source)
     inputs.file(flagCatalog)
     inputs.file(exporter)
+    inputs.file(repositoryRoot.resolve("Scripts/regenerate_review_csv.py"))
+    inputs.file(repositoryRoot.resolve("Sources/EZTriviaCore/Questions/WordplayQuestions.swift"))
+    inputs.file(repositoryRoot.resolve("Sources/EZTriviaCore/Questions/TechnologyQuestions.swift"))
     outputs.file(generatedCatalog)
 
     commandLine(

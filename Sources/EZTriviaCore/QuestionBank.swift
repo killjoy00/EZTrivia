@@ -4,7 +4,10 @@ public enum QuestionBank {
     /// Every question in the app, assembled from the hand-authored seed files
     /// and the flag catalog. No question text is ever repeated, and no question
     /// appears at more than one difficulty.
-    public static let all: [TriviaQuestion] = buildAll()
+    public static let all: [TriviaQuestion] = buildAll(useV4Questions: false)
+
+    /// A shared EZ4 code must keep picking the questions its sender played.
+    static let friendV4 = buildAll(useV4Questions: true)
 
     /// The pre-expansion bank for Daily v2 and EZ3 Friend Challenges.
     /// Authored questions are append-only within a tier, which also preserves IDs.
@@ -32,8 +35,13 @@ public enum QuestionBank {
         return sources
     }()
 
-    private static func seedID(_ category: TriviaCategory, _ difficulty: TriviaDifficulty, _ offset: Int) -> String {
-        "\(category.rawValue)-\(difficulty.rawValue)-\(offset + 1)"
+    private static func seedID(
+        _ category: TriviaCategory, _ difficulty: TriviaDifficulty, _ offset: Int, useV4Questions: Bool = false
+    ) -> String {
+        // An already-seen ordinal from the previous edition must never be
+        // mistaken for a new or re-leveled question.
+        let edition = !useV4Questions && (category == .wordplay || category == .technology) ? "v5-" : ""
+        return "\(category.rawValue)-\(difficulty.rawValue)-\(edition)\(offset + 1)"
     }
 
     /// The prompt shown for every flag question.
@@ -62,16 +70,22 @@ public enum QuestionBank {
         (.technology, TechnologyQuestions.seeds)
     ]
 
-    private static func buildAll() -> [TriviaQuestion] {
+    private static func buildAll(useV4Questions: Bool) -> [TriviaQuestion] {
         var questions: [TriviaQuestion] = []
         questions.reserveCapacity(5_001)
 
         for (category, seeds) in seedsByCategory {
+            let selected: CategorySeeds
+            switch (useV4Questions, category) {
+            case (true, .wordplay): selected = WordplayQuestionsV4.seeds
+            case (true, .technology): selected = TechnologyQuestionsV4.seeds
+            default: selected = seeds
+            }
             for difficulty in TriviaDifficulty.allCases {
-                for (offset, seed) in seeds[difficulty].enumerated() {
+                for (offset, seed) in selected[difficulty].enumerated() {
                     questions.append(
                         TriviaQuestion(
-                            id: seedID(category, difficulty, offset),
+                            id: seedID(category, difficulty, offset, useV4Questions: useV4Questions),
                             category: category,
                             prompt: seed.prompt,
                             difficulty: difficulty,

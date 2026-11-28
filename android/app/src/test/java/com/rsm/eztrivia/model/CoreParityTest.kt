@@ -55,7 +55,9 @@ class CoreParityTest {
             targetScore = 8,
             targetPoints = 1_350,
         )
-        assertEquals("EZ4-FXQ5-TK1V-58CG-G81A-6BK", code.displayString)
+        assertEquals("EZ5-FXQ5-TK1V-58CG-G81A-6K1", code.displayString)
+        val expandedCode = "EZ4-FXQ5-TK1V-58CG-G81A-6BK"
+        assertEquals(expandedCode, FriendChallengeCode.parse(expandedCode)?.displayString)
         val oldCode = "EZ3-FXQ5-TK1V-58CG-G81A-6G4"
         val originalVersion = FriendChallengeCode.parse(oldCode)
         assertEquals(oldCode, originalVersion?.displayString)

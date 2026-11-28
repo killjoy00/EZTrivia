@@ -1,6 +1,7 @@
 package com.rsm.eztrivia.data
 
 import android.content.Context
+import com.rsm.eztrivia.model.FriendChallenge
 import com.rsm.eztrivia.model.TriviaCategory
 import com.rsm.eztrivia.model.TriviaDifficulty
 import com.rsm.eztrivia.model.TriviaQuestion
@@ -15,6 +16,7 @@ import kotlinx.serialization.json.Json
 private data class CatalogPayload(
     val schemaVersion: Int,
     val questions: List<QuestionPayload>,
+    val friendV4Questions: List<QuestionPayload>,
 )
 
 @Serializable
@@ -32,6 +34,14 @@ private data class QuestionPayload(
 )
 
 object QuestionCatalog {
+    class Bank internal constructor(
+        val questions: List<TriviaQuestion>,
+        private val friendV4Questions: List<TriviaQuestion>,
+    ) {
+        fun forFriendChallenge(version: Int): List<TriviaQuestion> =
+            if (version == FriendChallenge.FIRST_EXPANDED_CODE_VERSION) friendV4Questions else questions
+    }
+
     private val json = Json { ignoreUnknownKeys = false }
 
     // Reading and decoding the bundled catalog is too much work for a frame.
@@ -43,10 +53,12 @@ object QuestionCatalog {
     // load the catalog (the main app, the Daily activity, and the Friend
     // Challenge activity) and each used to parse its own copy.
     @Volatile
-    private var cached: List<TriviaQuestion>? = null
+    private var cached: Bank? = null
     private val loadMutex = Mutex()
 
-    suspend fun load(context: Context): List<TriviaQuestion> {
+    suspend fun load(context: Context): List<TriviaQuestion> = loadBank(context).questions
+
+    suspend fun loadBank(context: Context): Bank {
         cached?.let { return it }
         val appContext = context.applicationContext
         return loadMutex.withLock {
@@ -54,28 +66,36 @@ object QuestionCatalog {
             // fast path above would otherwise each decode the catalog.
             cached ?: withContext(Dispatchers.IO) {
                 appContext.assets.open("questions.json").bufferedReader().use { reader ->
-                    decode(reader.readText())
+                    decodeBank(reader.readText())
                 }
             }.also { cached = it }
         }
     }
 
-    fun decode(rawJson: String): List<TriviaQuestion> {
+    fun decode(rawJson: String): List<TriviaQuestion> = decodeBank(rawJson).questions
+
+    fun decodeBank(rawJson: String): Bank {
         val payload = json.decodeFromString<CatalogPayload>(rawJson)
         require(payload.schemaVersion == 1) { "Unsupported question catalog schema: ${payload.schemaVersion}" }
-        return payload.questions.map { question ->
-            TriviaQuestion(
-                id = question.id,
-                category = TriviaCategory.fromWireName(question.category),
-                prompt = question.prompt,
-                difficulty = TriviaDifficulty.fromWireName(question.difficulty),
-                visual = question.visual,
-                answers = question.answers,
-                correctAnswerIndex = question.correctAnswerIndex,
-                explanation = question.explanation,
-                flagCode = question.flagCode,
-                confusableFlagCodes = question.confusableFlagCodes,
-            )
+        val current = payload.questions.map { it.toQuestion() }
+        val originals = payload.friendV4Questions.associate { it.id to it.toQuestion() }
+        val version4 = current.map { question ->
+            val legacyId = question.id.replace("-v5-", "-")
+            if (legacyId == question.id) question else originals.getValue(legacyId)
         }
+        return Bank(current, version4)
     }
+
+    private fun QuestionPayload.toQuestion() = TriviaQuestion(
+        id = id,
+        category = TriviaCategory.fromWireName(category),
+        prompt = prompt,
+        difficulty = TriviaDifficulty.fromWireName(difficulty),
+        visual = visual,
+        answers = answers,
+        correctAnswerIndex = correctAnswerIndex,
+        explanation = explanation,
+        flagCode = flagCode,
+        confusableFlagCodes = confusableFlagCodes,
+    )
 }

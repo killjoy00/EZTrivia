@@ -21,6 +21,11 @@ import json
 import re
 from pathlib import Path
 
+if __package__:
+    from .regenerate_review_csv import parse_seeds
+else:
+    from regenerate_review_csv import parse_seeds
+
 CATEGORY_ORDER = [
     "football",
     "basketball",
@@ -142,6 +147,28 @@ def bank_sort_key(question: dict[str, object]) -> tuple[object, ...]:
     )
 
 
+def friend_v4_questions() -> list[dict[str, object]]:
+    """Use the same frozen seeds as Swift for the two revised categories."""
+    questions = []
+    for category, enum in (
+        ("wordplay", "WordplayQuestionsV4"),
+        ("technology", "TechnologyQuestionsV4"),
+    ):
+        for tier, seeds in parse_seeds(enum).items():
+            difficulty = tier.lower()
+            for index, seed in enumerate(seeds, start=1):
+                questions.append({
+                    "id": f"{category}-{difficulty}-{index}",
+                    "category": category,
+                    "difficulty": difficulty,
+                    "prompt": seed["prompt"],
+                    "answers": seed["answers"],
+                    "correctAnswerIndex": seed["correct"],
+                    "explanation": seed["explanation"],
+                })
+    return questions
+
+
 def convert(input_path: Path, flag_catalog_path: Path) -> dict[str, object]:
     questions: list[dict[str, object]] = []
     seen_ids: set[str] = set()
@@ -219,7 +246,7 @@ def convert(input_path: Path, flag_catalog_path: Path) -> dict[str, object]:
     questions.sort(key=bank_sort_key)
     for question in flag_questions:
         question.pop("_flagOrder", None)
-    return {"schemaVersion": 1, "questions": questions}
+    return {"schemaVersion": 1, "questions": questions, "friendV4Questions": friend_v4_questions()}
 
 
 def main() -> None:
