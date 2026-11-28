@@ -31,9 +31,9 @@ result-card sharing, and Friend Challenges are playable offline.
 
 Friend Challenges deliberately use repository-owned deterministic algorithms
 for category order, question selection, answer order, and flag distractor draws.
-New challenges use `EZ4` and include the expanded catalog. An iOS-created
-`EZ3` or `EZ4` code maps to the same questions and choices on updated Android
-builds. The original catalog remains available for `EZ3`. The code's attempt identity is version + seed, so altering a claimed
+New challenges use `EZ5` and include the recalibrated Wordplay & Language and
+Inventions & Technology questions. `EZ3` and `EZ4` still replay their original
+rounds on iOS and Android. The code's attempt identity is version + seed, so altering a claimed
 target score or point total cannot create a second attempt at the same round.
 Android accepts both `eztrivia://challenge/...` links and the public GitHub Pages
 challenge handoff used by iOS sharing.

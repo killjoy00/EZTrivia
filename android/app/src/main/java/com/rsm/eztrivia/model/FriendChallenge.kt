@@ -13,8 +13,9 @@ import java.net.URLDecoder
  */
 object FriendChallenge {
     const val QUESTION_COUNT = 10
-    const val CODE_VERSION = 4
+    const val CODE_VERSION = 5
     const val ORIGINAL_CODE_VERSION = 3
+    const val FIRST_EXPANDED_CODE_VERSION = 4
     const val MAXIMUM_POINTS = 1_650
 
     val categoryRoster: List<TriviaCategory> =

@@ -4,6 +4,23 @@ import Testing
 
 private let newCategories: Set<TriviaCategory> = [.literature, .art, .mythology, .videoGames, .wordplay, .technology]
 
+@Test func calibratedPoolsDoNotRewardPickingTheShortestAnswer() {
+    for category in [TriviaCategory.wordplay, .technology] {
+        for difficulty in TriviaDifficulty.allCases {
+            let pool = QuestionBank.all.filter { $0.category == category && $0.difficulty == difficulty }
+            let expectedCorrect = pool.reduce(0.0) { total, question in
+                let lengths = question.answers.map(\.count)
+                guard let shortest = lengths.min(), lengths[question.correctAnswerIndex] == shortest else {
+                    return total
+                }
+                return total + 1.0 / Double(lengths.count { $0 == shortest })
+            }
+            #expect(expectedCorrect / Double(pool.count) <= 0.30,
+                    "\(category.title) / \(difficulty.title) gives away too many answers by length")
+        }
+    }
+}
+
 private func normalizedTokens(_ value: String) -> Set<String> {
     let stopWords: Set<String> = [
         "a", "an", "and", "are", "for", "from", "in", "is", "it", "of",

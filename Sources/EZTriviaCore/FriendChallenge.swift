@@ -8,13 +8,14 @@ import Foundation
 /// creates a fresh random seed that the result code carries to the other player.
 public struct FriendChallenge: Sendable, Equatable {
     public static let questionCount = 10
-    public static let codeVersion = 4
+    public static let codeVersion = 5
     static let originalCodeVersion = 3
+    static let firstExpandedCodeVersion = 4
     // Keep the order fixed for each code version.
     public static let categoryRoster: [TriviaCategory] = DailyChallenge.categoryRoster + [.wordplay, .technology]
 
     static func supports(_ version: Int) -> Bool {
-        version == originalCodeVersion || version == codeVersion
+        (originalCodeVersion...codeVersion).contains(version)
     }
     public static let difficultyRamp: [TriviaDifficulty] = [
         .easy, .easy, .easy, .medium, .medium, .medium, .medium, .hard, .hard, .hard
@@ -37,7 +38,12 @@ public struct FriendChallenge: Sendable, Equatable {
     ) -> FriendChallenge {
         let isOriginal = version <= originalCodeVersion
         let roster = isOriginal ? DailyChallenge.categoryRoster : categoryRoster
-        let bank = bank ?? (isOriginal ? QuestionBank.original : QuestionBank.all)
+        let selectedBank: [TriviaQuestion]
+        switch version {
+        case ...originalCodeVersion: selectedBank = bank ?? QuestionBank.original
+        case firstExpandedCodeVersion: selectedBank = bank ?? QuestionBank.friendV4
+        default: selectedBank = bank ?? QuestionBank.all
+        }
         var generator = SeededGenerator(seed: seed ^ 0x4652_4945_4E44_2121)
         let categories = Array(
             roster
@@ -52,7 +58,7 @@ public struct FriendChallenge: Sendable, Equatable {
         for slot in 0..<min(questionCount, categories.count) {
             let category = categories[slot]
             let difficulty = difficultyRamp[slot]
-            let pool = bank.filter {
+            let pool = selectedBank.filter {
                 $0.category == category &&
                 $0.difficulty == difficulty &&
                 !usedIDs.contains($0.id)
@@ -71,7 +77,7 @@ public struct FriendChallenge: Sendable, Equatable {
 
 /// The compact hand-off between the challenger and the recipient.
 ///
-/// Format: `EZ4-XXXX-XXXX-XXXX-XXXX-XXX`
+/// Format: `EZ5-XXXX-XXXX-XXXX-XXXX-XXX`
 ///
 /// The body is Crockford Base32 so it avoids the most easily confused letters
 /// and remains practical to dictate or type. It contains a 64-bit seed, the

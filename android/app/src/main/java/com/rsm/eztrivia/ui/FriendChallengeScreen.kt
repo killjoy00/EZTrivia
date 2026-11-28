@@ -100,8 +100,8 @@ fun FriendChallengeApp(
     val settings = rememberAppSettings()
     val playerState by store.state.collectAsState()
     val scope = rememberCoroutineScope()
-    val catalogResult by produceState<Result<List<TriviaQuestion>>?>(initialValue = null) {
-        value = runCatching { QuestionCatalog.load(context) }
+    val catalogResult by produceState<Result<QuestionCatalog.Bank>?>(initialValue = null) {
+        value = runCatching { QuestionCatalog.loadBank(context) }
     }
     var screen by remember { mutableStateOf<FriendScreen>(FriendScreen.Lobby()) }
 
@@ -111,7 +111,8 @@ fun FriendChallengeApp(
             else -> result.fold(
                 onSuccess = { catalog ->
                     fun startRound(seed: ULong, invitation: FriendChallengeCode?) {
-                        val questions = FriendChallenge.challenge(seed, catalog, invitation?.version ?: FriendChallenge.CODE_VERSION)
+                        val version = invitation?.version ?: FriendChallenge.CODE_VERSION
+                        val questions = FriendChallenge.challenge(seed, catalog.forFriendChallenge(version), version)
                         if (questions.size == FriendChallenge.QUESTION_COUNT) {
                             screen = FriendScreen.Round(seed, invitation, questions)
                         }
@@ -309,7 +310,7 @@ fun FriendChallengeLobbyScreen(
                         triedInvalidCode = false
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("EZ4-XXXX-XXXX-XXXX-XXXX-XXX") },
+                    placeholder = { Text("EZ${FriendChallenge.CODE_VERSION}-XXXX-XXXX-XXXX-XXXX-XXX") },
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                 )

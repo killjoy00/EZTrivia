@@ -44,7 +44,9 @@ import Testing
     )
     let decoded = FriendChallengeCode(original.displayString)
 
-    #expect(original.displayString == "EZ4-FXQ5-TK1V-58CG-G81A-6BK")
+    #expect(original.displayString == "EZ5-FXQ5-TK1V-58CG-G81A-6K1")
+    let expandedCode = "EZ4-FXQ5-TK1V-58CG-G81A-6BK"
+    #expect(FriendChallengeCode(expandedCode)?.displayString == expandedCode)
     let oldCode = "EZ3-FXQ5-TK1V-58CG-G81A-6G4"
     let originalVersion = FriendChallengeCode(oldCode)
     #expect(originalVersion?.displayString == oldCode)
@@ -54,7 +56,7 @@ import Testing
     #expect(decoded?.attemptID == original.attemptID)
 }
 
-@Test func bothFriendChallengeVersionsMatchCrossPlatformCatalogFixtures() {
+@Test func friendChallengeVersionsMatchCrossPlatformCatalogFixtures() {
     #expect(catalogFingerprint(FriendChallenge.challenge(for: 1, version: 3).questions)
         == 2_589_440_570_255_946_010)
     #expect(catalogFingerprint(FriendChallenge.challenge(for: 1, version: 4).questions)
@@ -63,6 +65,10 @@ import Testing
         == 14_951_453_120_897_569_346)
     #expect(catalogFingerprint(FriendChallenge.challenge(for: 42, version: 4).questions)
         == 18_138_656_064_128_758_236)
+    #expect(catalogFingerprint(FriendChallenge.challenge(for: 1, version: 5).questions)
+        == 14_563_068_818_120_327_263)
+    #expect(catalogFingerprint(FriendChallenge.challenge(for: 42, version: 5).questions)
+        == 11_351_914_185_910_230_660)
 }
 
 @Test func friendChallengeVersionOwnsAnExplicitCategoryRoster() {

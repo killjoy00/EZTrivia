@@ -114,6 +114,10 @@ def parse_seeds(enum_name: str) -> dict[str, list[dict]]:
             sys.exit(f"cannot locate source file for {enum_name}")
         path = candidates[0]
     text = path.read_text(encoding="utf-8")
+    declaration = re.search(rf"^enum {re.escape(enum_name)} \{{", text, re.M)
+    if declaration is None:
+        sys.exit(f"{path.name} is missing its `{enum_name}` enum")
+    text = text[declaration.end():].split("\n}", 1)[0]
 
     tiers: dict[str, list[dict]] = {}
     for tier in ("easy", "medium", "hard"):
@@ -234,7 +238,8 @@ def build_text_rows() -> list[list[str]]:
         tiers = parse_seeds(enum_name)
         for tier_title in ("Easy", "Medium", "Hard"):
             for offset, seed in enumerate(tiers[tier_title], start=1):
-                question_id = f"{raw_value}-{tier_title.lower()}-{offset}"
+                edition = "v5-" if raw_value in ("wordplay", "technology") else ""
+                question_id = f"{raw_value}-{tier_title.lower()}-{edition}{offset}"
                 source, verified, review = metadata.get(question_id, ("", "", ""))
                 rows.append(
                     [

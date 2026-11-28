@@ -6,22 +6,28 @@ on:
     paths:
       - "android/**"
       - "Scripts/export_android_catalog.py"
+      - "Scripts/regenerate_review_csv.py"
       - "Sources/EZTriviaCore/DailyChallenge.swift"
       - "Sources/EZTriviaCore/FriendChallenge.swift"
       - "Sources/EZTriviaCore/FlagCatalog.swift"
       - "Sources/EZTriviaCore/Models.swift"
       - "Sources/EZTriviaCore/QuestionBank.swift"
+      - "Sources/EZTriviaCore/Questions/TechnologyQuestions.swift"
+      - "Sources/EZTriviaCore/Questions/WordplayQuestions.swift"
       - "QuestionReview.csv"
       - ".github/workflows/android-ci.yml"
   pull_request:
     paths:
       - "android/**"
       - "Scripts/export_android_catalog.py"
+      - "Scripts/regenerate_review_csv.py"
       - "Sources/EZTriviaCore/DailyChallenge.swift"
       - "Sources/EZTriviaCore/FriendChallenge.swift"
       - "Sources/EZTriviaCore/FlagCatalog.swift"
       - "Sources/EZTriviaCore/Models.swift"
       - "Sources/EZTriviaCore/QuestionBank.swift"
+      - "Sources/EZTriviaCore/Questions/TechnologyQuestions.swift"
+      - "Sources/EZTriviaCore/Questions/WordplayQuestions.swift"
       - "QuestionReview.csv"
       - ".github/workflows/android-ci.yml"
 
